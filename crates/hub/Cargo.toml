@@ -1,0 +1,37 @@
+[package]
+name = "hub"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "last-hub"
+path = "src/main.rs"
+
+[dependencies]
+shared.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+axum = "0.8"
+axum-extra = { version = "0.10", features = ["cookie"] }
+maud = { version = "0.27", features = ["axum"] }
+argon2 = "0.5"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["fs", "trace"] }
+surge-ping = "0.8"
+rand = "0.8"
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "chrono",
+    "uuid",
+    "macros",
+    "migrate",
+    "json",
+] }

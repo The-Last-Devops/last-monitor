@@ -1,0 +1,22 @@
+[package]
+name = "agent"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "last-agent"
+path = "src/main.rs"
+
+[dependencies]
+shared.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+sysinfo = "0.33"
+nix = { version = "0.29", features = ["fs"] }
+bollard = "0.17"
+futures-util = "0.3"

@@ -1,0 +1,78 @@
+services:
+  db:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_USER: lastmon
+      POSTGRES_PASSWORD: lastmon
+      POSTGRES_DB: lastmon_config
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./deploy/init-db.sh:/docker-entrypoint-initdb.d/10-init-db.sh:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lastmon"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Lightweight DB viewer at http://localhost:8088
+  # Login: System=PostgreSQL, Server=db, User=lastmon, Pass=lastmon,
+  #        Database=lastmon_config (or lastmon_data).
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    ports:
+      - "8088:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    depends_on:
+      - db
+
+  hub:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.hub
+    environment:
+      CONFIG_DATABASE_URL: postgres://lastmon:lastmon@db:5432/lastmon_config
+      DATA_DATABASE_URL: postgres://lastmon:lastmon@db:5432/lastmon_data
+      BIND_ADDR: 0.0.0.0:8080
+      RUST_LOG: info,sqlx=warn
+      # First admin (login at http://localhost:8080).
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      # Auto-provisions the bundled agent's server + token.
+      LOCAL_AGENT_TOKEN: ${LOCAL_AGENT_TOKEN:-local-dev-token}
+    ports:
+      - "8080:8080"
+    # Needed for ICMP "ping" monitors (raw sockets).
+    cap_add:
+      - NET_RAW
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Bundled agent monitoring the Docker host. Always running.
+  agent:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.agent
+    restart: unless-stopped
+    # Host PID namespace -> host CPU/memory are reported (not the container's).
+    pid: host
+    environment:
+      HUB_URL: http://hub:8080
+      AGENT_TOKEN: ${LOCAL_AGENT_TOKEN:-local-dev-token}
+      INTERVAL: ${AGENT_INTERVAL:-3}
+      # Host root mounted below -> reports host disk.
+      DISK_PATH: /host
+      RUST_LOG: info
+    volumes:
+      - /:/host:ro
+      # Read-only Docker socket → per-container stats (Beszel-style).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - hub
+
+volumes:
+  db_data:

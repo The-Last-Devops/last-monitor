@@ -1,0 +1,16 @@
+# syntax=docker/dockerfile:1
+# Tiny agent image. Runs on each monitored host. BuildKit cache mounts keep
+# the cargo registry + target dir warm across builds.
+FROM rust:1-bookworm AS build
+WORKDIR /app
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/app/target \
+    cargo build --release -p agent && cp target/release/last-agent /usr/local/bin/last-agent
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /usr/local/bin/last-agent /usr/local/bin/last-agent
+ENTRYPOINT ["last-agent"]

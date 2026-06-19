@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1
+# Build the hub binary, then ship it with the migration files it reads at runtime.
+# BuildKit cache mounts persist the cargo registry + target dir across builds, so
+# only changed crates recompile (first build is slow, later builds are fast).
+FROM rust:1-bookworm AS build
+WORKDIR /app
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/app/target \
+    cargo build --release -p hub && cp target/release/last-hub /usr/local/bin/last-hub
+
+FROM debian:bookworm-slim
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /usr/local/bin/last-hub /usr/local/bin/last-hub
+# Migrations are read at runtime via Migrator::new("migrations/...").
+COPY migrations ./migrations
+EXPOSE 8080
+CMD ["last-hub"]
