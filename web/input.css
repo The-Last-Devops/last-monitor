@@ -54,6 +54,14 @@
   }
 }
 
+/* Pulsing status dot for the dashboard hero. */
+@keyframes lm-pulse {
+  0% { box-shadow: 0 0 0 0 #34e1c499; }
+  70% { box-shadow: 0 0 0 10px #34e1c400; }
+  100% { box-shadow: 0 0 0 0 #34e1c400; }
+}
+.pulse-dot { animation: lm-pulse 2.4s infinite; }
+
 /* uPlot legend/tooltip — compact + on-theme (raw selectors, not Tailwind). */
 .u-legend {
   font-size: 12px;

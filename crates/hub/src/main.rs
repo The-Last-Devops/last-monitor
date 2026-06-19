@@ -70,7 +70,7 @@ async fn main() -> Result<()> {
         // public, unauthenticated status page
         .route("/status/{slug}", get(ui::public_status))
         // live HTML fragments
-        .route("/ui/summary", get(ui::frag_summary))
+        .route("/ui/hero", get(ui::frag_hero))
         .route("/ui/servers", get(ui::frag_servers))
         .route("/ui/monitors", get(ui::frag_monitors))
         // embedded static assets

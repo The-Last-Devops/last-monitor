@@ -354,9 +354,8 @@ pub async fn dashboard(State(_s): State<AppState>, user: Option<CurrentUser>) ->
         "Dashboard",
         Some(&user),
         html! {
-            div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4"
-                hx-get="/ui/summary" hx-trigger="load, every 3s" hx-swap="innerHTML" {
-                div class="stat" { div class="stat-label" { "Loading" } }
+            div class="mb-6" hx-get="/ui/hero" hx-trigger="load, every 5s" hx-swap="innerHTML" {
+                div class="card text-sm text-slate-500" { "loading…" }
             }
             div class="mb-3 flex flex-wrap items-center justify-between gap-2" {
                 h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400" { "Servers" }
@@ -366,7 +365,7 @@ pub async fn dashboard(State(_s): State<AppState>, user: Option<CurrentUser>) ->
                         button class="btn-ghost text-xs" { "Columns ▾" }
                         div class="absolute right-0 top-full z-50 hidden min-w-[150px] pt-1 group-hover:block" {
                             div class="rounded-lg border border-line bg-panel p-2 text-xs text-slate-300 shadow-xl" {
-                                @for (key, label) in [("cpu","CPU"),("mem","Memory"),("disk","Disk"),("net","Network"),("agent","Agent")] {
+                                @for (key, label) in [("cpu","CPU"),("mem","Memory"),("disk","Disk"),("net","Network"),("trend","Trend"),("agent","Agent")] {
                                     label class="flex items-center gap-2 px-1 py-1" {
                                         input type="checkbox" checked onchange=(format!("toggleCol('{key}',this.checked)")) {}
                                         (label)
@@ -386,6 +385,7 @@ pub async fn dashboard(State(_s): State<AppState>, user: Option<CurrentUser>) ->
                         th class="th col-mem cursor-pointer select-none" onclick="sortBy('mem')" { span class="inline-flex items-center gap-1" { "Memory" (icon("sort")) } }
                         th class="th col-disk cursor-pointer select-none" onclick="sortBy('disk')" { span class="inline-flex items-center gap-1" { "Disk" (icon("sort")) } }
                         th class="th col-net cursor-pointer select-none" onclick="sortBy('net')" { span class="inline-flex items-center gap-1" { "Network" (icon("sort")) } }
+                        th class="th col-trend" { "Trend" }
                         th class="th col-agent" { "Agent" }
                         th class="th" { "" }
                     } }
@@ -405,7 +405,7 @@ window._sortKey=null; window._sortDir=1;
 function hiddenCols(){ try{ return JSON.parse(localStorage.getItem('hideCols')||'[]'); }catch(e){ return []; } }
 function applyCols(){
   const hide=hiddenCols();
-  ['cpu','mem','disk','net','agent'].forEach(k=>{
+  ['cpu','mem','disk','net','trend','agent'].forEach(k=>{
     document.querySelectorAll('.col-'+k).forEach(el=>{ el.style.display = hide.includes(k)?'none':''; });
   });
   document.querySelectorAll('#srvFilter ~ .group input[type=checkbox]').forEach(()=>{});
@@ -425,11 +425,26 @@ function applyView(){
   applyCols();
 }
 function sortBy(k){ if(window._sortKey===k){window._sortDir*=-1;}else{window._sortKey=k;window._sortDir=1;} applyView(); }
-document.addEventListener('htmx:afterSwap', applyView);
+function drawSpark(cv){
+  const pts=(cv.dataset.spark||'').split(',').filter(x=>x!=='').map(Number);
+  const fill=cv.dataset.fill==='1';
+  const w=cv.width=Math.max(40,cv.clientWidth)*2, h=cv.height=Math.max(20,cv.clientHeight)*2;
+  const x=cv.getContext('2d'); x.clearRect(0,0,w,h); if(pts.length<2) return;
+  const cap=100, X=i=>i/(pts.length-1)*w, Y=v=>h-4-(Math.min(Math.max(v,0),cap)/cap)*(h-8);
+  if(fill){ const g=x.createLinearGradient(0,0,0,h); g.addColorStop(0,'#34E1C455'); g.addColorStop(1,'#34E1C400');
+    x.beginPath(); x.moveTo(0,h); pts.forEach((p,i)=>x.lineTo(X(i),Y(p))); x.lineTo(w,h); x.fillStyle=g; x.fill(); }
+  x.beginPath(); pts.forEach((p,i)=>i?x.lineTo(X(i),Y(p)):x.moveTo(X(i),Y(p)));
+  x.strokeStyle='#34E1C4'; x.lineWidth=fill?2.4:2; x.lineJoin='round'; x.stroke();
+}
+function drawAll(){ document.querySelectorAll('canvas[data-spark]').forEach(drawSpark); }
+document.addEventListener('htmx:afterSwap', ()=>{ applyView(); drawAll(); });
+addEventListener('load', drawAll);
+let _rt; addEventListener('resize', ()=>{ clearTimeout(_rt); _rt=setTimeout(drawAll,150); });
 "#;
 
-/// GET /ui/summary — top-of-dashboard stat cards.
-pub async fn frag_summary(
+/// GET /ui/hero — fleet-health hero: overall status, counts, and a cluster CPU
+/// sparkline aggregated across the in-scope servers.
+pub async fn frag_hero(
     State(state): State<AppState>,
     user: CurrentUser,
     jar: CookieJar,
@@ -437,17 +452,24 @@ pub async fn frag_summary(
     let ns = selected_ns(&jar);
     let ns_filter =
         "($1 OR namespace_id IN (SELECT namespace_id FROM memberships WHERE user_id = $2)) \
-                     AND ($3::uuid IS NULL OR namespace_id = $3::uuid)";
-    let (srv_total, srv_online): (i64, i64) = sqlx::query_as(&format!(
-        "SELECT count(*), count(*) FILTER (WHERE last_seen > now() - interval '60 seconds') \
-         FROM servers WHERE {ns_filter}"
+         AND ($3::uuid IS NULL OR namespace_id = $3::uuid)";
+
+    let servers: Vec<(Uuid, Option<chrono::DateTime<chrono::Utc>>)> = sqlx::query_as(&format!(
+        "SELECT id, last_seen FROM servers WHERE {ns_filter}"
     ))
     .bind(user.is_admin)
     .bind(user.id)
     .bind(ns)
-    .fetch_one(&state.config)
+    .fetch_all(&state.config)
     .await
     .map_err(ise)?;
+    let now = chrono::Utc::now();
+    let srv_total = servers.len() as i64;
+    let srv_online = servers
+        .iter()
+        .filter(|(_, t)| t.map(|t| (now - t).num_seconds() < 60).unwrap_or(false))
+        .count() as i64;
+    let ids: Vec<Uuid> = servers.into_iter().map(|(id, _)| id).collect();
 
     let mon_ids: Vec<Uuid> =
         sqlx::query_as::<_, (Uuid,)>(&format!("SELECT id FROM monitors WHERE {ns_filter}"))
@@ -460,7 +482,6 @@ pub async fn frag_summary(
             .into_iter()
             .map(|(id,)| id)
             .collect();
-
     let mut mon_up = 0i64;
     for id in &mon_ids {
         let up: Option<(bool,)> = sqlx::query_as(
@@ -477,27 +498,86 @@ pub async fn frag_summary(
     let mon_total = mon_ids.len() as i64;
     let down = mon_total - mon_up;
 
+    // Cluster CPU per-minute over the last hour + current avg cpu/mem.
+    let mut cpu_series: Vec<f64> = Vec::new();
+    let (mut avg_cpu, mut avg_mem) = (0.0f64, 0.0f64);
+    if !ids.is_empty() {
+        let rows: Vec<(chrono::DateTime<chrono::Utc>, f64)> = sqlx::query_as(
+            "SELECT time_bucket('1 minute', time) b, avg(cpu_percent) \
+             FROM metrics WHERE server_id = ANY($1) AND time > now() - interval '1 hour' \
+             GROUP BY b ORDER BY b",
+        )
+        .bind(&ids)
+        .fetch_all(&state.data)
+        .await
+        .map_err(ise)?;
+        cpu_series = rows.into_iter().map(|(_, c)| c).collect();
+
+        let cur: Option<(Option<f64>, Option<f64>)> = sqlx::query_as(
+            "SELECT avg(cpu_percent), \
+                    avg(CASE WHEN mem_total > 0 THEN mem_used::float8 / mem_total * 100 ELSE 0 END) \
+             FROM metrics WHERE server_id = ANY($1) AND time > now() - interval '2 minutes'",
+        )
+        .bind(&ids)
+        .fetch_optional(&state.data)
+        .await
+        .map_err(ise)?;
+        if let Some((c, m)) = cur {
+            avg_cpu = c.unwrap_or(0.0);
+            avg_mem = m.unwrap_or(0.0);
+        }
+    }
+    let series_str = cpu_series
+        .iter()
+        .map(|v| format!("{v:.1}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let healthy = down == 0 && srv_total > 0 && srv_online == srv_total;
+
     Ok(html! {
-        div class="stat" {
-            div class="stat-label" { "Servers online" }
-            div class="stat-value" { (srv_online) span class="text-base text-slate-500" { " / " (srv_total) } }
-        }
-        div class="stat" {
-            div class="stat-label" { "Monitors up" }
-            div class="stat-value" { (mon_up) span class="text-base text-slate-500" { " / " (mon_total) } }
-        }
-        div class="stat" {
-            div class="stat-label" { "Down" }
-            div class={"stat-value " (if down > 0 { "text-rose-400" } else { "text-white" })} { (down) }
-        }
-        div class="stat" {
-            div class="stat-label" { "Status" }
-            div class="stat-value" {
-                @if down == 0 && srv_online == srv_total { span class="text-emerald-400" { "Healthy" } }
-                @else { span class="text-amber-400" { "Degraded" } }
+        div class="grid gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-[300px_1fr]" {
+            // health
+            div class="flex flex-col justify-center gap-3 bg-panel p-6"
+                style="background:linear-gradient(160deg,rgba(16,33,33,0),rgba(14,43,42,.28))" {
+                span class="inline-flex items-center gap-2.5 text-sm font-semibold" {
+                    span class={"dot pulse-dot " (if healthy { "bg-teal" } else { "bg-amber-400" })} style="width:10px;height:10px" {}
+                    (if healthy { "All systems operational" } else { "Degraded" })
+                }
+                div class="num text-[44px] font-semibold leading-none tracking-tight" {
+                    (srv_online) span class="text-2xl text-slate-500" { " / " (srv_total) }
+                }
+                div class="text-[13px] text-slate-400" {
+                    "systems reporting" (PreEscaped(" · ")) (down) " incident" (if down == 1 { "" } else { "s" })
+                }
+            }
+            // cluster chart + stats
+            div class="bg-panel p-6" {
+                div class="mb-1 flex items-baseline justify-between" {
+                    span class="text-[11px] font-semibold uppercase tracking-[.18em] text-slate-500" { "Cluster CPU · last hour" }
+                    span class="num text-[13px] text-teal" { (format!("{avg_cpu:.0}%")) span class="text-slate-500" { " avg" } }
+                }
+                canvas class="block w-full" data-spark=(series_str) data-fill="1" style="height:120px" {}
+                div class="mt-3 grid grid-cols-4 gap-2 border-t border-line pt-3" {
+                    (hero_stat("Systems online", &format!("{srv_online}"), Some(&format!("/{srv_total}")), "text-white"))
+                    (hero_stat("Monitors up", &format!("{mon_up}"), Some(&format!("/{mon_total}")), "text-teal"))
+                    (hero_stat("Down", &format!("{down}"), None, if down > 0 { "text-rose-400" } else { "text-white" }))
+                    (hero_stat("Avg memory", &format!("{avg_mem:.0}%"), None, "text-white"))
+                }
             }
         }
     })
+}
+
+fn hero_stat(label: &str, value: &str, suffix: Option<&str>, color: &str) -> Markup {
+    html! {
+        div {
+            div class="text-[11px] text-slate-400" { (label) }
+            div class={"num mt-0.5 text-[22px] font-semibold " (color)} {
+                (value)
+                @if let Some(s) = suffix { span class="text-[15px] text-slate-500" { (s) } }
+            }
+        }
+    }
 }
 
 pub async fn monitors_page(State(_s): State<AppState>, user: Option<CurrentUser>) -> Response {
@@ -561,6 +641,7 @@ pub async fn frag_servers(
         Option<String>,
         Uuid,
         Vec<Sample>,
+        String,
     )> = Vec::new();
     for (id, name, hostname, last_seen, ver, token_id) in servers {
         let last2: Vec<Sample> = sqlx::query_as(
@@ -571,14 +652,33 @@ pub async fn frag_servers(
         .fetch_all(&state.data)
         .await
         .map_err(ise)?;
-        rows.push((id, name, hostname, last_seen, ver, token_id, last2));
+        // last ~32 CPU points (oldest→newest) for the trend sparkline.
+        let mut spark: Vec<f64> = sqlx::query_as::<_, (f64,)>(
+            "SELECT cpu_percent FROM metrics WHERE server_id = $1 ORDER BY time DESC LIMIT 32",
+        )
+        .bind(id)
+        .fetch_all(&state.data)
+        .await
+        .map_err(ise)?
+        .into_iter()
+        .map(|(c,)| c)
+        .collect();
+        spark.reverse();
+        let spark_str = spark
+            .iter()
+            .map(|v| format!("{v:.0}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        rows.push((
+            id, name, hostname, last_seen, ver, token_id, last2, spark_str,
+        ));
     }
 
     Ok(html! {
         @if rows.is_empty() {
-            tr { td class="td text-slate-400" colspan="7" { "No servers yet — click “Add server”." } }
+            tr { td class="td text-slate-400" colspan="8" { "No servers yet — click “Add server”." } }
         }
-        @for (id, name, hostname, last_seen, ver, token_id, s) in rows {
+        @for (id, name, hostname, last_seen, ver, token_id, s, spark_str) in rows {
             @let host = hostname.clone().unwrap_or_else(|| "—".into());
             @let first = s.first();
             @let cpu = first.map(|x| x.1).unwrap_or(0.0);
@@ -615,6 +715,9 @@ pub async fn frag_servers(
                         td class="td col-cpu text-slate-500" { "—" } td class="td col-mem text-slate-500" { "—" }
                         td class="td col-disk text-slate-500" { "—" } td class="td col-net text-slate-500" { "—" }
                     }
+                }
+                td class="td col-trend" {
+                    canvas data-spark=(spark_str) style="width:104px;height:30px;display:block" {}
                 }
                 td class="td col-agent whitespace-nowrap text-xs text-slate-400" { (ver.unwrap_or_else(|| "—".into())) }
                 td class="td text-right" {
