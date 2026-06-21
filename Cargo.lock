@@ -9,6 +9,7 @@ dependencies = [
  "anyhow",
  "bollard",
  "futures-util",
+ "libc",
  "nix",
  "reqwest",
  "serde",

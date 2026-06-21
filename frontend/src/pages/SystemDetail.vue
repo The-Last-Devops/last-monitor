@@ -150,8 +150,9 @@ let timer = null
 function restartTimer() { clearInterval(timer); timer = setInterval(reload, live.value ? 1000 : 5000) }
 onMounted(() => { reload(); restartTimer() })
 onBeforeUnmount(() => clearInterval(timer))
-// range lives in the URL → fullPath changes cover both range switch and navigation
-watch(() => route.fullPath, () => { metrics.value = null; containersList.value = []; reload(); restartTimer() })
+// reload only when the target or range changes — NOT when ?sel (metric selection)
+// changes, which would otherwise blank the charts and cause a flash
+watch(() => [route.params.id, type.value, range.value, name.value, parent.value].join('|'), () => { metrics.value = null; containersList.value = []; reload(); restartTimer() })
 </script>
 
 <template>

@@ -201,6 +201,7 @@ struct CpuTimes {
     steal: u64,
 }
 
+#[cfg(target_os = "linux")]
 fn read_cpu_times() -> Option<CpuTimes> {
     let content = std::fs::read_to_string("/proc/stat").ok()?;
     let line = content.lines().next()?;
@@ -222,6 +223,44 @@ fn read_cpu_times() -> Option<CpuTimes> {
         softirq: v[6],
         steal: v[7],
     })
+}
+
+/// macOS exposes aggregate CPU ticks via mach's HOST_CPU_LOAD_INFO: user / system
+/// / idle / nice only — there is no iowait or steal, so those stay 0.
+#[cfg(target_os = "macos")]
+#[allow(deprecated)] // mach_host_self: fine here; avoids pulling in the mach2 crate
+fn read_cpu_times() -> Option<CpuTimes> {
+    let mut info: libc::host_cpu_load_info = unsafe { std::mem::zeroed() };
+    let mut count = (std::mem::size_of::<libc::host_cpu_load_info>()
+        / std::mem::size_of::<libc::integer_t>())
+        as libc::mach_msg_type_number_t;
+    let r = unsafe {
+        libc::host_statistics(
+            libc::mach_host_self(),
+            libc::HOST_CPU_LOAD_INFO,
+            &mut info as *mut _ as libc::host_info_t,
+            &mut count,
+        )
+    };
+    if r != libc::KERN_SUCCESS {
+        return None;
+    }
+    let t = info.cpu_ticks;
+    Some(CpuTimes {
+        user: t[libc::CPU_STATE_USER as usize] as u64,
+        nice: t[libc::CPU_STATE_NICE as usize] as u64,
+        system: t[libc::CPU_STATE_SYSTEM as usize] as u64,
+        idle: t[libc::CPU_STATE_IDLE as usize] as u64,
+        iowait: 0,
+        irq: 0,
+        softirq: 0,
+        steal: 0,
+    })
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn read_cpu_times() -> Option<CpuTimes> {
+    None
 }
 
 impl CpuTimes {
