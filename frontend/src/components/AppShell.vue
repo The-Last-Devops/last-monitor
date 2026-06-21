@@ -60,8 +60,9 @@ async function logout() { await auth.logout(); router.push({ name: 'login' }) }
 
       <!-- namespace multi-select -->
       <div class="relative px-3 pb-2">
+        <div v-if="nsOpen" class="fixed inset-0 z-20" @click="nsOpen = false"></div>
         <button @click="nsOpen = !nsOpen"
-          class="flex w-full items-center justify-between gap-2 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg hover:border-accent/50">
+          class="relative z-30 flex w-full items-center justify-between gap-2 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg hover:border-accent/50">
           <span class="flex min-w-0 items-center gap-2"><span class="h-2 w-2 shrink-0 rounded-full bg-accent"></span><span class="truncate">{{ nsLabel }}</span></span>
           <svg class="h-4 w-4 shrink-0 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
         </button>

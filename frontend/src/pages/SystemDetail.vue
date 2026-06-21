@@ -36,7 +36,7 @@ const spanSeconds = computed(() => SPAN[range.value] || 0)
 // chart that owns the metric.
 const selectedMetrics = computed(() => (route.query.sel || '').split(',').filter(Boolean))
 const hoverMetric = ref(null)
-const chartTime = ref('now') // hovered timestamp shown in each chart header (charts are cursor-synced)
+const chartTime = ref('') // timestamp shown in each chart header (latest, or hovered point)
 function toggleMetric(name) {
   const set = new Set(selectedMetrics.value)
   set.has(name) ? set.delete(name) : set.add(name)

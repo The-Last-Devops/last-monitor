@@ -87,7 +87,7 @@ const cursorTime = computed(() => {
   const t = props.time[valueIdx.value]
   if (!t) return ''
   const d = new Date(t * 1000)
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 })
 
 function opts() {
@@ -202,7 +202,7 @@ watch(() => props.focusNames, applyFocus, { deep: true })
 watch(() => props.viewRange, applyViewRange, { deep: true })
 // surface the hovered timestamp ('now' when not hovering) so the parent can show
 // it in the chart header — keeps it out of the legend so nothing reflows
-watch([hoverIdx, cursorTime], () => emit('cursor-time', hoverIdx.value != null ? cursorTime.value : 'now'), { immediate: true })
+watch([hoverIdx, cursorTime], () => emit('cursor-time', cursorTime.value), { immediate: true })
 </script>
 
 <template>

@@ -138,7 +138,7 @@ const fleetSeries = (arr) => (arr || []).filter((s) => visibleNames.value.has(s.
 // hover a legend → show only that node on every chart; click → pin (multi), in URL
 const selectedNodes = computed(() => (route.query.fsel || '').split(',').filter(Boolean))
 const hoverNode = ref(null)
-const fleetTime = ref('now') // hovered timestamp shown in each fleet chart header
+const fleetTime = ref('') // timestamp shown in each fleet chart header (latest, or hovered)
 const fleetFocus = computed(() => (hoverNode.value ? [hoverNode.value] : selectedNodes.value.length ? selectedNodes.value : null))
 function toggleNode(name) {
   const set = new Set(selectedNodes.value)
