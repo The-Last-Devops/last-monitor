@@ -23,9 +23,18 @@ pub async fn handler(uri: Uri) -> Response {
 fn serve(path: &str) -> Option<Response> {
     let file = Assets::get(path)?;
     let mime = mime_guess::from_path(path).first_or_octet_stream();
+    // Hashed assets (Vite emits /assets/<name>.<hash>.<ext>) are immutable and can
+    // cache forever. Everything else (index.html, the SPA shell) must revalidate so
+    // a new deploy never serves a stale shell.
+    let cache = if path.starts_with("assets/") {
+        "public, max-age=31536000, immutable"
+    } else {
+        "no-cache"
+    };
     Some(
         Response::builder()
             .header(header::CONTENT_TYPE, mime.as_ref())
+            .header(header::CACHE_CONTROL, cache)
             .body(Body::from(file.data.into_owned()))
             .unwrap(),
     )

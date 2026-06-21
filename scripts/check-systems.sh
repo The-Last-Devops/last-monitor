@@ -26,6 +26,6 @@ async function api(m, p, b) {
   console.log('total servers:', servers.length);
   console.log('by kind:', JSON.stringify(by));
   console.log('k8s clusters:', JSON.stringify(clusters));
-  console.log('sample:', servers.slice(0, 3).map(s => `${s.name}[${s.kind}] cpu=${Math.round(s.cpu_percent||0)} disk=${s.disk_total ? Math.round((s.disk_used/s.disk_total)*100)+'%' : '—'} agent=${s.agent_version || '—'}`).join('  '));
+  console.log('sample:', servers.slice(0, 3).map(s => `${s.name}[${s.kind}/ns:${s.namespace}] cpu=${Math.round(s.cpu_percent||0)} agent=${s.agent_version || '—'}`).join('  '));
 })().catch(e => { console.error(e.message); process.exit(1); });
 EOF
