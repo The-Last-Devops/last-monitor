@@ -5,7 +5,7 @@ import { api } from '../lib/api'
 import { useAuth } from '../stores/auth'
 import { useUi } from '../stores/ui'
 
-defineProps({ title: { type: String, default: '' } })
+const props = defineProps({ title: { type: String, default: '' } })
 
 const auth = useAuth()
 const ui = useUi()
