@@ -41,7 +41,7 @@ async function submit() {
     <div class="w-full max-w-sm">
       <div class="mb-8 flex items-center justify-center gap-2.5">
         <span class="inline-block h-7 w-7 rounded-md bg-accent shadow-[0_0_20px_-4px_rgb(var(--accent))]"></span>
-        <span class="text-xl font-semibold tracking-tight text-fg">last-monitor</span>
+        <span class="text-xl font-semibold tracking-tight text-fg">Last Monitor</span>
       </div>
 
       <form class="space-y-4 rounded-xl border border-line bg-surface p-7 shadow-2xl" @submit.prevent="submit">

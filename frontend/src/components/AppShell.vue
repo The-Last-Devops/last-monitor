@@ -55,7 +55,7 @@ async function logout() { await auth.logout(); router.push({ name: 'login' }) }
     <aside :class="['fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col border-r border-line bg-surface transition-transform md:static md:translate-x-0', drawer ? '' : '-translate-x-full']">
       <div class="flex items-center gap-2.5 px-5 py-4">
         <span class="inline-block h-6 w-6 rounded-md bg-accent shadow-[0_0_18px_-4px_rgb(var(--accent))]"></span>
-        <span class="text-base font-semibold tracking-tight text-fg">last-monitor</span>
+        <span class="text-base font-semibold tracking-tight text-fg">Last Monitor</span>
       </div>
 
       <!-- namespace multi-select -->

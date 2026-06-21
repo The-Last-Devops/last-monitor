@@ -15,6 +15,9 @@ const name = computed(() => route.query.name || id.value)
 const parent = computed(() => route.query.parent || '')
 const ptype = computed(() => route.query.ptype || '')
 const TYPE_LABEL = { node: 'Node', host: 'Host', docker: 'Docker', k8s: 'Kubernetes', container: 'Container' }
+// breadcrumb category → Systems list filtered to that kind (so every crumb is a real link)
+const KIND_OF = { node: 'node', host: 'docker', docker: 'docker', k8s: 'k8s', container: 'docker' }
+const kindHref = (t) => ({ path: '/', query: { q: `kind:${KIND_OF[t] || 'node'}` } })
 const RANGES = [['30m', '1m'], ['1h', '1m'], ['3h', '1m'], ['6h', '5m'], ['12h', '5m'], ['24h', '15m']]
 // range persisted in the URL so F5 keeps it
 const range = computed(() => route.query.range || '30m')
@@ -169,12 +172,12 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
       <RouterLink to="/" class="hover:text-accent">Systems</RouterLink>
       <span class="text-faint">›</span>
       <template v-if="parent && ptype">
-        <span>{{ TYPE_LABEL[ptype] }}</span><span class="text-faint">›</span>
+        <RouterLink :to="kindHref(ptype)" class="hover:text-accent">{{ TYPE_LABEL[ptype] }}</RouterLink><span class="text-faint">›</span>
         <RouterLink :to="`/system/${encodeURIComponent(parent)}?type=${ptype}&name=${encodeURIComponent(parent)}`" class="hover:text-accent">{{ parent }}</RouterLink>
         <span class="text-faint">›</span><span class="text-fg">{{ name }}</span>
       </template>
       <template v-else>
-        <span>{{ TYPE_LABEL[type] }}</span><span class="text-faint">›</span><span class="text-fg">{{ name }}</span>
+        <RouterLink :to="kindHref(type)" class="hover:text-accent">{{ TYPE_LABEL[type] }}</RouterLink><span class="text-faint">›</span><span class="text-fg">{{ name }}</span>
       </template>
     </nav>
 

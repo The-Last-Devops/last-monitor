@@ -1,3 +1,6 @@
+<!-- NAMING: the product display name is "Last Monitor" (Title Case) everywhere in
+     the UI and docs. The slug "last-monitor" is only for repo / package / image
+     names. Do not show "last-monitor" as a user-facing label. -->
 <div align="center">
 
 # Last Monitor
