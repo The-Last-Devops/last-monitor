@@ -198,6 +198,9 @@ watch(uData, (d) => {
   else u.setData(d, !zoomed)
 })
 watch(() => ui.light, () => build())
+// uPlot fixes its series at build time, so rebuild when the set of series changes
+// (e.g. container/node lines arriving after the host, or the filter changing them)
+watch(() => props.series.map((s) => s.name).join(''), () => build())
 watch(() => props.focusNames, applyFocus, { deep: true })
 watch(() => props.viewRange, applyViewRange, { deep: true })
 // surface the hovered timestamp ('now' when not hovering) so the parent can show

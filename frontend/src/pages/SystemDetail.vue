@@ -283,6 +283,10 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
 
 <template>
   <AppShell :title="name">
+    <template #header>
+      <span class="rounded bg-accent/10 px-2 py-0.5 text-xs text-accent">{{ TYPE_LABEL[type] }}</span>
+      <span class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-full" :class="statusUp ? 'bg-accent' : 'bg-red-500'"></span><span class="text-xs font-medium" :class="statusUp ? 'text-accent' : 'text-red-500'">{{ statusUp ? 'Up' : 'Down' }}</span></span>
+    </template>
     <!-- breadcrumb -->
     <nav class="mb-4 flex flex-wrap items-center gap-1.5 text-sm text-muted">
       <RouterLink to="/" class="hover:text-accent">Systems</RouterLink>
@@ -295,11 +299,6 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
       <template v-else>
         <RouterLink :to="kindHref(type)" class="hover:text-accent">{{ TYPE_LABEL[type] }}</RouterLink><span class="text-faint">›</span><span class="text-fg">{{ name }}</span>
       </template>
-      <!-- type + status moved here to save the big header card -->
-      <span class="ml-auto flex items-center gap-2.5">
-        <span class="rounded bg-accent/10 px-2 py-0.5 text-xs text-accent">{{ TYPE_LABEL[type] }}</span>
-        <span class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-full" :class="statusUp ? 'bg-accent' : 'bg-red-500'"></span><span class="text-xs font-medium" :class="statusUp ? 'text-accent' : 'text-red-500'">{{ statusUp ? 'Up' : 'Down' }}</span></span>
-      </span>
     </nav>
 
     <!-- range (charts views) -->

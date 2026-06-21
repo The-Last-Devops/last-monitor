@@ -110,10 +110,13 @@ async function logout() { await auth.logout(); router.push({ name: 'login' }) }
           </button>
           <h1 class="text-lg font-semibold text-fg">{{ title }}</h1>
         </div>
-        <button @click="ui.toggleTheme()" title="Toggle theme" class="rounded-lg border border-line bg-surface2 p-1.5 text-muted hover:text-accent">
+        <div class="flex items-center gap-3">
+          <slot name="header" />
+          <button @click="ui.toggleTheme()" title="Toggle theme" class="rounded-lg border border-line bg-surface2 p-1.5 text-muted hover:text-accent">
           <svg v-if="!ui.light" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
           <svg v-else class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-        </button>
+          </button>
+        </div>
       </header>
       <main class="flex-1 p-4 sm:p-6"><slot /></main>
     </div>
