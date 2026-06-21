@@ -269,8 +269,7 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
     <!-- docker: its containers, as a separate table (link to the fleet view) -->
     <div v-if="type === 'docker'" class="mt-5 overflow-hidden rounded-xl border border-line">
       <div class="flex items-center gap-2 border-b border-line bg-surface px-4 py-2.5">
-        <h2 class="text-sm font-semibold text-fg">Containers</h2><span class="rounded-full bg-surface2 px-2 py-0.5 text-xs text-muted">{{ containersList.length }}</span>
-        <RouterLink v-if="containersList.length" :to="`/system/${id}?type=containers&name=${encodeURIComponent(name)}`" class="ml-auto flex items-center gap-1 text-xs text-accent hover:underline">View as fleet <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></RouterLink>
+        <RouterLink :to="`/system/${id}?type=containers&name=${encodeURIComponent(name)}`" class="text-sm font-semibold text-fg hover:text-accent" title="View containers as a fleet">Containers</RouterLink><span class="rounded-full bg-surface2 px-2 py-0.5 text-xs text-muted">{{ containersList.length }}</span>
       </div>
       <table class="w-full min-w-[600px] text-sm"><thead class="border-b border-line bg-surface text-left text-xs uppercase tracking-wider text-muted"><tr><th class="px-4 py-2.5 font-medium">Container</th><th class="px-4 py-2.5 font-medium">CPU</th><th class="px-4 py-2.5 font-medium">Mem</th><th class="px-4 py-2.5 font-medium">Network</th></tr></thead>
         <tbody>
