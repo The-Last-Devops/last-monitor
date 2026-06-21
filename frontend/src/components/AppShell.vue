@@ -33,7 +33,10 @@ function setNs(arr) {
   router.replace({ query: { ...route.query, ns: all ? undefined : arr.join(',') } })
 }
 function toggleNs(name) {
-  const cur = selectedNs.value.length ? [...selectedNs.value] : [...nsNames.value]
+  // from "all" (nothing selected), a click picks just that namespace; further
+  // clicks add/remove from the explicit selection
+  if (selectedNs.value.length === 0) { setNs([name]); return }
+  const cur = [...selectedNs.value]
   const i = cur.indexOf(name)
   if (i >= 0) cur.splice(i, 1); else cur.push(name)
   setNs(cur)

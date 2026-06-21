@@ -41,7 +41,8 @@ async function toggleDocker(s) {
     } catch { containers[s.id] = [] }
   }
 }
-const sortState = reactive({ nodes: { col: 'name', dir: 'asc' }, docker: { col: 'name', dir: 'asc' } })
+const sortState = reactive({ col: 'name', dir: 'asc' })
+const KIND_LABEL = { node: 'Node', docker: 'Docker', k8s: 'K8s' }
 let timer = null
 
 const r = (x) => Math.round(x || 0)
@@ -56,7 +57,7 @@ function parseQuery(qs) {
   return (qs || '').trim().split(/\s+/).filter(Boolean).map((tok) => {
     let m = tok.match(/^(cpu|mem|disk)(>=|<=|>|<|=)(\d+(?:\.\d+)?)$/i)
     if (m) return { t: 'num', f: m[1].toLowerCase(), op: m[2], v: +m[3] }
-    m = tok.match(/^(status|kind|ns|agent|name|node|system):(.+)$/i)
+    m = tok.match(/^(status|kind|type|cluster|ns|agent|name|node|system):(.+)$/i)
     if (m) return { t: 'kv', k: m[1].toLowerCase(), v: m[2].toLowerCase() }
     return { t: 'text', v: tok.toLowerCase() }
   })
@@ -76,7 +77,8 @@ function matchPred(s, p) {
   if (p.t === 'kv') {
     if (['name', 'node', 'system'].includes(p.k)) return wild(s.name, p.v)
     if (p.k === 'status') return (online(s) ? 'online' : 'offline').startsWith(p.v)
-    if (p.k === 'kind') return s.kind === p.v
+    if (p.k === 'kind' || p.k === 'type') return s.kind === p.v
+    if (p.k === 'cluster') return wild(s.cluster, p.v)
     if (p.k === 'ns') return wild(s.namespace, p.v)
     if (p.k === 'agent') return wild(s.agent_version, p.v)
   }
@@ -90,13 +92,13 @@ function removeChip(i) { const a = chips.value.slice(); a.splice(i, 1); q.value 
 // reset clears both the text filters (?q) and the pinned-node selection (?fsel)
 function resetFilters() { q.value = ''; selected.clear(); router.replace({ query: { ...route.query, q: undefined, fzoom: undefined } }) }
 const shortName = (n) => (n && n.length > 12 ? n.slice(0, 12) + '…' : n)
-// section title → filter the list to that kind (keeps the namespace)
-const kindLink = (k) => ({ path: '/', query: { ...(route.query.ns ? { ns: route.query.ns } : {}), q: `kind:${k}` } })
 const preds = computed(() => parseQuery(q.value))
 const visible = computed(() => servers.value.filter((s) => inNs(s) && preds.value.every((p) => matchPred(s, p))))
 function sortList(list, st) {
   const f = {
     name: (a, b) => a.name.localeCompare(b.name),
+    type: (a, b) => (a.kind || '').localeCompare(b.kind || '') || a.name.localeCompare(b.name),
+    cluster: (a, b) => (a.cluster || '').localeCompare(b.cluster || '') || a.name.localeCompare(b.name),
     ns: (a, b) => (a.namespace || '').localeCompare(b.namespace || ''),
     status: (a, b) => Number(online(b)) - Number(online(a)),
     cpu: (a, b) => (a.cpu_percent || 0) - (b.cpu_percent || 0),
@@ -107,24 +109,18 @@ function sortList(list, st) {
   const out = [...list].sort(f || (() => 0))
   return st.dir === 'desc' ? out.reverse() : out
 }
-const sections = computed(() => [
-  { key: 'nodes', title: 'Single Nodes', kind: 'node', rows: sortList(visible.value.filter((s) => s.kind === 'node'), sortState.nodes) },
-  { key: 'docker', title: 'Docker Hosts', kind: 'docker', rows: sortList(visible.value.filter((s) => s.kind === 'docker'), sortState.docker) },
-])
+// one flat host list (node / docker / k8s); type & cluster are row attributes
+const rows = computed(() => sortList(visible.value, sortState))
 function avg(arr, f) { const v = arr.map(f).filter((x) => x != null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null }
-const clusters = computed(() => {
-  const by = {}
-  for (const s of visible.value.filter((x) => x.kind === 'k8s')) (by[s.cluster || 'unnamed'] ||= []).push(s)
-  return Object.entries(by).map(([cluster, ns]) => ({ cluster, nodes: ns, namespace: [...new Set(ns.map((x) => x.namespace).filter(Boolean))].join(', '), cpu_percent: avg(ns, (x) => x.cpu_percent), memPct: avg(ns, (x) => pct(x.mem_used, x.mem_total)), online: ns.filter(online).length, total: ns.length }))
-})
-const allK8s = computed(() => clusters.value.flatMap((c) => c.nodes))
 const hero = computed(() => {
   const all = visible.value, on = all.filter(online).length
   return { online: on, total: all.length, cpu: avg(all, (x) => x.cpu_percent), mem: avg(all, (x) => pct(x.mem_used, x.mem_total)), nodes: all.filter((s) => s.kind === 'node').length }
 })
 
-function sortBy(section, col) { const st = sortState[section]; if (st.col === col) st.dir = st.dir === 'asc' ? 'desc' : 'asc'; else { st.col = col; st.dir = 'asc' } }
-const arrow = (section, col) => (sortState[section].col === col ? (sortState[section].dir === 'desc' ? ' ↓' : ' ↑') : '')
+function sortBy(col) { if (sortState.col === col) sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc'; else { sortState.col = col; sortState.dir = 'asc' } }
+const arrow = (col) => (sortState.col === col ? (sortState.dir === 'desc' ? ' ↓' : ' ↑') : '')
+// click a row attribute (type/cluster/ns) → set that filter dimension (replacing any existing)
+function setFilter(key, val) { const toks = chips.value.filter((t) => !t.toLowerCase().startsWith(key + ':')); toks.push(`${key}:${val}`); q.value = toks.join(' ') }
 function toggleRow(id) { selected.has(id) ? selected.delete(id) : selected.add(id) }
 function toggleAll(rows) { const all = rows.length && rows.every((s) => selected.has(s.id)); rows.forEach((s) => (all ? selected.delete(s.id) : selected.add(s.id))) }
 function toggleExpand(k) { expanded.has(k) ? expanded.delete(k) : expanded.add(k) }
@@ -263,79 +259,55 @@ const detailLink = (s) => `/system/${s.id}?type=${s.kind}&name=${encodeURICompon
         </div>
       </section>
 
-      <!-- Nodes + Docker -->
-      <section v-for="sec in sections" :key="sec.key" v-show="sec.rows.length">
-        <div class="mb-2 flex items-center gap-2"><RouterLink :to="kindLink(sec.kind)" class="text-sm font-semibold text-fg hover:text-accent">{{ sec.title }}</RouterLink><span class="rounded-full bg-surface2 px-2 py-0.5 text-xs text-muted">{{ sec.rows.length }}</span></div>
+      <!-- Hosts: one flat table; Type / Cluster / Namespace are clickable filters -->
+      <section v-if="rows.length">
+        <div class="mb-2 flex items-center gap-2"><h2 class="text-sm font-semibold text-fg">Hosts</h2><span class="rounded-full bg-surface2 px-2 py-0.5 text-xs text-muted">{{ rows.length }}</span></div>
         <div class="overflow-x-auto rounded-xl border border-line">
-          <table class="w-full min-w-[940px] text-sm">
+          <table class="w-full min-w-[1040px] text-sm">
             <thead class="border-b border-line bg-surface text-left text-xs uppercase tracking-wider text-muted"><tr>
-              <th class="w-8 px-3 py-2.5"><input type="checkbox" :checked="sec.rows.length && sec.rows.every((s)=>selected.has(s.id))" @change="toggleAll(sec.rows)" class="h-4 w-4 accent-accent" /></th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy(sec.key,'name')">Node{{ arrow(sec.key,'name') }}</th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy(sec.key,'ns')">Namespace{{ arrow(sec.key,'ns') }}</th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy(sec.key,'status')">Status{{ arrow(sec.key,'status') }}</th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy(sec.key,'cpu')">CPU{{ arrow(sec.key,'cpu') }}</th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy(sec.key,'mem')">Memory{{ arrow(sec.key,'mem') }}</th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy(sec.key,'disk')">Disk{{ arrow(sec.key,'disk') }}</th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy(sec.key,'agent')">Agent{{ arrow(sec.key,'agent') }}</th>
+              <th class="w-8 px-3 py-2.5"><input type="checkbox" :checked="rows.length && rows.every((s)=>selected.has(s.id))" @change="toggleAll(rows)" class="h-4 w-4 accent-accent" /></th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('name')">Host{{ arrow('name') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('type')">Type{{ arrow('type') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('cluster')">Cluster{{ arrow('cluster') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('ns')">Namespace{{ arrow('ns') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('status')">Status{{ arrow('status') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('cpu')">CPU{{ arrow('cpu') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('mem')">Memory{{ arrow('mem') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('disk')">Disk{{ arrow('disk') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('agent')">Agent{{ arrow('agent') }}</th>
             </tr></thead>
             <tbody>
-              <template v-for="s in sec.rows" :key="s.id">
+              <template v-for="s in rows" :key="s.id">
                 <tr class="lm-row border-b border-line" :class="selected.has(s.id) ? 'sel' : ''" @mouseenter="hoverNode = s.name" @mouseleave="hoverNode = null">
                   <td class="px-3 py-3"><input type="checkbox" :checked="selected.has(s.id)" @change="toggleRow(s.id)" class="h-4 w-4 accent-accent" /></td>
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-1.5">
-                      <button v-if="sec.key === 'docker'" @click="toggleDocker(s)" class="text-muted hover:text-accent"><svg class="h-4 w-4 transition-transform" :class="expanded.has(s.id) ? 'rotate-90' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></button>
+                      <button v-if="s.kind === 'docker'" @click="toggleDocker(s)" class="text-muted hover:text-accent"><svg class="h-4 w-4 transition-transform" :class="expanded.has(s.id) ? 'rotate-90' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></button>
+                      <span v-else class="w-4 shrink-0"></span>
                       <span class="h-2 w-2 shrink-0 rounded-full" :title="online(s) ? 'online' : 'offline'" :style="{ background: colorOf[s.name] }"></span>
                       <RouterLink :to="detailLink(s)" class="text-fg hover:text-accent">{{ s.name }}</RouterLink>
                     </div>
                   </td>
-                  <td class="px-4 py-3"><span class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted">{{ s.namespace || '—' }}</span></td>
+                  <td class="px-4 py-3"><button @click="setFilter('kind', s.kind)" :title="`Filter kind:${s.kind}`" class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted hover:text-accent">{{ KIND_LABEL[s.kind] || s.kind }}</button></td>
+                  <td class="px-4 py-3"><button v-if="s.cluster" @click="setFilter('cluster', s.cluster)" :title="`Filter cluster:${s.cluster}`" class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted hover:text-accent">{{ s.cluster }}</button><span v-else class="text-faint">—</span></td>
+                  <td class="px-4 py-3"><button @click="setFilter('ns', s.namespace)" :title="`Filter ns:${s.namespace}`" class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted hover:text-accent">{{ s.namespace || '—' }}</button></td>
                   <td class="px-4 py-3 text-sm" :class="online(s)?'text-accent':'text-red-500'">{{ online(s)?'online':'offline' }}</td>
                   <td class="px-4 py-3"><Gauge :v="online(s)?r(s.cpu_percent):null" /></td>
                   <td class="px-4 py-3"><Gauge :v="online(s)?pct(s.mem_used,s.mem_total):null" /></td>
                   <td class="px-4 py-3"><Gauge :v="online(s)?pct(s.disk_used,s.disk_total):null" /></td>
                   <td class="px-4 py-3"><span class="rounded px-1.5 py-0.5 text-xs" :class="agentCls(s.agent_version)">{{ s.agent_version ? 'v'+s.agent_version : '—' }}</span></td>
                 </tr>
-                <tr v-for="c in (containers[s.id] || [])" v-show="sec.key === 'docker' && expanded.has(s.id)" :key="s.id + ':' + c.name" class="lm-row border-b border-line bg-bg/40">
+                <tr v-for="c in (containers[s.id] || [])" v-show="s.kind === 'docker' && expanded.has(s.id)" :key="s.id + ':' + c.name" class="lm-row border-b border-line bg-bg/40">
                   <td></td>
-                  <td class="px-4 py-2"><RouterLink :to="`/system/${s.id}?type=container&name=${encodeURIComponent(c.name)}&parent=${encodeURIComponent(s.name)}&ptype=docker`" class="flex items-center gap-2 pl-6 text-sm text-fg hover:text-accent"><span class="text-faint">└</span>{{ c.name }}</RouterLink></td>
+                  <td class="px-4 py-2"><RouterLink :to="`/system/${s.id}?type=container&name=${encodeURIComponent(c.name)}&parent=${encodeURIComponent(s.name)}&ptype=docker`" class="flex items-center gap-2 pl-10 text-sm text-fg hover:text-accent"><span class="text-faint">└</span>{{ c.name }}</RouterLink></td>
+                  <td class="px-4 py-2"><span class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-faint">container</span></td>
+                  <td class="px-4 py-2 text-faint">—</td>
                   <td class="px-4 py-2 text-faint">—</td>
                   <td class="px-4 py-2 text-sm text-accent">running</td>
                   <td class="px-4 py-2"><Gauge :v="c.cpu" /></td>
                   <td class="px-4 py-2 tabular-nums text-muted">{{ c.mem != null ? (c.mem / 1048576).toFixed(0) + ' MB' : '—' }}</td>
                   <td class="px-4 py-2 text-faint">—</td>
                   <td class="px-4 py-2 text-faint">—</td>
-                </tr>
-              </template>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- Kubernetes -->
-      <section v-if="clusters.length">
-        <div class="mb-2 flex items-center gap-2"><RouterLink :to="kindLink('k8s')" class="text-sm font-semibold text-fg hover:text-accent">Kubernetes</RouterLink><span class="rounded-full bg-surface2 px-2 py-0.5 text-xs text-muted">{{ clusters.length }}</span></div>
-        <div class="overflow-x-auto rounded-xl border border-line">
-          <table class="w-full min-w-[760px] text-sm">
-            <thead class="border-b border-line bg-surface text-left text-xs uppercase tracking-wider text-muted"><tr>
-              <th class="w-8 px-3 py-2.5"><input type="checkbox" :checked="allK8s.length && allK8s.every((n)=>selected.has(n.id))" @change="toggleAll(allK8s)" class="h-4 w-4 accent-accent" /></th>
-              <th class="px-4 py-2.5 font-medium">Cluster</th><th class="px-4 py-2.5 font-medium">Namespace</th><th class="px-4 py-2.5 font-medium">Nodes</th><th class="px-4 py-2.5 font-medium">Avg CPU</th><th class="px-4 py-2.5 font-medium">Avg Mem</th></tr></thead>
-            <tbody>
-              <template v-for="c in clusters" :key="c.cluster">
-                <tr class="lm-row border-b border-line">
-                  <td class="px-3 py-3"><input type="checkbox" :checked="c.nodes.length && c.nodes.every((n)=>selected.has(n.id))" @change="toggleAll(c.nodes)" class="h-4 w-4 accent-accent" /></td>
-                  <td class="px-4 py-3"><div class="flex items-center gap-1.5"><button @click="toggleExpand('k8s:'+c.cluster)" class="text-muted hover:text-accent"><svg class="h-4 w-4 transition-transform" :class="expanded.has('k8s:'+c.cluster)?'rotate-90':''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></button><RouterLink :to="`/system/${encodeURIComponent(c.cluster)}?type=k8s&name=${encodeURIComponent(c.cluster)}`" class="text-fg hover:text-accent">{{ c.cluster }}</RouterLink></div></td>
-                  <td class="px-4 py-3"><span class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted">{{ c.namespace || '—' }}</span></td>
-                  <td class="px-4 py-3 text-muted">{{ c.online }}/{{ c.total }}</td>
-                  <td class="px-4 py-3"><Gauge :v="c.cpu_percent" /></td>
-                  <td class="px-4 py-3"><Gauge :v="c.memPct" /></td>
-                </tr>
-                <tr v-for="(n,i) in c.nodes" v-show="expanded.has('k8s:'+c.cluster)" :key="n.id" class="lm-row border-b border-line bg-bg/40" @mouseenter="hoverNode = n.name" @mouseleave="hoverNode = null">
-                  <td class="px-3 py-2"><input type="checkbox" :checked="selected.has(n.id)" @change="toggleRow(n.id)" class="h-4 w-4 accent-accent" /></td>
-                  <td class="px-4 py-2"><div class="flex items-center gap-2 pl-6"><span class="text-faint">{{ i===c.nodes.length-1?'└':'├' }}</span><span class="h-2 w-2 shrink-0 rounded-full" :style="{ background: colorOf[n.name] }"></span><RouterLink :to="`/system/${n.id}?type=node&name=${encodeURIComponent(n.name)}&parent=${encodeURIComponent(c.cluster)}&ptype=k8s`" class="text-sm text-fg hover:text-accent">{{ n.name }}</RouterLink></div></td>
-                  <td class="px-4 py-2 text-sm" :class="online(n)?'text-accent':'text-red-500'">{{ online(n)?'online':'offline' }}</td>
-                  <td class="px-4 py-2"><Gauge :v="r(n.cpu_percent)" /></td>
-                  <td class="px-4 py-2"><Gauge :v="pct(n.mem_used,n.mem_total)" /></td>
                 </tr>
               </template>
             </tbody>
