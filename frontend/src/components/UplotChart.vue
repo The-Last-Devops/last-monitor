@@ -24,6 +24,7 @@ const props = defineProps({
 const emit = defineEmits(['legend-hover', 'legend-toggle', 'cursor-time'])
 const isSel = (n) => props.selectedNames.includes(n)
 const isDim = (n) => props.focusNames != null && !props.focusNames.includes(n)
+const isHi = (n) => props.focusNames != null && props.focusNames.includes(n) // hovered/isolated → bright
 const short = (n) => (n && n.length > 10 ? n.slice(0, 10) + '…' : n)
 
 const ui = useUi()
@@ -32,6 +33,8 @@ const hoverIdx = ref(null) // data index under cursor; null when not hovering
 let u = null
 let ro = null
 let zoomed = false // user drag-zoomed → freeze the view; live data keeps appending off-screen
+let dragging = false // pointer down on the plot → pause live redraws so the drag-select isn't wiped
+let focusIdx = null // uPlot series index nearest the cursor (1-based; 0 is the x axis)
 
 function cssVar(name) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -116,6 +119,13 @@ function opts() {
     ],
     hooks: {
       setCursor: [(up) => { hoverIdx.value = up.cursor.idx }],
+      // nearest line under the cursor → light up that host in the legend (and, via
+      // the parent, isolate it across charts). Click on the plot pins it.
+      setSeries: [(_up, i, o) => {
+        if (!o || o.focus == null) return
+        if (o.focus) { focusIdx = i; emit('legend-hover', props.series[i - 1]?.name ?? null) }
+        else if (focusIdx === i) { focusIdx = null; emit('legend-hover', null) }
+      }],
       setScale: [(up, key) => {
         if (key !== 'x') return
         const t = up.data[0]
@@ -134,21 +144,33 @@ function applyFocus() {
   props.series.forEach((s, i) => u.setSeries(i + 1, { show: f == null || f.includes(s.name) }))
 }
 
+function onUp() {
+  if (!dragging) return
+  dragging = false
+  if (u) u.setData(uData.value, !zoomed) // re-sync any data skipped during the drag
+}
+
 function build() {
   if (u) { u.destroy(); u = null }
   if (!el.value) return
   u = new uPlot(opts(), uData.value, el.value)
   applyFocus()
+  u.over.addEventListener('mousedown', () => { dragging = true })
+  u.over.addEventListener('mouseleave', () => { if (focusIdx) { focusIdx = null; emit('legend-hover', null) } })
+  // a plain click (no drag) on/near a line pins that host; real drags fire no click
+  u.over.addEventListener('click', () => { if (focusIdx) emit('legend-toggle', props.series[focusIdx - 1]?.name) })
 }
 
 onMounted(() => {
   build()
   ro = new ResizeObserver(() => u && u.setSize({ width: el.value.clientWidth, height: props.height }))
   ro.observe(el.value)
+  window.addEventListener('mouseup', onUp) // release may land outside the plot
 })
-onBeforeUnmount(() => { ro && ro.disconnect(); u && u.destroy() })
-// follow the latest when not zoomed; keep the frozen view (append off-screen) when zoomed
-watch(uData, (d) => { if (u) u.setData(d, !zoomed) })
+onBeforeUnmount(() => { ro && ro.disconnect(); window.removeEventListener('mouseup', onUp); u && u.destroy() })
+// follow the latest when not zoomed; keep the frozen view (append off-screen) when
+// zoomed; never redraw mid-drag (it would wipe the selection rectangle)
+watch(uData, (d) => { if (u && !dragging) u.setData(d, !zoomed) })
 watch(() => ui.light, () => build())
 watch(() => props.focusNames, applyFocus, { deep: true })
 // surface the hovered timestamp ('now' when not hovering) so the parent can show
@@ -168,7 +190,7 @@ watch([hoverIdx, cursorTime], () => emit('cursor-time', hoverIdx.value != null ?
         class="flex min-w-0 items-center gap-1.5 rounded transition-opacity"
         :class="isDim(s.name) ? 'opacity-35' : ''">
         <span class="h-2 w-2 shrink-0 rounded-full" :class="isSel(s.name) ? 'ring-2 ring-offset-1 ring-offset-surface' : ''" :style="{ background: s.color, '--tw-ring-color': s.color }"></span>
-        <span class="truncate" :class="isSel(s.name) ? 'text-fg' : 'text-muted'">{{ short(s.name) }}</span>
+        <span class="truncate" :class="isSel(s.name) || isHi(s.name) ? 'text-fg' : 'text-muted'">{{ short(s.name) }}</span>
         <span class="shrink-0 tabular-nums text-fg">{{ s.value }}</span>
       </button>
     </div>
