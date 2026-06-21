@@ -53,8 +53,8 @@ const containerCharts = (cname) => {
 }
 
 async function loadMetrics() {
-  try { metrics.value = await api.get(`/api/systems/${id.value}/metrics?range=${range.value}`) }
-  catch { error.value = 'Failed to load metrics' }
+  try { metrics.value = await api.get(`/api/systems/${id.value}/metrics?range=${range.value}`); error.value = '' }
+  catch { if (!metrics.value) error.value = 'Failed to load metrics' }
 }
 async function loadContainers() {
   try {

@@ -5,13 +5,14 @@ import { api } from '../lib/api'
 import AppShell from '../components/AppShell.vue'
 import Gauge from '../components/Gauge.vue'
 import AddSystemModal from '../components/AddSystemModal.vue'
+import SystemSearch from '../components/SystemSearch.vue'
 
 const showAdd = ref(false)
 
 const route = useRoute()
 const router = useRouter()
 const servers = ref([])
-const loading = ref(true)
+const loaded = ref(false) // true after the first successful load
 const error = ref('')
 const q = ref(route.query.q || '')
 let qTimer
@@ -90,8 +91,15 @@ function toggleExpand(k) { expanded.has(k) ? expanded.delete(k) : expanded.add(k
 async function bulkDelete() { for (const id of [...selected]) { try { await api.del(`/api/systems/${id}`) } catch {} } selected.clear(); await load() }
 
 async function load() {
-  loading.value = true; error.value = ''
-  try { servers.value = await api.get('/api/systems') } catch { error.value = 'Failed to load systems' } finally { loading.value = false }
+  try {
+    servers.value = await api.get('/api/systems')
+    error.value = ''
+    loaded.value = true
+  } catch {
+    // Keep showing existing data on a transient poll failure; only surface an
+    // error before the first successful load.
+    if (!loaded.value) error.value = 'Failed to load systems'
+  }
 }
 onMounted(() => { load(); timer = setInterval(load, 5000) })
 onUnmounted(() => clearInterval(timer))
@@ -116,13 +124,11 @@ const detailLink = (s) => `/system/${s.id}?type=${s.kind}&name=${encodeURICompon
 
       <!-- toolbar -->
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="relative">
-          <svg class="absolute left-2.5 top-2.5 h-4 w-4 text-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input v-model="q" placeholder="cpu>50 disk<30 status:online kind:docker …" title="Filter: cpu/mem/disk >,<,>=,<=,= ; status: kind: ns: agent: ; plain text = name. Space = AND." class="w-80 rounded-lg border border-line bg-surface2 py-2 pl-8 pr-3 text-sm text-fg outline-none focus:border-accent/50" />
-        </div>
+        <SystemSearch v-model="q" :items="servers" />
         <button @click="showAdd = true" class="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-accentfg hover:opacity-90"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> Add system</button>
       </div>
 
+      <p v-if="!loaded && !error" class="text-sm text-muted">Loading…</p>
       <p v-if="error" class="text-sm text-red-500">{{ error }}</p>
 
       <!-- Nodes + Docker -->
@@ -182,7 +188,7 @@ const detailLink = (s) => `/system/${s.id}?type=${s.kind}&name=${encodeURICompon
         </div>
       </section>
 
-      <p v-if="!loading && !servers.length" class="text-sm text-muted">No systems yet. Run an agent or <code class="text-faint">scripts/sim-agents.sh</code>.</p>
+      <p v-if="loaded && !servers.length" class="text-sm text-muted">No systems yet. Run an agent or <code class="text-faint">scripts/sim-agents.sh</code>.</p>
     </div>
 
     <div v-if="selected.size" class="fixed inset-x-0 bottom-4 z-30 mx-auto w-fit">

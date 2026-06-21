@@ -196,19 +196,27 @@ pub async fn list_systems(
     .await
     .map_err(internal)?;
 
+    // Latest sample for ALL systems in ONE query (was N+1). DISTINCT ON + the
+    // (system_id, time DESC) index makes this a fast per-system index scan.
+    let ids: Vec<Uuid> = servers.iter().map(|s| s.0).collect();
+    let latest_rows: Vec<(Uuid, f64, i64, i64, Option<i64>, Option<i64>)> = sqlx::query_as(
+        "SELECT DISTINCT ON (system_id) system_id, cpu_percent, mem_used, mem_total, disk_used, disk_total \
+         FROM system_metrics WHERE system_id = ANY($1) ORDER BY system_id, time DESC",
+    )
+    .bind(&ids)
+    .fetch_all(&state.data)
+    .await
+    .map_err(internal)?;
+    let mut latest: std::collections::HashMap<Uuid, (f64, i64, i64, Option<i64>, Option<i64>)> =
+        std::collections::HashMap::with_capacity(latest_rows.len());
+    for (sid, c, mu, mt, du, dt) in latest_rows {
+        latest.insert(sid, (c, mu, mt, du, dt));
+    }
+
     let mut rows = Vec::with_capacity(servers.len());
     for (id, name, hostname, kind, cluster, namespace, agent_version, last_seen) in servers {
-        let latest: Option<(f64, i64, i64, Option<i64>, Option<i64>)> = sqlx::query_as(
-            "SELECT cpu_percent, mem_used, mem_total, disk_used, disk_total FROM system_metrics \
-             WHERE system_id = $1 ORDER BY time DESC LIMIT 1",
-        )
-        .bind(id)
-        .fetch_optional(&state.data)
-        .await
-        .map_err(internal)?;
-
-        let (cpu_percent, mem_used, mem_total, disk_used, disk_total) = match latest {
-            Some((c, u, t, du, dt)) => (Some(c), Some(u), Some(t), du, dt),
+        let (cpu_percent, mem_used, mem_total, disk_used, disk_total) = match latest.get(&id) {
+            Some(&(c, u, t, du, dt)) => (Some(c), Some(u), Some(t), du, dt),
             None => (None, None, None, None, None),
         };
         rows.push(SystemRow {
