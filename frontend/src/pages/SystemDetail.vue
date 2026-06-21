@@ -224,6 +224,12 @@ const clusterAgg = computed(() => {
   const a = (f) => { const v = ns.map(f).filter((x) => x != null); return v.length ? Math.round(v.reduce((x, y) => x + y, 0) / v.length) : null }
   return { online: ns.filter(online).length, total: ns.length, cpu: a((x) => x.cpu_percent), mem: a((x) => pct(x.mem_used, x.mem_total)), disk: a((x) => pct(x.disk_used, x.disk_total)) }
 })
+// Up if data is fresh (latest sample within ~90s); for k8s, if any node is ready
+const statusUp = computed(() => {
+  if (type.value === 'k8s') return clusterAgg.value.online > 0
+  const t = metrics.value?.t || containersTime.value
+  return !!(t && t.length && Date.now() / 1000 - t[t.length - 1] < 90)
+})
 
 // k8s cluster detail, fleet-style: overlay this cluster's nodes (from /api/fleet,
 // filtered to the cluster's node names) on one chart per metric
@@ -285,14 +291,12 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
       <template v-else>
         <RouterLink :to="kindHref(type)" class="hover:text-accent">{{ TYPE_LABEL[type] }}</RouterLink><span class="text-faint">›</span><span class="text-fg">{{ name }}</span>
       </template>
+      <!-- type + status moved here to save the big header card -->
+      <span class="ml-auto flex items-center gap-2.5">
+        <span class="rounded bg-accent/10 px-2 py-0.5 text-xs text-accent">{{ TYPE_LABEL[type] }}</span>
+        <span class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-full" :class="statusUp ? 'bg-accent' : 'bg-red-500'"></span><span class="text-xs font-medium" :class="statusUp ? 'text-accent' : 'text-red-500'">{{ statusUp ? 'Up' : 'Down' }}</span></span>
+      </span>
     </nav>
-
-    <!-- header -->
-    <div class="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-line bg-surface p-5">
-      <span class="flex items-center gap-2 text-sm"><span class="h-2.5 w-2.5 rounded-full bg-accent"></span><span class="font-semibold text-accent">Up</span></span>
-      <span class="text-lg font-semibold text-fg">{{ name }}</span>
-      <span class="rounded bg-accent/10 px-2 py-0.5 text-xs text-accent">{{ TYPE_LABEL[type] }}</span>
-    </div>
 
     <!-- range (charts views) -->
     <div v-if="['node','host','container','docker','k8s'].includes(type)" class="mb-4 flex flex-wrap items-center gap-2">
