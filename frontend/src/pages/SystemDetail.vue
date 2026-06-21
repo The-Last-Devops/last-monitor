@@ -283,7 +283,7 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
 
 <template>
   <AppShell :title="name">
-    <template #header>
+    <template #title-after>
       <span class="rounded bg-accent/10 px-2 py-0.5 text-xs text-accent">{{ TYPE_LABEL[type] }}</span>
       <span class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-full" :class="statusUp ? 'bg-accent' : 'bg-red-500'"></span><span class="text-xs font-medium" :class="statusUp ? 'text-accent' : 'text-red-500'">{{ statusUp ? 'Up' : 'Down' }}</span></span>
     </template>

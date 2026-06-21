@@ -109,6 +109,7 @@ async function logout() { await auth.logout(); router.push({ name: 'login' }) }
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
           </button>
           <h1 class="text-lg font-semibold text-fg">{{ title }}</h1>
+          <slot name="title-after" />
         </div>
         <div class="flex items-center gap-3">
           <slot name="header" />
