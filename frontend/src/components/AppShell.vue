@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { api } from '../lib/api'
 import { useAuth } from '../stores/auth'
@@ -14,6 +14,7 @@ const router = useRouter()
 
 const drawer = ref(false)
 const nsOpen = ref(false)
+const nsRef = ref(null)
 const namespaces = ref([]) // [{id,name}]
 
 const nsNames = computed(() => namespaces.value.map((n) => n.name))
@@ -46,6 +47,10 @@ function toggleAllNs() { setNs([]) } // clears the filter → show all namespace
 onMounted(async () => {
   try { namespaces.value = await api.get('/api/namespaces') } catch { namespaces.value = [] }
 })
+// close the namespace dropdown on any click outside it (e.g. on the fleet table)
+function onDocClick(e) { if (nsOpen.value && nsRef.value && !nsRef.value.contains(e.target)) nsOpen.value = false }
+onMounted(() => document.addEventListener('click', onDocClick))
+onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
 
 async function logout() { await auth.logout(); router.push({ name: 'login' }) }
 
@@ -65,8 +70,7 @@ watch(() => props.title, (t) => { document.title = t ? `${t} — Last Monitor` :
       </div>
 
       <!-- namespace multi-select -->
-      <div class="relative px-3 pb-2">
-        <div v-if="nsOpen" class="fixed inset-0 z-20" @click="nsOpen = false"></div>
+      <div ref="nsRef" class="relative px-3 pb-2">
         <button @click="nsOpen = !nsOpen"
           class="relative z-30 flex w-full items-center justify-between gap-2 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg hover:border-accent/50">
           <span class="flex min-w-0 items-center gap-2"><span class="h-2 w-2 shrink-0 rounded-full bg-accent"></span><span class="truncate">{{ nsLabel }}</span></span>
