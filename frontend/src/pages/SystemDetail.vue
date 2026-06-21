@@ -235,6 +235,16 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
       <span v-if="meta.agent_version"><span class="text-faint">Agent</span> <RouterLink :to="{ path: '/', query: { q: `agent:${meta.agent_version}` } }" class="text-fg hover:text-accent">v{{ meta.agent_version }}</RouterLink></span>
     </div>
 
+    <!-- container metadata: context about its host -->
+    <div v-if="meta && type === 'container'" class="mb-4 flex flex-wrap items-center gap-x-6 gap-y-1.5 rounded-xl border border-line bg-surface px-4 py-2.5 text-xs">
+      <span><span class="text-faint">Type</span> <span class="text-fg">Container</span></span>
+      <span><span class="text-faint">Host</span> <RouterLink :to="`/system/${id}?type=docker&name=${encodeURIComponent(meta.name)}`" class="text-fg hover:text-accent">{{ meta.name }}</RouterLink></span>
+      <span><span class="text-faint">Namespace</span> <RouterLink :to="{ path: '/', query: { q: `ns:${meta.namespace}` } }" class="text-fg hover:text-accent">{{ meta.namespace }}</RouterLink></span>
+      <span v-if="meta.cpu_model"><span class="text-faint">Host CPU</span> <span class="text-fg">{{ meta.cpu_model }}<template v-if="meta.cpu_cores"> · {{ meta.cpu_cores }} cores</template></span></span>
+      <span v-if="meta.kernel"><span class="text-faint">Host kernel</span> <span class="text-fg">{{ meta.kernel }}</span></span>
+      <RouterLink :to="`/system/${id}?type=containers&name=${encodeURIComponent(meta.name)}`" class="ml-auto text-accent hover:underline">All containers ›</RouterLink>
+    </div>
+
     <!-- range (charts views) -->
     <div v-if="['node','host','container','docker','containers'].includes(type)" class="mb-4 flex flex-wrap items-center gap-2">
       <div class="flex rounded-lg border border-line bg-surface2 p-0.5 text-sm">
