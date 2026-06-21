@@ -12,7 +12,10 @@ const props = defineProps({
   height: { type: Number, default: 150 },
   syncKey: { type: String, default: '' }, // charts sharing a key sync their cursor
   spanSeconds: { type: Number, default: 0 }, // >0 → x-axis spans the full [now-span, now]
-  showLegend: { type: Boolean, default: true }, // false for many-series fleet charts
+  showLegend: { type: Boolean, default: true },
+  legendValuesAlways: { type: Boolean, default: true }, // false → show values only on hover
+  area: { type: Boolean, default: true }, // false → lines only (cleaner for many-host overlay)
+  spanGaps: { type: Boolean, default: false }, // true → connect across missing buckets
 })
 
 const ui = useUi()
@@ -61,7 +64,11 @@ const valueIdx = computed(() => {
   return Math.max(0, Math.min(props.time.length - 1, hoverIdx.value - padded.value.prepend))
 })
 const legend = computed(() =>
-  props.series.map((s) => ({ name: s.name, color: s.color, value: fmt(s.data[valueIdx.value]) })),
+  props.series.map((s) => ({
+    name: s.name,
+    color: s.color,
+    value: props.legendValuesAlways || hoverIdx.value != null ? fmt(s.data[valueIdx.value]) : '',
+  })),
 )
 const cursorTime = computed(() => {
   const t = props.time[valueIdx.value]
@@ -86,7 +93,14 @@ function opts() {
     scales: { x: { time: true } },
     series: [
       {},
-      ...props.series.map((s) => ({ label: s.name, stroke: s.color, width: 1.6, fill: s.color + '22', points: { show: false } })),
+      ...props.series.map((s) => ({
+        label: s.name,
+        stroke: s.color,
+        width: 1.6,
+        fill: props.area ? s.color + '22' : undefined,
+        spanGaps: props.spanGaps,
+        points: { show: false },
+      })),
     ],
     axes: [
       { stroke: axis, grid: { stroke: grid, width: 1 }, ticks: { stroke: grid }, font: '11px ui-monospace, monospace' },

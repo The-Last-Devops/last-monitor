@@ -119,7 +119,7 @@ async function bulkDelete() { for (const id of [...selected]) { try { await api.
 // ---- Fleet overlay (NewRelic-style: every visible host on one chart per metric) ----
 const FRANGES = ['30m', '1h', '3h', '6h', '12h', '24h']
 const FSPAN = { '30m': 1800, '1h': 3600, '3h': 10800, '6h': 21600, '12h': 43200, '24h': 86400 }
-const frange = computed(() => route.query.frange || '1h')
+const frange = computed(() => route.query.frange || '30m')
 function setFrange(r) { router.replace({ query: { ...route.query, frange: r } }) }
 const fleet = ref(null)
 async function loadFleet() { try { fleet.value = await api.get(`/api/fleet?range=${frange.value}`) } catch {} }
@@ -192,7 +192,7 @@ const detailLink = (s) => `/system/${s.id}?type=${s.kind}&name=${encodeURICompon
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div v-for="c in fleetCharts" :key="c.title" class="rounded-xl border border-line bg-surface p-4">
             <div class="mb-2 text-sm font-medium text-fg">{{ c.title }} <span class="text-xs text-faint">{{ c.series.length }} hosts</span></div>
-            <UplotChart :time="fleet?.t || []" :series="c.series" :unit="c.unit" :span-seconds="FSPAN[frange]" :show-legend="false" sync-key="fleet" />
+            <UplotChart :time="fleet?.t || []" :series="c.series" :unit="c.unit" :span-seconds="FSPAN[frange]" :legend-values-always="false" :area="false" :span-gaps="true" sync-key="fleet" />
           </div>
         </div>
       </section>
