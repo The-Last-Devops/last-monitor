@@ -86,8 +86,9 @@ pub async fn ingest(
             time, system_id, cpu_percent, mem_used, mem_total,
             swap_used, swap_total, disk_used, disk_total,
             net_rx, net_tx, load1, uptime, temps,
-            disk_read, disk_write, gpus, load5, load15, cpu_per_core
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+            disk_read, disk_write, gpus, load5, load15,
+            cpu_user, cpu_system, cpu_iowait, cpu_steal
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
         "#,
     )
     .bind(ts)
@@ -109,7 +110,10 @@ pub async fn ingest(
     .bind(sqlx::types::Json(&report.gpus))
     .bind(report.load5)
     .bind(report.load15)
-    .bind(sqlx::types::Json(&report.cpu_per_core))
+    .bind(report.cpu_user as f64)
+    .bind(report.cpu_system as f64)
+    .bind(report.cpu_iowait as f64)
+    .bind(report.cpu_steal as f64)
     .execute(&state.data)
     .await
     .map_err(|e| {

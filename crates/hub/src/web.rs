@@ -52,8 +52,11 @@ pub struct MetricsHistory {
     pub load1: Vec<f64>,
     pub load5: Vec<f64>,
     pub load15: Vec<f64>,
-    /// Per-core CPU usage % (one Series per core, htop-style).
-    pub cores: Vec<Series>,
+    /// CPU time breakdown (% of total): user / system / iowait / steal.
+    pub cpu_user: Vec<f64>,
+    pub cpu_system: Vec<f64>,
+    pub cpu_iowait: Vec<f64>,
+    pub cpu_steal: Vec<f64>,
 }
 
 #[derive(serde::Deserialize)]
@@ -85,19 +88,23 @@ pub async fn system_metrics_series(
         return Err(StatusCode::FORBIDDEN);
     }
     let interval = range_interval(&q.range);
+    // mem/disk percentages are computed in SQL to keep the row tuple within
+    // sqlx's 16-element FromRow limit.
     let sql = format!(
-        "SELECT time, cpu_percent, mem_used, mem_total, disk_used, disk_total, net_rx, net_tx, \
-                COALESCE(disk_read,0), COALESCE(disk_write,0), load1, COALESCE(load5,0), COALESCE(load15,0), cpu_per_core \
+        "SELECT time, cpu_percent, \
+                CASE WHEN mem_total>0 THEN mem_used::float8/mem_total*100 ELSE 0 END, \
+                CASE WHEN disk_total>0 THEN disk_used::float8/disk_total*100 ELSE 0 END, \
+                net_rx, net_tx, COALESCE(disk_read,0), COALESCE(disk_write,0), \
+                load1, COALESCE(load5,0), COALESCE(load15,0), \
+                COALESCE(cpu_user,0), COALESCE(cpu_system,0), COALESCE(cpu_iowait,0), COALESCE(cpu_steal,0) \
          FROM system_metrics WHERE system_id = $1 AND time > now() - interval '{interval}' \
          ORDER BY time ASC LIMIT 4000"
     );
     type Sample = (
         chrono::DateTime<chrono::Utc>,
         f64,
-        i64,
-        i64,
-        i64,
-        i64,
+        f64,
+        f64,
         i64,
         i64,
         i64,
@@ -105,27 +112,16 @@ pub async fn system_metrics_series(
         f64,
         f64,
         f64,
-        Option<sqlx::types::Json<Vec<f32>>>,
+        f64,
+        f64,
+        f64,
+        f64,
     );
     let rows: Vec<Sample> = sqlx::query_as(&sql)
         .bind(id)
         .fetch_all(&state.data)
         .await
         .map_err(internal)?;
-
-    let pct = |used: i64, total: i64| {
-        if total > 0 {
-            used as f64 / total as f64 * 100.0
-        } else {
-            0.0
-        }
-    };
-    let ncores = rows
-        .iter()
-        .map(|r| r.13.as_ref().map(|j| j.0.len()).unwrap_or(0))
-        .max()
-        .unwrap_or(0);
-    let mut core_data: Vec<Vec<Option<f64>>> = vec![Vec::with_capacity(rows.len()); ncores];
 
     let mut h = MetricsHistory {
         t: Vec::new(),
@@ -139,7 +135,10 @@ pub async fn system_metrics_series(
         load1: Vec::new(),
         load5: Vec::new(),
         load15: Vec::new(),
-        cores: Vec::new(),
+        cpu_user: Vec::new(),
+        cpu_system: Vec::new(),
+        cpu_iowait: Vec::new(),
+        cpu_steal: Vec::new(),
     };
     // Cumulative counters -> per-second rate from consecutive deltas.
     let mut prev: Option<(i64, i64, i64, i64, i64)> = None; // (ts, rx, tx, dr, dw)
@@ -147,10 +146,8 @@ pub async fn system_metrics_series(
         let (
             time,
             cpu,
-            mem_used,
-            mem_total,
-            disk_used,
-            disk_total,
+            mem_pct,
+            disk_pct,
             net_rx,
             net_tx,
             dread,
@@ -158,20 +155,23 @@ pub async fn system_metrics_series(
             l1,
             l5,
             l15,
-            pc,
+            cu,
+            cs,
+            cio,
+            cst,
         ) = row;
         let ts = time.timestamp();
         h.t.push(ts);
         h.cpu.push(cpu);
-        h.mem_pct.push(pct(mem_used, mem_total));
-        h.disk_pct.push(pct(disk_used, disk_total));
+        h.mem_pct.push(mem_pct);
+        h.disk_pct.push(disk_pct);
         h.load1.push(l1);
         h.load5.push(l5);
         h.load15.push(l15);
-        let per_core = pc.map(|j| j.0).unwrap_or_default();
-        for (i, slot) in core_data.iter_mut().enumerate() {
-            slot.push(per_core.get(i).map(|v| *v as f64));
-        }
+        h.cpu_user.push(cu);
+        h.cpu_system.push(cs);
+        h.cpu_iowait.push(cio);
+        h.cpu_steal.push(cst);
         let (rx_rate, tx_rate, dr_rate, dw_rate) = match prev {
             Some((pt, prx, ptx, pdr, pdw)) if ts > pt => {
                 let dt = (ts - pt) as f64;
@@ -190,14 +190,6 @@ pub async fn system_metrics_series(
         h.dw.push(dw_rate);
         prev = Some((ts, net_rx, net_tx, dread, dwrite));
     }
-    h.cores = core_data
-        .into_iter()
-        .enumerate()
-        .map(|(i, data)| Series {
-            name: format!("core {i}"),
-            data,
-        })
-        .collect();
     Ok(Json(h))
 }
 
@@ -287,6 +279,125 @@ pub async fn list_systems(
         });
     }
     Ok(Json(rows))
+}
+
+// ---- fleet overlay (NewRelic-style: one line per host across all systems) ----
+
+#[derive(Serialize)]
+pub struct FleetData {
+    pub t: Vec<i64>,
+    pub cpu: Vec<Series>,
+    pub mem: Vec<Series>,
+    pub disk: Vec<Series>,
+    /// Network throughput rx+tx (bytes/sec).
+    pub net: Vec<Series>,
+}
+
+fn range_bucket(range: &Option<String>) -> &'static str {
+    match range.as_deref() {
+        Some("6h") => "5 minutes",
+        Some("12h") => "10 minutes",
+        Some("24h") => "15 minutes",
+        _ => "1 minute", // 30m / 1h / 3h
+    }
+}
+
+/// GET /api/fleet?range= — per-host series for the fleet overlay charts. Bucketed
+/// with time_bucket so many hosts stay light and share one timeline.
+pub async fn fleet(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    axum::extract::Query(q): axum::extract::Query<RangeQuery>,
+) -> Result<Json<FleetData>, StatusCode> {
+    use std::collections::{BTreeMap, BTreeSet, HashMap};
+
+    let sys: Vec<(Uuid, String)> = sqlx::query_as(
+        "SELECT s.id, s.name FROM systems s WHERE $1 OR s.namespace_id IN ( \
+            SELECT namespace_id FROM memberships WHERE user_id = $2)",
+    )
+    .bind(user.is_admin)
+    .bind(user.id)
+    .fetch_all(&state.config)
+    .await
+    .map_err(internal)?;
+    let names: HashMap<Uuid, String> = sys.into_iter().collect();
+
+    let interval = range_interval(&q.range);
+    let bucket = range_bucket(&q.range);
+    let sql = format!(
+        "SELECT system_id, time_bucket('{bucket}', time) AS b, \
+                avg(cpu_percent) AS cpu, \
+                avg(CASE WHEN mem_total>0 THEN mem_used::float8/mem_total*100 ELSE 0 END) AS mem, \
+                avg(CASE WHEN disk_total>0 THEN disk_used::float8/disk_total*100 ELSE 0 END) AS disk, \
+                max(net_rx) AS net_rx, max(net_tx) AS net_tx \
+         FROM system_metrics WHERE time > now() - interval '{interval}' \
+         GROUP BY system_id, b ORDER BY b"
+    );
+    let rows: Vec<(Uuid, chrono::DateTime<chrono::Utc>, f64, f64, f64, i64, i64)> =
+        sqlx::query_as(&sql)
+            .fetch_all(&state.data)
+            .await
+            .map_err(internal)?;
+
+    let mut times = BTreeSet::new();
+    let mut cpu: BTreeMap<Uuid, HashMap<i64, f64>> = BTreeMap::new();
+    let mut mem: BTreeMap<Uuid, HashMap<i64, f64>> = BTreeMap::new();
+    let mut disk: BTreeMap<Uuid, HashMap<i64, f64>> = BTreeMap::new();
+    let mut netc: BTreeMap<Uuid, BTreeMap<i64, i64>> = BTreeMap::new();
+    for (sid, b, c, m, d, rx, tx) in rows {
+        let ts = b.timestamp();
+        times.insert(ts);
+        cpu.entry(sid).or_default().insert(ts, c);
+        mem.entry(sid).or_default().insert(ts, m);
+        disk.entry(sid).or_default().insert(ts, d);
+        netc.entry(sid).or_default().insert(ts, rx + tx);
+    }
+    let t: Vec<i64> = times.into_iter().collect();
+    let mk = |map: BTreeMap<Uuid, HashMap<i64, f64>>| -> Vec<Series> {
+        map.into_iter()
+            .filter_map(|(sid, m)| {
+                names.get(&sid).map(|name| Series {
+                    name: name.clone(),
+                    data: t.iter().map(|ts| m.get(ts).copied()).collect(),
+                })
+            })
+            .collect()
+    };
+    let net: Vec<Series> = netc
+        .into_iter()
+        .filter_map(|(sid, bm)| {
+            names.get(&sid).map(|name| {
+                let mut prev: Option<(i64, i64)> = None;
+                let data = t
+                    .iter()
+                    .map(|&ts| match bm.get(&ts) {
+                        Some(&total) => {
+                            let rate = match prev {
+                                Some((pt, ptot)) if ts > pt => {
+                                    Some((total - ptot).max(0) as f64 / (ts - pt) as f64)
+                                }
+                                _ => Some(0.0),
+                            };
+                            prev = Some((ts, total));
+                            rate
+                        }
+                        None => None,
+                    })
+                    .collect();
+                Series {
+                    name: name.clone(),
+                    data,
+                }
+            })
+        })
+        .collect();
+    Ok(Json(FleetData {
+        cpu: mk(cpu),
+        mem: mk(mem),
+        disk: mk(disk),
+        net,
+        t,
+    }))
 }
 
 #[derive(Serialize)]

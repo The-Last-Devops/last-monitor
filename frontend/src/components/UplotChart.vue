@@ -11,6 +11,8 @@ const props = defineProps({
   unit: { type: String, default: '' },
   height: { type: Number, default: 150 },
   syncKey: { type: String, default: '' }, // charts sharing a key sync their cursor
+  spanSeconds: { type: Number, default: 0 }, // >0 → x-axis spans the full [now-span, now]
+  showLegend: { type: Boolean, default: true }, // false for many-series fleet charts
 })
 
 const ui = useUi()
@@ -35,9 +37,29 @@ function fmt(v) {
   return (v < 10 ? v.toFixed(2) : v.toFixed(0)) + props.unit
 }
 
-const uData = computed(() => [props.time, ...props.series.map((s) => s.data)])
-// index used for the legend: cursor when hovering, else the latest sample
-const valueIdx = computed(() => (hoverIdx.value != null ? hoverIdx.value : props.time.length - 1))
+// When spanSeconds is set, pad with null boundary points at [now-span] and [now]
+// so the x-axis always covers the whole selected window (blank where no data),
+// instead of uPlot shrinking to the data extent. `prepend` = points added at the
+// front, used to map uPlot's cursor index back to the unpadded series.
+const padded = computed(() => {
+  const time = props.time.slice()
+  const cols = props.series.map((s) => s.data.slice())
+  let prepend = 0
+  if (props.spanSeconds > 0) {
+    const to = Math.floor(Date.now() / 1000)
+    const from = to - props.spanSeconds
+    if (!time.length || time[0] > from) { time.unshift(from); cols.forEach((c) => c.unshift(null)); prepend = 1 }
+    if (!time.length || time[time.length - 1] < to) { time.push(to); cols.forEach((c) => c.push(null)) }
+  }
+  return { data: [time, ...cols], prepend }
+})
+const uData = computed(() => padded.value.data)
+// index used for the legend: cursor when hovering (mapped past any prepended
+// boundary point), else the latest real sample
+const valueIdx = computed(() => {
+  if (hoverIdx.value == null) return props.time.length - 1
+  return Math.max(0, Math.min(props.time.length - 1, hoverIdx.value - padded.value.prepend))
+})
 const legend = computed(() =>
   props.series.map((s) => ({ name: s.name, color: s.color, value: fmt(s.data[valueIdx.value]) })),
 )
@@ -104,11 +126,13 @@ watch(() => ui.light, () => build())
   <div>
     <div ref="el" class="w-full"></div>
     <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-      <span v-for="s in legend" :key="s.name" class="flex items-center gap-1.5">
-        <span class="h-2 w-2 rounded-full" :style="{ background: s.color }"></span>
-        <span class="text-muted">{{ s.name }}</span>
-        <span class="tabular-nums text-fg">{{ s.value }}</span>
-      </span>
+      <template v-if="showLegend">
+        <span v-for="s in legend" :key="s.name" class="flex items-center gap-1.5">
+          <span class="h-2 w-2 rounded-full" :style="{ background: s.color }"></span>
+          <span class="text-muted">{{ s.name }}</span>
+          <span class="tabular-nums text-fg">{{ s.value }}</span>
+        </span>
+      </template>
       <span class="ml-auto tabular-nums text-faint">{{ hoverIdx != null ? cursorTime : 'now' }}</span>
     </div>
   </div>

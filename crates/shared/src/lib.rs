@@ -38,9 +38,16 @@ pub struct MetricsReport {
     /// Load average over the last 15 minutes.
     #[serde(default)]
     pub load15: f64,
-    /// Per-core CPU usage % (htop-style); empty if unavailable.
+    /// CPU time breakdown as percentages of total (from /proc/stat on Linux;
+    /// all 0 where unavailable, e.g. macOS — then only `cpu_percent` is shown).
     #[serde(default)]
-    pub cpu_per_core: Vec<f32>,
+    pub cpu_user: f32,
+    #[serde(default)]
+    pub cpu_system: f32,
+    #[serde(default)]
+    pub cpu_iowait: f32,
+    #[serde(default)]
+    pub cpu_steal: f32,
     /// Seconds since the machine booted.
     pub uptime: u64,
 

@@ -6,6 +6,7 @@ import AppShell from '../components/AppShell.vue'
 import Gauge from '../components/Gauge.vue'
 import AddSystemModal from '../components/AddSystemModal.vue'
 import SystemSearch from '../components/SystemSearch.vue'
+import UplotChart from '../components/UplotChart.vue'
 
 const showAdd = ref(false)
 
@@ -57,23 +58,32 @@ function parseQuery(qs) {
 }
 const metricVal = (s, f) => (f === 'cpu' ? s.cpu_percent : f === 'mem' ? pct(s.mem_used, s.mem_total) : pct(s.disk_used, s.disk_total))
 const cmpOp = (a, op, b) => (op === '>' ? a > b : op === '<' ? a < b : op === '>=' ? a >= b : op === '<=' ? a <= b : a === b)
+// wildcard match: substring by default; '*' acts as a glob (web*, *-prod, db*1)
+const escapeRe = (s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+function wild(hay, pat) {
+  if (!pat) return true
+  hay = (hay || '').toLowerCase()
+  if (pat.includes('*')) return new RegExp('^' + pat.split('*').map(escapeRe).join('.*') + '$').test(hay)
+  return hay.includes(pat)
+}
 function matchPred(s, p) {
   if (p.t === 'num') { const v = metricVal(s, p.f); return v != null && cmpOp(v, p.op, p.v) }
   if (p.t === 'kv') {
-    if (['name', 'node', 'system'].includes(p.k)) return (s.name || '').toLowerCase().includes(p.v)
+    if (['name', 'node', 'system'].includes(p.k)) return wild(s.name, p.v)
     if (p.k === 'status') return (online(s) ? 'online' : 'offline').startsWith(p.v)
     if (p.k === 'kind') return s.kind === p.v
-    if (p.k === 'ns') return (s.namespace || '').toLowerCase().includes(p.v)
-    if (p.k === 'agent') return (s.agent_version || '').toLowerCase().includes(p.v)
+    if (p.k === 'ns') return wild(s.namespace, p.v)
+    if (p.k === 'agent') return wild(s.agent_version, p.v)
   }
-  // default (plain text) = node name (+ hostname)
-  return (s.name + ' ' + (s.hostname || '')).toLowerCase().includes(p.v)
+  // default (plain text) = node name (+ hostname), wildcard-aware
+  return wild(s.name + ' ' + (s.hostname || ''), p.v)
 }
 const preds = computed(() => parseQuery(q.value))
 const visible = computed(() => servers.value.filter((s) => inNs(s) && preds.value.every((p) => matchPred(s, p))))
 function sortList(list, st) {
   const f = {
     name: (a, b) => a.name.localeCompare(b.name),
+    ns: (a, b) => (a.namespace || '').localeCompare(b.namespace || ''),
     status: (a, b) => Number(online(b)) - Number(online(a)),
     cpu: (a, b) => (a.cpu_percent || 0) - (b.cpu_percent || 0),
     mem: (a, b) => (pct(a.mem_used, a.mem_total) || 0) - (pct(b.mem_used, b.mem_total) || 0),
@@ -91,8 +101,9 @@ function avg(arr, f) { const v = arr.map(f).filter((x) => x != null); return v.l
 const clusters = computed(() => {
   const by = {}
   for (const s of visible.value.filter((x) => x.kind === 'k8s')) (by[s.cluster || 'unnamed'] ||= []).push(s)
-  return Object.entries(by).map(([cluster, ns]) => ({ cluster, nodes: ns, cpu_percent: avg(ns, (x) => x.cpu_percent), memPct: avg(ns, (x) => pct(x.mem_used, x.mem_total)), online: ns.filter(online).length, total: ns.length }))
+  return Object.entries(by).map(([cluster, ns]) => ({ cluster, nodes: ns, namespace: [...new Set(ns.map((x) => x.namespace).filter(Boolean))].join(', '), cpu_percent: avg(ns, (x) => x.cpu_percent), memPct: avg(ns, (x) => pct(x.mem_used, x.mem_total)), online: ns.filter(online).length, total: ns.length }))
 })
+const allK8s = computed(() => clusters.value.flatMap((c) => c.nodes))
 const hero = computed(() => {
   const all = visible.value, on = all.filter(online).length
   return { online: on, total: all.length, cpu: avg(all, (x) => x.cpu_percent), mem: avg(all, (x) => pct(x.mem_used, x.mem_total)), nodes: all.filter((s) => s.kind === 'node').length }
@@ -105,6 +116,28 @@ function toggleAll(rows) { const all = rows.length && rows.every((s) => selected
 function toggleExpand(k) { expanded.has(k) ? expanded.delete(k) : expanded.add(k) }
 async function bulkDelete() { for (const id of [...selected]) { try { await api.del(`/api/systems/${id}`) } catch {} } selected.clear(); await load() }
 
+// ---- Fleet overlay (NewRelic-style: every visible host on one chart per metric) ----
+const FRANGES = ['30m', '1h', '3h', '6h', '12h', '24h']
+const FSPAN = { '30m': 1800, '1h': 3600, '3h': 10800, '6h': 21600, '12h': 43200, '24h': 86400 }
+const frange = computed(() => route.query.frange || '1h')
+function setFrange(r) { router.replace({ query: { ...route.query, frange: r } }) }
+const fleet = ref(null)
+async function loadFleet() { try { fleet.value = await api.get(`/api/fleet?range=${frange.value}`) } catch {} }
+const hostColor = (i) => `hsl(${(i * 47) % 360} 70% 58%)`
+// overlay only the hosts that pass the current filter + namespace
+const visibleNames = computed(() => new Set(visible.value.map((s) => s.name)))
+const fleetSeries = (arr) => (arr || []).filter((s) => visibleNames.value.has(s.name)).map((s, i) => ({ name: s.name, color: hostColor(i), data: s.data }))
+const fleetCharts = computed(() => {
+  const f = fleet.value
+  if (!f) return []
+  return [
+    { title: 'CPU', unit: '%', series: fleetSeries(f.cpu) },
+    { title: 'Memory', unit: '%', series: fleetSeries(f.mem) },
+    { title: 'Disk', unit: '%', series: fleetSeries(f.disk) },
+    { title: 'Network', unit: 'B/s', series: fleetSeries(f.net) },
+  ]
+})
+
 async function load() {
   try {
     servers.value = await api.get('/api/systems')
@@ -116,8 +149,9 @@ async function load() {
     if (!loaded.value) error.value = 'Failed to load systems'
   }
 }
-onMounted(() => { load(); timer = setInterval(load, 5000) })
+onMounted(() => { load(); loadFleet(); timer = setInterval(() => { load(); loadFleet() }, 5000) })
 onUnmounted(() => clearInterval(timer))
+watch(frange, loadFleet)
 
 const detailLink = (s) => `/system/${s.id}?type=${s.kind}&name=${encodeURIComponent(s.name)}`
 </script>
@@ -146,14 +180,32 @@ const detailLink = (s) => `/system/${s.id}?type=${s.kind}&name=${encodeURICompon
       <p v-if="!loaded && !error" class="text-sm text-muted">Loading…</p>
       <p v-if="error" class="text-sm text-red-500">{{ error }}</p>
 
+      <!-- Fleet overlay: every visible host on one chart per metric (filter applies) -->
+      <section v-if="visible.length">
+        <div class="mb-2 flex flex-wrap items-center gap-2">
+          <h2 class="text-sm font-semibold text-fg">Fleet metrics</h2>
+          <span class="rounded-full bg-surface2 px-2 py-0.5 text-xs text-muted">{{ visible.length }} hosts</span>
+          <div class="ml-auto flex rounded-lg border border-line bg-surface2 p-0.5 text-xs">
+            <button v-for="rr in FRANGES" :key="rr" @click="setFrange(rr)" class="rounded-md px-2.5 py-1" :class="frange===rr?'bg-accent/15 font-medium text-accent':'text-muted hover:text-fg'">{{ rr }}</button>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div v-for="c in fleetCharts" :key="c.title" class="rounded-xl border border-line bg-surface p-4">
+            <div class="mb-2 text-sm font-medium text-fg">{{ c.title }} <span class="text-xs text-faint">{{ c.series.length }} hosts</span></div>
+            <UplotChart :time="fleet?.t || []" :series="c.series" :unit="c.unit" :span-seconds="FSPAN[frange]" :show-legend="false" sync-key="fleet" />
+          </div>
+        </div>
+      </section>
+
       <!-- Nodes + Docker -->
       <section v-for="sec in sections" :key="sec.key" v-show="sec.rows.length">
         <div class="mb-2 flex items-center gap-2"><h2 class="text-sm font-semibold text-fg">{{ sec.title }}</h2><span class="rounded-full bg-surface2 px-2 py-0.5 text-xs text-muted">{{ sec.rows.length }}</span></div>
         <div class="overflow-x-auto rounded-xl border border-line">
-          <table class="w-full min-w-[840px] text-sm">
+          <table class="w-full min-w-[940px] text-sm">
             <thead class="border-b border-line bg-surface text-left text-xs uppercase tracking-wider text-muted"><tr>
               <th class="w-8 px-3 py-2.5"><input type="checkbox" :checked="sec.rows.length && sec.rows.every((s)=>selected.has(s.id))" @change="toggleAll(sec.rows)" class="h-4 w-4 accent-accent" /></th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy(sec.key,'name')">System{{ arrow(sec.key,'name') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy(sec.key,'name')">Node{{ arrow(sec.key,'name') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy(sec.key,'ns')">Namespace{{ arrow(sec.key,'ns') }}</th>
               <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy(sec.key,'status')">Status{{ arrow(sec.key,'status') }}</th>
               <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy(sec.key,'cpu')">CPU{{ arrow(sec.key,'cpu') }}</th>
               <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy(sec.key,'mem')">Memory{{ arrow(sec.key,'mem') }}</th>
@@ -170,6 +222,7 @@ const detailLink = (s) => `/system/${s.id}?type=${s.kind}&name=${encodeURICompon
                       <RouterLink :to="detailLink(s)" class="flex items-center gap-2.5"><span class="h-2 w-2 rounded-full" :class="online(s)?'bg-accent':'bg-red-500'"></span><span><span class="text-fg">{{ s.name }}</span><span class="block text-xs text-faint">{{ s.hostname }}</span></span></RouterLink>
                     </div>
                   </td>
+                  <td class="px-4 py-3"><span class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted">{{ s.namespace || '—' }}</span></td>
                   <td class="px-4 py-3 text-sm" :class="online(s)?'text-accent':'text-red-500'">{{ online(s)?'online':'offline' }}</td>
                   <td class="px-4 py-3"><Gauge :v="online(s)?r(s.cpu_percent):null" /></td>
                   <td class="px-4 py-3"><Gauge :v="online(s)?pct(s.mem_used,s.mem_total):null" /></td>
@@ -179,6 +232,7 @@ const detailLink = (s) => `/system/${s.id}?type=${s.kind}&name=${encodeURICompon
                 <tr v-for="c in (containers[s.id] || [])" v-show="sec.key === 'docker' && expanded.has(s.id)" :key="s.id + ':' + c.name" class="lm-row border-b border-line bg-bg/40">
                   <td></td>
                   <td class="px-4 py-2"><RouterLink :to="`/system/${s.id}?type=container&name=${encodeURIComponent(c.name)}&parent=${encodeURIComponent(s.name)}&ptype=docker`" class="flex items-center gap-2 pl-6 text-sm text-fg hover:text-accent"><span class="text-faint">└</span>{{ c.name }}</RouterLink></td>
+                  <td class="px-4 py-2 text-faint">—</td>
                   <td class="px-4 py-2 text-sm text-accent">running</td>
                   <td class="px-4 py-2"><Gauge :v="c.cpu" /></td>
                   <td class="px-4 py-2 tabular-nums text-muted">{{ c.mem != null ? (c.mem / 1048576).toFixed(0) + ' MB' : '—' }}</td>
@@ -195,19 +249,22 @@ const detailLink = (s) => `/system/${s.id}?type=${s.kind}&name=${encodeURICompon
       <section v-if="clusters.length">
         <div class="mb-2 flex items-center gap-2"><h2 class="text-sm font-semibold text-fg">Kubernetes</h2><span class="rounded-full bg-surface2 px-2 py-0.5 text-xs text-muted">{{ clusters.length }}</span></div>
         <div class="overflow-x-auto rounded-xl border border-line">
-          <table class="w-full min-w-[700px] text-sm">
-            <thead class="border-b border-line bg-surface text-left text-xs uppercase tracking-wider text-muted"><tr><th class="w-8 px-3 py-2.5"></th><th class="px-4 py-2.5 font-medium">Cluster</th><th class="px-4 py-2.5 font-medium">Nodes</th><th class="px-4 py-2.5 font-medium">Avg CPU</th><th class="px-4 py-2.5 font-medium">Avg Mem</th></tr></thead>
+          <table class="w-full min-w-[760px] text-sm">
+            <thead class="border-b border-line bg-surface text-left text-xs uppercase tracking-wider text-muted"><tr>
+              <th class="w-8 px-3 py-2.5"><input type="checkbox" :checked="allK8s.length && allK8s.every((n)=>selected.has(n.id))" @change="toggleAll(allK8s)" class="h-4 w-4 accent-accent" /></th>
+              <th class="px-4 py-2.5 font-medium">Cluster</th><th class="px-4 py-2.5 font-medium">Namespace</th><th class="px-4 py-2.5 font-medium">Nodes</th><th class="px-4 py-2.5 font-medium">Avg CPU</th><th class="px-4 py-2.5 font-medium">Avg Mem</th></tr></thead>
             <tbody>
               <template v-for="c in clusters" :key="c.cluster">
                 <tr class="lm-row border-b border-line">
-                  <td class="px-3 py-3"><button @click="toggleExpand('k8s:'+c.cluster)" class="text-muted hover:text-accent"><svg class="h-4 w-4 transition-transform" :class="expanded.has('k8s:'+c.cluster)?'rotate-90':''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></button></td>
-                  <td class="px-4 py-3"><RouterLink :to="`/system/${encodeURIComponent(c.cluster)}?type=k8s&name=${encodeURIComponent(c.cluster)}`" class="text-fg hover:text-accent">{{ c.cluster }}</RouterLink></td>
+                  <td class="px-3 py-3"><input type="checkbox" :checked="c.nodes.length && c.nodes.every((n)=>selected.has(n.id))" @change="toggleAll(c.nodes)" class="h-4 w-4 accent-accent" /></td>
+                  <td class="px-4 py-3"><div class="flex items-center gap-1.5"><button @click="toggleExpand('k8s:'+c.cluster)" class="text-muted hover:text-accent"><svg class="h-4 w-4 transition-transform" :class="expanded.has('k8s:'+c.cluster)?'rotate-90':''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></button><RouterLink :to="`/system/${encodeURIComponent(c.cluster)}?type=k8s&name=${encodeURIComponent(c.cluster)}`" class="text-fg hover:text-accent">{{ c.cluster }}</RouterLink></div></td>
+                  <td class="px-4 py-3"><span class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted">{{ c.namespace || '—' }}</span></td>
                   <td class="px-4 py-3 text-muted">{{ c.online }}/{{ c.total }}</td>
                   <td class="px-4 py-3"><Gauge :v="c.cpu_percent" /></td>
                   <td class="px-4 py-3"><Gauge :v="c.memPct" /></td>
                 </tr>
                 <tr v-for="(n,i) in c.nodes" v-show="expanded.has('k8s:'+c.cluster)" :key="n.id" class="lm-row border-b border-line bg-bg/40">
-                  <td></td>
+                  <td class="px-3 py-2"><input type="checkbox" :checked="selected.has(n.id)" @change="toggleRow(n.id)" class="h-4 w-4 accent-accent" /></td>
                   <td class="px-4 py-2"><RouterLink :to="`/system/${n.id}?type=node&name=${encodeURIComponent(n.name)}&parent=${encodeURIComponent(c.cluster)}&ptype=k8s`" class="flex items-center gap-2 pl-6 text-sm text-fg hover:text-accent"><span class="text-faint">{{ i===c.nodes.length-1?'└':'├' }}</span>{{ n.name }}</RouterLink></td>
                   <td class="px-4 py-2 text-sm" :class="online(n)?'text-accent':'text-red-500'">{{ online(n)?'online':'offline' }}</td>
                   <td class="px-4 py-2"><Gauge :v="r(n.cpu_percent)" /></td>

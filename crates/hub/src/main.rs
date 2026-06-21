@@ -112,6 +112,7 @@ async fn main() -> Result<()> {
         )
         // read views (scoped to caller)
         .route("/api/systems", get(web::list_systems))
+        .route("/api/fleet", get(web::fleet))
         .route("/api/systems/{id}/metrics", get(web::system_metrics_series))
         .route("/api/systems/{id}/containers", get(web::system_containers))
         .route("/api/systems/{id}/temps", get(web::system_temps))

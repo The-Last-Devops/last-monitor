@@ -46,7 +46,6 @@ const suggestions = computed(() => {
 function onFocus() {
   open.value = true
   hi.value = 0
-  if (!text.value) text.value = 'name:' // default search field = node name
 }
 function apply(s) {
   const parts = text.value.split(/\s+/)
@@ -70,7 +69,7 @@ function onKey(e) {
   <div class="relative">
     <svg class="absolute left-2.5 top-2.5 h-4 w-4 text-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
     <input v-model="text" @focus="onFocus" @blur="open = false" @keydown="onKey"
-      placeholder="name: …   try cpu>50 status:online kind:docker"
+      placeholder="Search nodes…   web*  cpu>50  ns:prod  kind:docker"
       class="w-96 rounded-lg border border-line bg-surface2 py-2 pl-8 pr-3 text-sm text-fg outline-none focus:border-accent/50" />
     <div v-if="open && suggestions.length" class="absolute left-0 right-0 z-30 mt-1 max-h-72 overflow-auto rounded-lg border border-line bg-surface2 py-1 shadow-xl">
       <button v-for="(s, i) in suggestions" :key="s.label" @mousedown.prevent="apply(s)"

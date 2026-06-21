@@ -110,7 +110,6 @@ fn collect(
     let (disk_read, disk_write) = disk_io();
 
     let load = System::load_average();
-    let cpu_per_core: Vec<f32> = sys.cpus().iter().map(|c| c.cpu_usage()).collect();
     MetricsReport {
         ts: now_secs(),
         hostname: System::host_name().unwrap_or_else(|| "unknown".into()),
@@ -126,7 +125,11 @@ fn collect(
         load1: load.one,
         load5: load.five,
         load15: load.fifteen,
-        cpu_per_core,
+        // CPU breakdown is filled in by the push loop (needs prev /proc/stat).
+        cpu_user: 0.0,
+        cpu_system: 0.0,
+        cpu_iowait: 0.0,
+        cpu_steal: 0.0,
         uptime: System::uptime(),
         kind: String::new(), // set from config in the push loop
         cluster: String::new(),
@@ -184,6 +187,60 @@ fn disk_io() -> (u64, u64) {
         }
     }
     (r, w)
+}
+
+/// Cumulative CPU jiffies from /proc/stat's aggregate `cpu` line. None off Linux.
+struct CpuTimes {
+    user: u64,
+    nice: u64,
+    system: u64,
+    idle: u64,
+    iowait: u64,
+    irq: u64,
+    softirq: u64,
+    steal: u64,
+}
+
+fn read_cpu_times() -> Option<CpuTimes> {
+    let content = std::fs::read_to_string("/proc/stat").ok()?;
+    let line = content.lines().next()?;
+    let mut it = line.split_whitespace();
+    if it.next()? != "cpu" {
+        return None;
+    }
+    let v: Vec<u64> = it.filter_map(|x| x.parse().ok()).collect();
+    if v.len() < 8 {
+        return None;
+    }
+    Some(CpuTimes {
+        user: v[0],
+        nice: v[1],
+        system: v[2],
+        idle: v[3],
+        iowait: v[4],
+        irq: v[5],
+        softirq: v[6],
+        steal: v[7],
+    })
+}
+
+impl CpuTimes {
+    /// (user, system, iowait, steal) as percentages of the delta since `prev`.
+    fn delta_pct(&self, prev: &CpuTimes) -> (f32, f32, f32, f32) {
+        let d = |a: u64, b: u64| a.saturating_sub(b);
+        let user = d(self.user, prev.user) + d(self.nice, prev.nice);
+        let system =
+            d(self.system, prev.system) + d(self.irq, prev.irq) + d(self.softirq, prev.softirq);
+        let iowait = d(self.iowait, prev.iowait);
+        let steal = d(self.steal, prev.steal);
+        let idle = d(self.idle, prev.idle);
+        let total = user + system + iowait + steal + idle;
+        if total == 0 {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
+        let pct = |x: u64| (x as f32 / total as f32) * 100.0;
+        (pct(user), pct(system), pct(iowait), pct(steal))
+    }
 }
 
 /// Per-GPU stats via `nvidia-smi`. Empty if unavailable (no NVIDIA GPU / tool).
@@ -355,12 +412,23 @@ async fn main() -> Result<()> {
     tokio::time::sleep(Duration::from_millis(300)).await;
 
     let mut interval = cfg.interval;
+    let mut prev_cpu = read_cpu_times();
     tracing::info!(hub = %cfg.hub_url, ?interval, "agent started");
 
     loop {
         let mut report = collect(&mut sys, &mut nets, &mut components, &cfg.disk_path);
         report.kind = cfg.kind.clone();
         report.cluster = cfg.cluster.clone();
+        // CPU breakdown from the delta between successive /proc/stat reads (Linux).
+        let cur_cpu = read_cpu_times();
+        if let (Some(prev), Some(cur)) = (&prev_cpu, &cur_cpu) {
+            let (u, s, io, st) = cur.delta_pct(prev);
+            report.cpu_user = u;
+            report.cpu_system = s;
+            report.cpu_iowait = io;
+            report.cpu_steal = st;
+        }
+        prev_cpu = cur_cpu;
         if !cfg.hostname_override.is_empty() {
             report.hostname = cfg.hostname_override.clone();
         }

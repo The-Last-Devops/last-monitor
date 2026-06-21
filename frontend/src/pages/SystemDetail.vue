@@ -19,6 +19,9 @@ const RANGES = [['30m', '1m'], ['1h', '1m'], ['3h', '1m'], ['6h', '5m'], ['12h',
 const range = computed(() => route.query.range || '6h')
 const resOf = computed(() => RANGES.find(([r]) => r === range.value)?.[1] || '1m')
 function setRange(r) { router.replace({ query: { ...route.query, range: r } }) }
+const SPAN = { '30m': 1800, '1h': 3600, '3h': 10800, '6h': 21600, '12h': 43200, '24h': 86400 }
+// charts always span the full selected window (blank where data is missing)
+const spanSeconds = computed(() => SPAN[range.value] || 0)
 
 const metrics = ref(null)
 const containersList = ref([])
@@ -31,17 +34,22 @@ const lastVal = (d) => { if (!d) return null; for (let i = d.length - 1; i >= 0;
 const pct = (u, t) => (u != null && t ? Math.round((u / t) * 100) : null)
 const online = (s) => !!s.last_seen && Date.now() - new Date(s.last_seen).getTime() < 60000
 
-const coreColor = (i) => `hsl(${(i * 53) % 360} 65% 58%)`
 const hostCharts = computed(() => {
   const m = metrics.value
   if (!m) return []
   const charts = [
     { title: 'CPU Usage', sub: 'overall %', unit: '%', series: [{ name: 'CPU', color: C.teal, data: m.cpu }] },
   ]
-  if (m.cores && m.cores.length) {
+  // Full CPU breakdown (only where the agent reports it — Linux /proc/stat).
+  if (m.cpu_user && m.cpu_user.some((v) => v > 0)) {
     charts.push({
-      title: 'CPU per-core', sub: `${m.cores.length} cores`, unit: '%',
-      series: m.cores.map((c, i) => ({ name: c.name, color: coreColor(i), data: c.data })),
+      title: 'CPU breakdown', sub: 'user / system / iowait / steal', unit: '%',
+      series: [
+        { name: 'user', color: C.teal, data: m.cpu_user },
+        { name: 'system', color: C.amber, data: m.cpu_system },
+        { name: 'iowait', color: C.blue, data: m.cpu_iowait },
+        { name: 'steal', color: C.purple, data: m.cpu_steal },
+      ],
     })
   }
   if (m.load1 && m.load1.length) {
@@ -168,7 +176,7 @@ watch(() => route.fullPath, () => { metrics.value = null; containersList.value =
     <div v-if="['node','host'].includes(type)" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div v-for="c in hostCharts" :key="c.title" class="rounded-xl border border-line bg-surface p-4">
         <div class="mb-2 flex items-start justify-between"><div><div class="text-sm font-medium text-fg">{{ c.title }}</div><div class="text-xs text-faint">{{ c.sub }}</div></div></div>
-        <UplotChart :time="metrics?.t || []" :series="c.series" :unit="c.unit" :sync-key="'host:' + String(id)" />
+        <UplotChart :time="metrics?.t || []" :series="c.series" :unit="c.unit" :span-seconds="spanSeconds" :sync-key="'host:' + String(id)" />
       </div>
     </div>
 
@@ -228,7 +236,7 @@ watch(() => route.fullPath, () => { metrics.value = null; containersList.value =
     <div v-else-if="type === 'container'" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div v-for="c in containerLeafCharts" :key="c.title" class="rounded-xl border border-line bg-surface p-4">
         <div class="mb-2 text-sm font-medium text-fg">{{ c.title }} <span class="text-xs text-faint">{{ c.sub }}</span></div>
-        <UplotChart :time="containersTime" :series="c.series" :unit="c.unit" :sync-key="'ctr:' + String(id)" />
+        <UplotChart :time="containersTime" :series="c.series" :unit="c.unit" :span-seconds="spanSeconds" :sync-key="'ctr:' + String(id)" />
       </div>
       <p v-if="!containerLeaf" class="text-sm text-muted">No data for this container.</p>
     </div>
