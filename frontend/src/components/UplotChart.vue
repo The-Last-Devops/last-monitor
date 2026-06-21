@@ -21,7 +21,7 @@ const props = defineProps({
   focusNames: { type: Array, default: null },
   selectedNames: { type: Array, default: () => [] },
 })
-const emit = defineEmits(['legend-hover', 'legend-toggle'])
+const emit = defineEmits(['legend-hover', 'legend-toggle', 'cursor-time'])
 const isSel = (n) => props.selectedNames.includes(n)
 const isDim = (n) => props.focusNames != null && !props.focusNames.includes(n)
 const short = (n) => (n && n.length > 10 ? n.slice(0, 10) + '…' : n)
@@ -151,24 +151,26 @@ onBeforeUnmount(() => { ro && ro.disconnect(); u && u.destroy() })
 watch(uData, (d) => { if (u) u.setData(d, !zoomed) })
 watch(() => ui.light, () => build())
 watch(() => props.focusNames, applyFocus, { deep: true })
+// surface the hovered timestamp ('now' when not hovering) so the parent can show
+// it in the chart header — keeps it out of the legend so nothing reflows
+watch([hoverIdx, cursorTime], () => emit('cursor-time', hoverIdx.value != null ? cursorTime.value : 'now'), { immediate: true })
 </script>
 
 <template>
   <div>
     <div ref="el" class="w-full"></div>
-    <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-      <template v-if="showLegend">
-        <button v-for="s in legend" :key="s.name" type="button" :title="s.name"
-          @mouseenter="emit('legend-hover', s.name)" @mouseleave="emit('legend-hover', null)"
-          @click="emit('legend-toggle', s.name)"
-          class="flex items-center gap-1.5 rounded transition-opacity"
-          :class="isDim(s.name) ? 'opacity-35' : ''">
-          <span class="h-2 w-2 shrink-0 rounded-full" :class="isSel(s.name) ? 'ring-2 ring-offset-1 ring-offset-surface' : ''" :style="{ background: s.color, '--tw-ring-color': s.color }"></span>
-          <span :class="isSel(s.name) ? 'text-fg' : 'text-muted'">{{ short(s.name) }}</span>
-          <span class="min-w-[3.25em] text-right tabular-nums text-fg">{{ s.value }}</span>
-        </button>
-      </template>
-      <span class="ml-auto tabular-nums text-faint">{{ hoverIdx != null ? cursorTime : 'now' }}</span>
+    <!-- fixed-column grid so values appearing on hover never change the row
+         count (→ no height jump); the time sits on its own always-present line -->
+    <div v-if="showLegend" class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
+      <button v-for="s in legend" :key="s.name" type="button" :title="s.name"
+        @mouseenter="emit('legend-hover', s.name)" @mouseleave="emit('legend-hover', null)"
+        @click="emit('legend-toggle', s.name)"
+        class="flex min-w-0 items-center gap-1.5 rounded transition-opacity"
+        :class="isDim(s.name) ? 'opacity-35' : ''">
+        <span class="h-2 w-2 shrink-0 rounded-full" :class="isSel(s.name) ? 'ring-2 ring-offset-1 ring-offset-surface' : ''" :style="{ background: s.color, '--tw-ring-color': s.color }"></span>
+        <span class="truncate" :class="isSel(s.name) ? 'text-fg' : 'text-muted'">{{ short(s.name) }}</span>
+        <span class="shrink-0 tabular-nums text-fg">{{ s.value }}</span>
+      </button>
     </div>
   </div>
 </template>

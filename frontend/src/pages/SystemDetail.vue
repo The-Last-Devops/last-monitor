@@ -28,6 +28,7 @@ const spanSeconds = computed(() => SPAN[range.value] || 0)
 // chart that owns the metric.
 const selectedMetrics = computed(() => (route.query.sel || '').split(',').filter(Boolean))
 const hoverMetric = ref(null)
+const chartTime = ref('now') // hovered timestamp shown in each chart header (charts are cursor-synced)
 function toggleMetric(name) {
   const set = new Set(selectedMetrics.value)
   set.has(name) ? set.delete(name) : set.add(name)
@@ -57,14 +58,17 @@ const hostCharts = computed(() => {
     { title: 'CPU Usage', sub: 'overall %', unit: '%', series: [{ name: 'CPU', color: C.teal, data: m.cpu }] },
   ]
   // Full CPU breakdown (only where the agent reports it — Linux /proc/stat).
+  // idle is derived as the remainder so the parts sum to ~100%.
   if (m.cpu_user && m.cpu_user.some((v) => v > 0)) {
+    const idle = m.cpu_user.map((u, i) => Math.max(0, 100 - u - (m.cpu_system[i] || 0) - (m.cpu_iowait[i] || 0) - (m.cpu_steal[i] || 0)))
     charts.push({
-      title: 'CPU breakdown', sub: 'user / system / iowait / steal', unit: '%',
+      title: 'CPU breakdown', sub: 'user / system / iowait / steal / idle', unit: '%',
       series: [
         { name: 'user', color: C.teal, data: m.cpu_user },
         { name: 'system', color: C.amber, data: m.cpu_system },
         { name: 'iowait', color: C.blue, data: m.cpu_iowait },
         { name: 'steal', color: C.purple, data: m.cpu_steal },
+        { name: 'idle', color: '#64748b', data: idle },
       ],
     })
   }
@@ -191,9 +195,9 @@ watch(() => route.fullPath, () => { metrics.value = null; containersList.value =
     <!-- node / host: full charts -->
     <div v-if="['node','host'].includes(type)" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div v-for="c in hostCharts" :key="c.title" class="rounded-xl border border-line bg-surface p-4">
-        <div class="mb-2 flex items-start justify-between"><div><div class="text-sm font-medium text-fg">{{ c.title }}</div><div class="text-xs text-faint">{{ c.sub }}</div></div></div>
+        <div class="mb-2 flex items-start justify-between"><div><div class="text-sm font-medium text-fg">{{ c.title }}</div><div class="text-xs text-faint">{{ c.sub }}</div></div><span class="tabular-nums text-xs text-faint">{{ chartTime }}</span></div>
         <UplotChart :time="metrics?.t || []" :series="c.series" :unit="c.unit" :span-seconds="spanSeconds" :sync-key="'host:' + String(id)"
-          :focus-names="chartFocus(c.series)" :selected-names="selectedMetrics" @legend-hover="hoverMetric = $event" @legend-toggle="toggleMetric" />
+          :focus-names="chartFocus(c.series)" :selected-names="selectedMetrics" @legend-hover="hoverMetric = $event" @legend-toggle="toggleMetric" @cursor-time="chartTime = $event" />
       </div>
     </div>
 
@@ -252,9 +256,9 @@ watch(() => route.fullPath, () => { metrics.value = null; containersList.value =
     <!-- container: charts -->
     <div v-else-if="type === 'container'" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div v-for="c in containerLeafCharts" :key="c.title" class="rounded-xl border border-line bg-surface p-4">
-        <div class="mb-2 text-sm font-medium text-fg">{{ c.title }} <span class="text-xs text-faint">{{ c.sub }}</span></div>
+        <div class="mb-2 flex items-start justify-between"><div class="text-sm font-medium text-fg">{{ c.title }} <span class="text-xs text-faint">{{ c.sub }}</span></div><span class="tabular-nums text-xs text-faint">{{ chartTime }}</span></div>
         <UplotChart :time="containersTime" :series="c.series" :unit="c.unit" :span-seconds="spanSeconds" :sync-key="'ctr:' + String(id)"
-          :focus-names="chartFocus(c.series)" :selected-names="selectedMetrics" @legend-hover="hoverMetric = $event" @legend-toggle="toggleMetric" />
+          :focus-names="chartFocus(c.series)" :selected-names="selectedMetrics" @legend-hover="hoverMetric = $event" @legend-toggle="toggleMetric" @cursor-time="chartTime = $event" />
       </div>
       <p v-if="!containerLeaf" class="text-sm text-muted">No data for this container.</p>
     </div>
