@@ -267,9 +267,9 @@ const detailLink = (s) => `/system/${s.id}?type=${s.kind}&name=${encodeURICompon
             <thead class="border-b border-line bg-surface text-left text-xs uppercase tracking-wider text-muted"><tr>
               <th class="w-8 px-3 py-2.5"><input type="checkbox" :checked="rows.length && rows.every((s)=>selected.has(s.id))" @change="toggleAll(rows)" class="h-4 w-4 accent-accent" /></th>
               <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('name')">Host{{ arrow('name') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('ns')">Namespace{{ arrow('ns') }}</th>
               <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('type')">Type{{ arrow('type') }}</th>
               <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('cluster')">Cluster{{ arrow('cluster') }}</th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('ns')">Namespace{{ arrow('ns') }}</th>
               <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('status')">Status{{ arrow('status') }}</th>
               <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('cpu')">CPU{{ arrow('cpu') }}</th>
               <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('mem')">Memory{{ arrow('mem') }}</th>
@@ -288,9 +288,9 @@ const detailLink = (s) => `/system/${s.id}?type=${s.kind}&name=${encodeURICompon
                       <RouterLink :to="detailLink(s)" class="text-fg hover:text-accent">{{ s.name }}</RouterLink>
                     </div>
                   </td>
+                  <td class="px-4 py-3"><button @click="setFilter('ns', s.namespace)" :title="`Filter ns:${s.namespace}`" class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted hover:text-accent">{{ s.namespace || '—' }}</button></td>
                   <td class="px-4 py-3"><button @click="setFilter('kind', s.kind)" :title="`Filter kind:${s.kind}`" class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted hover:text-accent">{{ KIND_LABEL[s.kind] || s.kind }}</button></td>
                   <td class="px-4 py-3"><button v-if="s.cluster" @click="setFilter('cluster', s.cluster)" :title="`Filter cluster:${s.cluster}`" class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted hover:text-accent">{{ s.cluster }}</button><span v-else class="text-faint">—</span></td>
-                  <td class="px-4 py-3"><button @click="setFilter('ns', s.namespace)" :title="`Filter ns:${s.namespace}`" class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted hover:text-accent">{{ s.namespace || '—' }}</button></td>
                   <td class="px-4 py-3 text-sm" :class="online(s)?'text-accent':'text-red-500'">{{ online(s)?'online':'offline' }}</td>
                   <td class="px-4 py-3"><Gauge :v="online(s)?r(s.cpu_percent):null" /></td>
                   <td class="px-4 py-3"><Gauge :v="online(s)?pct(s.mem_used,s.mem_total):null" /></td>
@@ -300,8 +300,8 @@ const detailLink = (s) => `/system/${s.id}?type=${s.kind}&name=${encodeURICompon
                 <tr v-for="c in (containers[s.id] || [])" v-show="s.kind === 'docker' && expanded.has(s.id)" :key="s.id + ':' + c.name" class="lm-row border-b border-line bg-bg/40">
                   <td></td>
                   <td class="px-4 py-2"><RouterLink :to="`/system/${s.id}?type=container&name=${encodeURIComponent(c.name)}&parent=${encodeURIComponent(s.name)}&ptype=docker`" class="flex items-center gap-2 pl-10 text-sm text-fg hover:text-accent"><span class="text-faint">└</span>{{ c.name }}</RouterLink></td>
-                  <td class="px-4 py-2"><span class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-faint">container</span></td>
                   <td class="px-4 py-2 text-faint">—</td>
+                  <td class="px-4 py-2"><span class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-faint">container</span></td>
                   <td class="px-4 py-2 text-faint">—</td>
                   <td class="px-4 py-2 text-sm text-accent">running</td>
                   <td class="px-4 py-2"><Gauge :v="c.cpu" /></td>
