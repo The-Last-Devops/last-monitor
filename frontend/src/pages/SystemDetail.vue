@@ -1,9 +1,9 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from '../lib/api'
 import AppShell from '../components/AppShell.vue'
-import Chart from '../components/Chart.vue'
+import UplotChart from '../components/UplotChart.vue'
 import Gauge from '../components/Gauge.vue'
 
 const route = useRoute()
@@ -19,6 +19,7 @@ const resOf = computed(() => RANGES.find(([r]) => r === range.value)?.[1] || '1m
 
 const metrics = ref(null)
 const containersList = ref([])
+const containersTime = ref([])
 const clusterNodes = ref([])
 const error = ref('')
 
@@ -55,6 +56,7 @@ async function loadMetrics() {
 async function loadContainers() {
   try {
     const h = await api.get(`/api/systems/${id.value}/containers?range=${range.value}`)
+    containersTime.value = h.t || []
     const memByName = Object.fromEntries((h.mem || []).map((s) => [s.name, s]))
     const netByName = Object.fromEntries((h.net || []).map((s) => [s.name, s]))
     containersList.value = (h.cpu || []).map((s) => ({
@@ -94,8 +96,11 @@ async function reload() {
   await loadMetrics()
   if (type.value === 'docker') await loadContainers()
 }
-onMounted(reload)
-watch(range, () => { if (type.value !== 'k8s') reload() })
+let timer = null
+onMounted(() => { reload(); timer = setInterval(reload, 5000) })
+onBeforeUnmount(() => clearInterval(timer))
+watch(range, reload)
+watch(() => route.fullPath, () => { metrics.value = null; containersList.value = []; reload() })
 </script>
 
 <template>
@@ -136,7 +141,7 @@ watch(range, () => { if (type.value !== 'k8s') reload() })
     <div v-if="['node','host'].includes(type)" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div v-for="c in hostCharts" :key="c.title" class="rounded-xl border border-line bg-surface p-4">
         <div class="mb-2 flex items-start justify-between"><div><div class="text-sm font-medium text-fg">{{ c.title }}</div><div class="text-xs text-faint">{{ c.sub }}</div></div></div>
-        <Chart :series="c.series" :unit="c.unit" />
+        <UplotChart :time="metrics?.t || []" :series="c.series" :unit="c.unit" />
       </div>
     </div>
 
@@ -196,7 +201,7 @@ watch(range, () => { if (type.value !== 'k8s') reload() })
     <div v-else-if="type === 'container'" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div v-for="c in containerLeafCharts" :key="c.title" class="rounded-xl border border-line bg-surface p-4">
         <div class="mb-2 text-sm font-medium text-fg">{{ c.title }} <span class="text-xs text-faint">{{ c.sub }}</span></div>
-        <Chart :series="c.series" :unit="c.unit" />
+        <UplotChart :time="containersTime" :series="c.series" :unit="c.unit" />
       </div>
       <p v-if="!containerLeaf" class="text-sm text-muted">No data for this container.</p>
     </div>
