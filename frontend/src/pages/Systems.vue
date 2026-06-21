@@ -251,7 +251,7 @@ const detailLink = (s) => `/system/${s.id}?type=${s.kind}&name=${encodeURICompon
         <p v-if="!visible.length" class="rounded-xl border border-line bg-surface p-4 text-sm text-muted">No hosts match the filter. <button @click="resetFilters" class="text-accent hover:underline">Reset</button></p>
         <div v-else class="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div v-for="c in fleetCharts" :key="c.title" class="rounded-xl border border-line bg-surface p-4">
-            <div class="mb-2 flex items-start justify-between"><div class="text-sm font-medium text-fg">{{ c.title }} <span class="text-xs text-faint">{{ c.series.length }} hosts</span></div><span class="tabular-nums text-xs text-faint">{{ headerTime }}</span></div>
+            <div class="mb-2 text-sm font-medium text-fg">{{ c.title }}</div>
             <UplotChart :time="gappedFleet?.t || []" :series="c.series" :unit="c.unit" :span-seconds="FSPAN[frange]" :show-legend="false" :tooltip="true" :area="false" sync-key="fleet"
               :focus-names="fleetFocus" :selected-names="selectedNodes" :view-range="fviewRange" @legend-hover="hoverNode = $event" @legend-toggle="toggleNode" @cursor-time="fleetTime = $event" @zoom="setFzoom" />
           </div>

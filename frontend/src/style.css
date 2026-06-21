@@ -30,6 +30,11 @@
   body { @apply bg-bg text-fg; }
 }
 
+/* Logo mark cycles the full hue spectrum — a nod to the constant live data flow. */
+@keyframes lm-hue { to { filter: hue-rotate(360deg); } }
+.lm-logo { animation: lm-hue 5s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .lm-logo { animation: none; } }
+
 /* Table rows: clear hover/select in both themes (left accent when selected). */
 .lm-row:hover { background: rgb(var(--fg) / 0.05); }
 .light .lm-row:hover { background: rgb(var(--accent) / 0.10); }

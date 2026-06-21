@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { api } from '../lib/api'
 import { useAuth } from '../stores/auth'
@@ -45,6 +45,9 @@ onMounted(async () => {
 })
 
 async function logout() { await auth.logout(); router.push({ name: 'login' }) }
+
+// browser tab title follows the page (e.g. "docker-01 — Last Monitor")
+watch(() => props.title, (t) => { document.title = t ? `${t} — Last Monitor` : 'Last Monitor' }, { immediate: true })
 </script>
 
 <template>
@@ -54,7 +57,7 @@ async function logout() { await auth.logout(); router.push({ name: 'login' }) }
     <!-- sidebar -->
     <aside :class="['fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col border-r border-line bg-surface transition-transform md:static md:translate-x-0', drawer ? '' : '-translate-x-full']">
       <div class="flex items-center gap-2.5 px-5 py-4">
-        <span class="inline-block h-6 w-6 rounded-md bg-accent shadow-[0_0_18px_-4px_rgb(var(--accent))]"></span>
+        <span class="lm-logo inline-block h-6 w-6 rounded-md bg-accent shadow-[0_0_18px_-4px_rgb(var(--accent))]"></span>
         <span class="text-base font-semibold tracking-tight text-fg">Last Monitor</span>
       </div>
 
