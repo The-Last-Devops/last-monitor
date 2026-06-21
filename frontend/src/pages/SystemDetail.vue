@@ -150,11 +150,12 @@ async function loadCluster() {
 const escapeRe = (s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')
 const wild = (hay, pat) => { if (!pat) return true; hay = (hay || '').toLowerCase(); return pat.includes('*') ? new RegExp('^' + pat.split('*').map(escapeRe).join('.*') + '$').test(hay) : hay.includes(pat) }
 const cmpOp = (a, op, b) => (op === '>' ? a > b : op === '<' ? a < b : op === '>=' ? a >= b : op === '<=' ? a <= b : a === b)
-// filter chips (search) for the docker overlay, persisted in the URL (?q)
-const chips = computed(() => (route.query.q || '').trim().split(/\s+/).filter(Boolean))
-function addToken(tok) { const t = (tok || '').trim(); if (!t) return; const cur = (route.query.q || '').trim(); router.replace({ query: { ...route.query, q: cur ? `${cur} ${t}` : t } }) }
-function removeChip(i) { const a = chips.value.slice(); a.splice(i, 1); router.replace({ query: { ...route.query, q: a.join(' ') || undefined } }) }
-function resetFilters() { router.replace({ query: { ...route.query, q: undefined } }) }
+// filter chips (search) for the docker overlay, in the URL as ?cf — a separate key
+// from the fleet page's ?q so the two filters never leak into each other
+const chips = computed(() => (route.query.cf || '').trim().split(/\s+/).filter(Boolean))
+function addToken(tok) { const t = (tok || '').trim(); if (!t) return; const cur = (route.query.cf || '').trim(); router.replace({ query: { ...route.query, cf: cur ? `${cur} ${t}` : t } }) }
+function removeChip(i) { const a = chips.value.slice(); a.splice(i, 1); router.replace({ query: { ...route.query, cf: a.join(' ') || undefined } }) }
+function resetFilters() { router.replace({ query: { ...route.query, cf: undefined } }) }
 
 const dockerOverlay = computed(() => {
   const m = metrics.value, ct = containersTime.value, list = containersList.value

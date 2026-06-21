@@ -210,15 +210,17 @@ watch([hoverIdx, cursorTime], () => emit('cursor-time', hoverIdx.value != null ?
     <div ref="el" class="w-full"></div>
     <!-- fixed-column grid so values appearing on hover never change the row
          count (→ no height jump); the time sits on its own always-present line -->
-    <div v-if="showLegend" @mouseleave="emit('legend-hover', null)" class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
+    <!-- flex-wrap so few series sit on one row; the value slot has a reserved
+         min-width so values appearing on hover don't reflow the row -->
+    <div v-if="showLegend" @mouseleave="emit('legend-hover', null)" class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
       <button v-for="s in legend" :key="s.name" type="button" :title="s.name"
         @mouseenter="emit('legend-hover', s.name)"
         @click="emit('legend-toggle', s.name)"
-        class="flex min-w-0 items-center gap-1.5 rounded transition-opacity"
+        class="flex items-center gap-1.5 rounded transition-opacity"
         :class="isDim(s.name) ? 'opacity-35' : ''">
         <span class="h-2 w-2 shrink-0 rounded-full" :class="isSel(s.name) ? 'ring-2 ring-offset-1 ring-offset-surface' : ''" :style="{ background: s.color, '--tw-ring-color': s.color }"></span>
-        <span class="truncate" :class="isSel(s.name) || isHi(s.name) ? 'text-fg' : 'text-muted'">{{ short(s.name) }}</span>
-        <span class="shrink-0 tabular-nums text-fg">{{ s.value }}</span>
+        <span :class="isSel(s.name) || isHi(s.name) ? 'text-fg' : 'text-muted'">{{ short(s.name) }}</span>
+        <span class="min-w-[2.5em] text-right tabular-nums text-fg">{{ s.value }}</span>
       </button>
     </div>
   </div>

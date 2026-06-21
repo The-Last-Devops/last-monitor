@@ -84,7 +84,9 @@ function matchPred(s, p) {
 const chips = computed(() => q.value.trim().split(/\s+/).filter(Boolean))
 function addToken(tok) { const t = (tok || '').trim(); if (t) q.value = q.value.trim() ? `${q.value.trim()} ${t}` : t }
 function removeChip(i) { const a = chips.value.slice(); a.splice(i, 1); q.value = a.join(' ') }
-function resetFilters() { q.value = '' }
+// reset clears both the text filters (?q) and the pinned-node selection (?fsel)
+function resetFilters() { q.value = ''; router.replace({ query: { ...route.query, q: undefined, fsel: undefined } }) }
+const shortName = (n) => (n && n.length > 12 ? n.slice(0, 12) + '…' : n)
 const preds = computed(() => parseQuery(q.value))
 const visible = computed(() => servers.value.filter((s) => inNs(s) && preds.value.every((p) => matchPred(s, p))))
 function sortList(list, st) {
@@ -225,7 +227,12 @@ const detailLink = (s) => `/system/${s.id}?type=${s.kind}&name=${encodeURICompon
             <span class="tabular-nums">{{ c }}</span>
             <button @click="removeChip(i)" title="Remove filter" class="grid h-4 w-4 place-items-center rounded-full text-faint hover:bg-red-500/15 hover:text-red-500"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </span>
-          <button v-if="chips.length" @click="resetFilters" class="text-xs text-muted hover:text-accent">Reset</button>
+          <!-- pinned nodes (click a line/legend to pin) shown as chips -->
+          <span v-for="n in selectedNodes" :key="'pin-' + n" :title="n" class="flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 py-0.5 pl-2 pr-1 text-xs text-accent">
+            <span class="tabular-nums">{{ shortName(n) }}</span>
+            <button @click="toggleNode(n)" title="Unpin node" class="grid h-4 w-4 place-items-center rounded-full hover:bg-accent/25"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+          </span>
+          <button v-if="chips.length || selectedNodes.length" @click="resetFilters" class="text-xs text-muted hover:text-accent">Reset</button>
           <div class="ml-auto flex rounded-lg border border-line bg-surface2 p-0.5 text-xs">
             <button v-for="rr in FRANGES" :key="rr" @click="setFrange(rr)" class="rounded-md px-2.5 py-1" :class="frange===rr?'bg-accent/15 font-medium text-accent':'text-muted hover:text-fg'">{{ rr }}</button>
           </div>
