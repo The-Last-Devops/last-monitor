@@ -6,6 +6,7 @@ import AppShell from '../components/AppShell.vue'
 import UplotChart from '../components/UplotChart.vue'
 import Gauge from '../components/Gauge.vue'
 import { encodeZoom, decodeZoom } from '../lib/zoom'
+import { insertGaps } from '../lib/gaps'
 
 const route = useRoute()
 const router = useRouter()
@@ -61,8 +62,19 @@ const lastVal = (d) => { if (!d) return null; for (let i = d.length - 1; i >= 0;
 const pct = (u, t) => (u != null && t ? Math.round((u / t) * 100) : null)
 const online = (s) => !!s.last_seen && Date.now() - new Date(s.last_seen).getTime() < 60000
 
-const hostCharts = computed(() => {
+// metrics with null breaks inserted at timeline gaps (so a stopped agent leaves a
+// blank instead of a line bridged across the gap)
+const gappedMetrics = computed(() => {
   const m = metrics.value
+  if (!m || !m.t || m.t.length < 3) return m
+  const keys = ['cpu', 'mem_pct', 'disk_pct', 'net_rx', 'net_tx', 'dr', 'dw', 'load1', 'load5', 'load15', 'cpu_user', 'cpu_system', 'cpu_iowait', 'cpu_steal'].filter((k) => Array.isArray(m[k]))
+  const { t, arrays } = insertGaps(m.t, keys.map((k) => m[k]))
+  const out = { ...m, t }
+  keys.forEach((k, i) => { out[k] = arrays[i] })
+  return out
+})
+const hostCharts = computed(() => {
+  const m = gappedMetrics.value
   if (!m) return []
   // One CPU chart that folds the breakdown in: overall line + user/system/iowait/
   // steal (Linux /proc/stat). macOS has no breakdown → just the overall line.
@@ -204,7 +216,7 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
     <div v-if="['node','host'].includes(type)" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div v-for="c in hostCharts" :key="c.title" class="rounded-xl border border-line bg-surface p-4">
         <div class="mb-2 flex items-start justify-between"><div><div class="text-sm font-medium text-fg">{{ c.title }}</div><div class="text-xs text-faint">{{ c.sub }}</div></div><span class="tabular-nums text-xs text-faint">{{ headerTime }}</span></div>
-        <UplotChart :time="metrics?.t || []" :series="c.series" :unit="c.unit" :span-seconds="spanSeconds" :area="c.area !== false" :sync-key="'host:' + String(id)"
+        <UplotChart :time="gappedMetrics?.t || []" :series="c.series" :unit="c.unit" :span-seconds="spanSeconds" :area="c.area !== false" :sync-key="'host:' + String(id)"
           :focus-names="chartFocus(c.series)" :selected-names="selectedMetrics" :view-range="viewRange" @legend-hover="hoverMetric = $event" @legend-toggle="toggleMetric" @cursor-time="chartTime = $event" @zoom="setZoom" />
       </div>
     </div>

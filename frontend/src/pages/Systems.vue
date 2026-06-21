@@ -8,6 +8,7 @@ import AddSystemModal from '../components/AddSystemModal.vue'
 import SystemSearch from '../components/SystemSearch.vue'
 import UplotChart from '../components/UplotChart.vue'
 import { encodeZoom, decodeZoom } from '../lib/zoom'
+import { insertGaps } from '../lib/gaps'
 
 const showAdd = ref(false)
 
@@ -144,8 +145,20 @@ function toggleNode(name) {
   set.has(name) ? set.delete(name) : set.add(name)
   router.replace({ query: { ...route.query, fsel: [...set].join(',') || undefined } })
 }
-const fleetCharts = computed(() => {
+// rebuild fleet data with null breaks inserted at timeline gaps (agents stopped)
+const gappedFleet = computed(() => {
   const f = fleet.value
+  if (!f || !f.t || f.t.length < 3) return f
+  const groups = ['cpu', 'mem', 'disk', 'net']
+  const arrays = [], map = []
+  groups.forEach((g) => (f[g] || []).forEach((s) => { arrays.push(s.data); map.push([g, s.name]) }))
+  const { t, arrays: na } = insertGaps(f.t, arrays)
+  const out = { t, cpu: [], mem: [], disk: [], net: [] }
+  map.forEach(([g, name], k) => out[g].push({ name, data: na[k] }))
+  return out
+})
+const fleetCharts = computed(() => {
+  const f = gappedFleet.value
   if (!f) return []
   return [
     { title: 'CPU', unit: '%', series: fleetSeries(f.cpu) },
@@ -209,7 +222,7 @@ const detailLink = (s) => `/system/${s.id}?type=${s.kind}&name=${encodeURICompon
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div v-for="c in fleetCharts" :key="c.title" class="rounded-xl border border-line bg-surface p-4">
             <div class="mb-2 flex items-start justify-between"><div class="text-sm font-medium text-fg">{{ c.title }} <span class="text-xs text-faint">{{ c.series.length }} hosts</span></div><span class="tabular-nums text-xs text-faint">{{ headerTime }}</span></div>
-            <UplotChart :time="fleet?.t || []" :series="c.series" :unit="c.unit" :span-seconds="FSPAN[frange]" :legend-values-always="false" :area="false" sync-key="fleet"
+            <UplotChart :time="gappedFleet?.t || []" :series="c.series" :unit="c.unit" :span-seconds="FSPAN[frange]" :legend-values-always="false" :area="false" sync-key="fleet"
               :focus-names="fleetFocus" :selected-names="selectedNodes" :view-range="fviewRange" @legend-hover="hoverNode = $event" @legend-toggle="toggleNode" @cursor-time="fleetTime = $event" @zoom="setFzoom" />
           </div>
         </div>
