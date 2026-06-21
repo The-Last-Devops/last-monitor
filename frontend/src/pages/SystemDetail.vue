@@ -289,7 +289,7 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
     </template>
     <!-- breadcrumb -->
     <nav class="mb-4 flex flex-wrap items-center gap-1.5 text-sm text-muted">
-      <RouterLink to="/" class="hover:text-accent">Systems</RouterLink>
+      <RouterLink :to="{ path: '/', query: route.query.ns ? { ns: route.query.ns } : {} }" class="hover:text-accent">Systems</RouterLink>
       <span class="text-faint">›</span>
       <template v-if="parent && ptype">
         <RouterLink :to="kindHref(ptype)" class="hover:text-accent">{{ TYPE_LABEL[ptype] }}</RouterLink><span class="text-faint">›</span>

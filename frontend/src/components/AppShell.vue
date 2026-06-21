@@ -79,7 +79,7 @@ async function logout() { await auth.logout(); router.push({ name: 'login' }) }
 
       <!-- nav -->
       <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-2">
-        <RouterLink to="/" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted transition hover:bg-surface2 hover:text-fg" active-class="!bg-accent/10 font-medium !text-accent" exact-active-class="!bg-accent/10 font-medium !text-accent">
+        <RouterLink :to="{ path: '/', query: route.query.ns ? { ns: route.query.ns } : {} }" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted transition hover:bg-surface2 hover:text-fg" active-class="!bg-accent/10 font-medium !text-accent" exact-active-class="!bg-accent/10 font-medium !text-accent">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
           Systems
         </RouterLink>

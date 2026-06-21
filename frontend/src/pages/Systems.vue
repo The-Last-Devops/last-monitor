@@ -20,6 +20,9 @@ const error = ref('')
 const q = ref(route.query.q || '')
 let qTimer
 watch(q, (v) => { clearTimeout(qTimer); qTimer = setTimeout(() => router.replace({ query: { ...route.query, q: v || undefined } }), 300) })
+// keep q in sync with the URL too, so navigating to a clean "/" (e.g. clicking
+// "Systems") actually clears the chips instead of the stale ref re-adding them
+watch(() => route.query.q, (v) => { if ((v || '') !== q.value) q.value = v || '' })
 // namespace filter from URL (?ns=a,b ; empty = all) — shared/persisted, set in the sidebar
 const selectedNs = computed(() => (route.query.ns || '').split(',').filter(Boolean))
 const inNs = (s) => selectedNs.value.length === 0 || selectedNs.value.includes(s.namespace)
