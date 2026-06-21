@@ -286,7 +286,7 @@ const detailLink = (s) => `/system/${s.id}?type=${s.kind}&name=${encodeURICompon
                     <div class="flex items-center gap-1.5">
                       <button v-if="sec.key === 'docker'" @click="toggleDocker(s)" class="text-muted hover:text-accent"><svg class="h-4 w-4 transition-transform" :class="expanded.has(s.id) ? 'rotate-90' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></button>
                       <span class="h-2 w-2 shrink-0 rounded-full" :title="online(s) ? 'online' : 'offline'" :style="{ background: colorOf[s.name] }"></span>
-                      <RouterLink :to="detailLink(s)" class="flex items-center gap-2.5"><span><span class="text-fg">{{ s.name }}</span><span class="block text-xs text-faint">{{ s.hostname }}</span></span></RouterLink>
+                      <RouterLink :to="detailLink(s)" class="text-fg hover:text-accent">{{ s.name }}</RouterLink>
                     </div>
                   </td>
                   <td class="px-4 py-3"><span class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted">{{ s.namespace || '—' }}</span></td>
