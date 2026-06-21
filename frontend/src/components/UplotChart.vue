@@ -24,6 +24,7 @@ const props = defineProps({
 const emit = defineEmits(['legend-hover', 'legend-toggle'])
 const isSel = (n) => props.selectedNames.includes(n)
 const isDim = (n) => props.focusNames != null && !props.focusNames.includes(n)
+const short = (n) => (n && n.length > 10 ? n.slice(0, 10) + '…' : n)
 
 const ui = useUi()
 const el = ref(null)
@@ -157,14 +158,14 @@ watch(() => props.focusNames, applyFocus, { deep: true })
     <div ref="el" class="w-full"></div>
     <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
       <template v-if="showLegend">
-        <button v-for="s in legend" :key="s.name" type="button"
+        <button v-for="s in legend" :key="s.name" type="button" :title="s.name"
           @mouseenter="emit('legend-hover', s.name)" @mouseleave="emit('legend-hover', null)"
           @click="emit('legend-toggle', s.name)"
           class="flex items-center gap-1.5 rounded transition-opacity"
-          :class="[isDim(s.name) ? 'opacity-35' : '', isSel(s.name) ? 'font-medium text-fg' : '']">
-          <span class="h-2 w-2 rounded-full" :class="isSel(s.name) ? 'ring-2 ring-offset-1 ring-offset-surface' : ''" :style="{ background: s.color, '--tw-ring-color': s.color }"></span>
-          <span :class="isSel(s.name) ? 'text-fg' : 'text-muted'">{{ s.name }}</span>
-          <span v-if="s.value" class="tabular-nums text-fg">{{ s.value }}</span>
+          :class="isDim(s.name) ? 'opacity-35' : ''">
+          <span class="h-2 w-2 shrink-0 rounded-full" :class="isSel(s.name) ? 'ring-2 ring-offset-1 ring-offset-surface' : ''" :style="{ background: s.color, '--tw-ring-color': s.color }"></span>
+          <span :class="isSel(s.name) ? 'text-fg' : 'text-muted'">{{ short(s.name) }}</span>
+          <span class="min-w-[3.25em] text-right tabular-nums text-fg">{{ s.value }}</span>
         </button>
       </template>
       <span class="ml-auto tabular-nums text-faint">{{ hoverIdx != null ? cursorTime : 'now' }}</span>
