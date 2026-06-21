@@ -87,14 +87,6 @@ function removeChip(i) { const a = chips.value.slice(); a.splice(i, 1); q.value 
 // reset clears both the text filters (?q) and the pinned-node selection (?fsel)
 function resetFilters() { q.value = ''; router.replace({ query: { ...route.query, q: undefined, fsel: undefined } }) }
 const shortName = (n) => (n && n.length > 12 ? n.slice(0, 12) + '…' : n)
-// online quick-filter (writes a status: token into the query)
-const onlineState = computed(() => { const t = chips.value.find((c) => /^status:/i.test(c)); return t ? t.split(':')[1].toLowerCase() : 'all' })
-function setOnline(state) {
-  const arr = chips.value.filter((c) => !/^status:/i.test(c))
-  if (state === 'online') arr.push('status:online')
-  else if (state === 'offline') arr.push('status:offline')
-  q.value = arr.join(' ')
-}
 const preds = computed(() => parseQuery(q.value))
 const visible = computed(() => servers.value.filter((s) => inNs(s) && preds.value.every((p) => matchPred(s, p))))
 function sortList(list, st) {
@@ -218,12 +210,7 @@ const detailLink = (s) => `/system/${s.id}?type=${s.kind}&name=${encodeURICompon
 
       <!-- toolbar -->
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="flex flex-wrap items-center gap-2">
-          <SystemSearch :items="servers" @add="addToken" />
-          <div class="flex rounded-lg border border-line bg-surface p-0.5 text-xs">
-            <button v-for="o in [['all','All'],['online','Online'],['offline','Offline']]" :key="o[0]" @click="setOnline(o[0])" class="rounded-md px-2.5 py-1.5" :class="onlineState===o[0]?'bg-accent/15 font-medium text-accent':'text-muted hover:text-fg'">{{ o[1] }}</button>
-          </div>
-        </div>
+        <SystemSearch :items="servers" @add="addToken" />
         <button @click="showAdd = true" class="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-accentfg hover:opacity-90"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> Add system</button>
       </div>
 

@@ -12,18 +12,28 @@ const hi = ref(0)
 
 const FIELDS = [
   { insert: 'name:', label: 'name:', desc: 'node name (default)' },
-  { insert: 'cpu>', label: 'cpu', desc: 'cpu %  (cpu>50)' },
-  { insert: 'mem>', label: 'mem', desc: 'memory %  (mem>80)' },
-  { insert: 'disk>', label: 'disk', desc: 'disk %  (disk<30)' },
+  { insert: 'cpu', label: 'cpu', desc: 'cpu %' },
+  { insert: 'mem', label: 'mem', desc: 'memory %' },
+  { insert: 'disk', label: 'disk', desc: 'disk %' },
   { insert: 'status:', label: 'status:', desc: 'online | offline' },
   { insert: 'kind:', label: 'kind:', desc: 'node | docker | k8s' },
   { insert: 'ns:', label: 'ns:', desc: 'namespace' },
   { insert: 'agent:', label: 'agent:', desc: 'agent version' },
 ]
+const OPS = ['=', '>', '<', '>=', '<=']
 const uniq = (f) => [...new Set(props.items.map(f).filter(Boolean))]
+// a token still needs more input (don't commit on click/Enter): trailing : or
+// comparison operator, or a bare numeric field awaiting an operator
+const needsMore = (ins) => /[:=<>]$/.test(ins) || /^(cpu|mem|disk)$/i.test(ins)
 
 const suggestions = computed(() => {
   const tok = text.value.trim()
+  // numeric field chosen but no operator yet → offer comparison operators
+  const nf = tok.match(/^(cpu|mem|disk)$/i)
+  if (nf) {
+    const f = nf[1].toLowerCase()
+    return OPS.map((op) => ({ insert: `${f}${op}`, label: `${f} ${op}`, desc: 'compare' }))
+  }
   const kv = tok.match(/^(status|kind|ns|agent):(.*)$/i)
   if (kv) {
     const key = kv[1].toLowerCase()
@@ -41,11 +51,16 @@ const suggestions = computed(() => {
 
 function onFocus() { open.value = true; hi.value = 0 }
 function reset() { text.value = ''; open.value = false; hi.value = 0 }
-function commit() { const t = text.value.trim(); if (t) { emit('add', t); reset() } }
-// apply a suggestion into the draft: field prefixes (end with : or >) keep typing,
-// otherwise it's a complete token — commit it
+// don't commit a field/operator that still lacks a value
+function commit() {
+  const t = text.value.trim()
+  if (!t || /^(cpu|mem|disk)(>=|<=|>|<|=)?$/i.test(t)) return
+  emit('add', t); reset()
+}
+// click a suggestion: if it still needs input (field, operator, colon) keep
+// composing in the box; otherwise it's a complete token — commit it
 function pick(s) {
-  if (/[:>]$/.test(s.insert)) { text.value = s.insert; open.value = true; hi.value = 0 }
+  if (needsMore(s.insert)) { text.value = s.insert; open.value = true; hi.value = 0 }
   else { emit('add', s.insert); reset() }
 }
 function onKey(e) {
@@ -55,8 +70,8 @@ function onKey(e) {
   else if (e.key === 'Enter') {
     e.preventDefault()
     const s = open.value ? list[hi.value] : null
-    // commit the typed text unless the highlighted suggestion is an incomplete field
-    if (s && /[:>]$/.test(s.insert) && !/[:>=<]/.test(text.value)) pick(s)
+    // while still composing, Enter takes the highlighted suggestion; else commit
+    if (s && needsMore(text.value.trim())) pick(s)
     else commit()
   } else if (e.key === 'Escape') { open.value = false }
 }
