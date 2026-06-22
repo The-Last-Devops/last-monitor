@@ -18,10 +18,10 @@
   --bg: 241 245 249;     /* slate-100 */
   --surface: 255 255 255;
   --surface2: 238 242 247;
-  --line: 226 232 240;   /* slate-200 */
+  --line: 203 213 225;   /* slate-300 — a touch stronger so cards/inputs read */
   --fg: 15 23 42;        /* slate-900 */
-  --muted: 100 116 139;
-  --faint: 148 163 184;  /* slate-400 */
+  --muted: 71 85 105;    /* slate-600 — darker for readable secondary text */
+  --faint: 100 116 139;  /* slate-500 — was too light (slate-400) on white */
   --accent: 13 148 136;  /* teal-600 */
   --accentfg: 255 255 255;
 }
