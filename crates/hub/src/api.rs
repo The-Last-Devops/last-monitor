@@ -25,6 +25,8 @@ pub struct CreateUser {
     pub password: String,
     #[serde(default)]
     pub is_admin: bool,
+    #[serde(default)]
+    pub read_all: bool,
 }
 
 /// POST /api/users — admins provision accounts (no open registration).
@@ -36,17 +38,137 @@ pub async fn create_user(
     if !user.is_admin {
         return Err(StatusCode::FORBIDDEN);
     }
+    let email = req.email.trim().to_lowercase();
+    if email.is_empty() || !email.contains('@') || req.password.len() < 6 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
     let hash = crate::auth::hash_password(&req.password).map_err(internal)?;
     let (id,): (Uuid,) = sqlx::query_as(
-        "INSERT INTO users (email, password_hash, is_admin) VALUES ($1, $2, $3) RETURNING id",
+        "INSERT INTO users (email, password_hash, is_admin, read_all) \
+         VALUES ($1, $2, $3, $4) RETURNING id",
     )
-    .bind(&req.email)
+    .bind(&email)
     .bind(&hash)
     .bind(req.is_admin)
+    .bind(req.read_all)
     .fetch_one(&state.config)
     .await
-    .map_err(internal)?;
+    .map_err(|_| StatusCode::CONFLICT)?; // unique email violation → 409
     Ok(Json(id))
+}
+
+#[derive(Serialize)]
+pub struct UserRow {
+    pub id: Uuid,
+    pub email: String,
+    pub is_admin: bool,
+    pub read_all: bool,
+    pub created_at: String,
+    pub namespaces: i64,
+}
+
+/// GET /api/users — admins list all accounts with their system role + ns count.
+pub async fn list_users(
+    State(state): State<AppState>,
+    user: CurrentUser,
+) -> Result<Json<Vec<UserRow>>, StatusCode> {
+    if !user.is_admin {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let rows: Vec<(Uuid, String, bool, bool, String, i64)> = sqlx::query_as(
+        "SELECT u.id, u.email, u.is_admin, u.read_all, u.created_at::text, \
+            (SELECT count(*) FROM memberships m WHERE m.user_id = u.id) \
+         FROM users u ORDER BY u.email",
+    )
+    .fetch_all(&state.config)
+    .await
+    .map_err(internal)?;
+    Ok(Json(
+        rows.into_iter()
+            .map(
+                |(id, email, is_admin, read_all, created_at, namespaces)| UserRow {
+                    id,
+                    email,
+                    is_admin,
+                    read_all,
+                    created_at,
+                    namespaces,
+                },
+            )
+            .collect(),
+    ))
+}
+
+#[derive(Deserialize)]
+pub struct PatchUser {
+    pub is_admin: Option<bool>,
+    pub read_all: Option<bool>,
+    pub password: Option<String>,
+}
+
+/// PATCH /api/users/:id — admins change system role / reset password.
+pub async fn patch_user(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Path(id): Path<Uuid>,
+    Json(req): Json<PatchUser>,
+) -> Result<StatusCode, StatusCode> {
+    if !user.is_admin {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    // don't let an admin remove their own admin rights (avoids locking everyone out)
+    if id == user.id && req.is_admin == Some(false) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if let Some(is_admin) = req.is_admin {
+        sqlx::query("UPDATE users SET is_admin = $1 WHERE id = $2")
+            .bind(is_admin)
+            .bind(id)
+            .execute(&state.config)
+            .await
+            .map_err(internal)?;
+    }
+    if let Some(read_all) = req.read_all {
+        sqlx::query("UPDATE users SET read_all = $1 WHERE id = $2")
+            .bind(read_all)
+            .bind(id)
+            .execute(&state.config)
+            .await
+            .map_err(internal)?;
+    }
+    if let Some(password) = req.password {
+        if password.len() < 6 {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        let hash = crate::auth::hash_password(&password).map_err(internal)?;
+        sqlx::query("UPDATE users SET password_hash = $1 WHERE id = $2")
+            .bind(&hash)
+            .bind(id)
+            .execute(&state.config)
+            .await
+            .map_err(internal)?;
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// DELETE /api/users/:id — admins remove an account (not their own).
+pub async fn delete_user(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, StatusCode> {
+    if !user.is_admin {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    if id == user.id {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    sqlx::query("DELETE FROM users WHERE id = $1")
+        .bind(id)
+        .execute(&state.config)
+        .await
+        .map_err(internal)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ---- data management (admin) ------------------------------------------------
@@ -102,7 +224,7 @@ pub async fn list_namespaces(
 ) -> Result<Json<Vec<NamespaceRow>>, StatusCode> {
     let counts = "(SELECT count(*) FROM systems s WHERE s.namespace_id = n.id), \
                   (SELECT count(*) FROM memberships mm WHERE mm.namespace_id = n.id)";
-    let rows: Vec<(Uuid, String, Option<String>, i64, i64)> = if user.is_admin {
+    let rows: Vec<(Uuid, String, Option<String>, i64, i64)> = if user.can_read_all() {
         sqlx::query_as(&format!(
             "SELECT n.id, n.name, m.role::text, {counts} \
              FROM namespaces n \
@@ -248,6 +370,39 @@ pub async fn delete_namespace(
 }
 
 // ---- members ----------------------------------------------------------------
+
+#[derive(Serialize)]
+pub struct MemberRow {
+    pub user_id: Uuid,
+    pub email: String,
+    pub role: String,
+}
+
+/// GET /api/namespaces/:id/members — owners (and admins) list namespace members.
+pub async fn list_members(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Path(ns): Path<Uuid>,
+) -> Result<Json<Vec<MemberRow>>, StatusCode> {
+    rbac::require_role(&state, &user, ns, Role::Owner).await?;
+    let rows: Vec<(Uuid, String, String)> = sqlx::query_as(
+        "SELECT u.id, u.email, m.role::text FROM memberships m \
+         JOIN users u ON u.id = m.user_id WHERE m.namespace_id = $1 ORDER BY u.email",
+    )
+    .bind(ns)
+    .fetch_all(&state.config)
+    .await
+    .map_err(internal)?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|(user_id, email, role)| MemberRow {
+                user_id,
+                email,
+                role,
+            })
+            .collect(),
+    ))
+}
 
 #[derive(Deserialize)]
 pub struct AddMember {

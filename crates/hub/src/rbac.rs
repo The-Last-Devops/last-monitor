@@ -35,7 +35,7 @@ impl Role {
 }
 
 /// Returns the user's effective role in a namespace, or `None` if not a member.
-/// System admins are treated as `Owner` everywhere.
+/// System admins are `Owner` everywhere; read-only admins are `Viewer` everywhere.
 pub async fn role_in(
     state: &AppState,
     user: &CurrentUser,
@@ -43,6 +43,9 @@ pub async fn role_in(
 ) -> Result<Option<Role>, StatusCode> {
     if user.is_admin {
         return Ok(Some(Role::Owner));
+    }
+    if user.read_all {
+        return Ok(Some(Role::Viewer));
     }
     let row: Option<(String,)> = sqlx::query_as(
         "SELECT role::text FROM memberships WHERE user_id = $1 AND namespace_id = $2",

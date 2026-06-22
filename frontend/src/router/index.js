@@ -6,6 +6,7 @@ const routes = [
   { path: '/', name: 'systems', component: () => import('../pages/Systems.vue') },
   { path: '/system/:id', name: 'system', component: () => import('../pages/SystemDetail.vue') },
   { path: '/namespaces', name: 'namespaces', component: () => import('../pages/Namespaces.vue') },
+  { path: '/members', name: 'members', component: () => import('../pages/Members.vue') },
 ]
 
 const router = createRouter({

@@ -29,6 +29,15 @@ pub struct CurrentUser {
     pub id: Uuid,
     pub email: String,
     pub is_admin: bool,
+    /// System-level read-only ("admin read"): may view every namespace.
+    pub read_all: bool,
+}
+
+impl CurrentUser {
+    /// May this user read across all namespaces? (full admin or read-only admin)
+    pub fn can_read_all(&self) -> bool {
+        self.is_admin || self.read_all
+    }
 }
 
 impl FromRequestParts<AppState> for CurrentUser {
@@ -44,8 +53,8 @@ impl FromRequestParts<AppState> for CurrentUser {
             .map(|c| c.value().to_owned())
             .ok_or(StatusCode::UNAUTHORIZED)?;
 
-        let row: Option<(Uuid, String, bool)> = sqlx::query_as(
-            "SELECT u.id, u.email, u.is_admin FROM sessions s \
+        let row: Option<(Uuid, String, bool, bool)> = sqlx::query_as(
+            "SELECT u.id, u.email, u.is_admin, u.read_all FROM sessions s \
              JOIN users u ON u.id = s.user_id \
              WHERE s.token = $1 AND s.expires_at > now()",
         )
@@ -58,10 +67,11 @@ impl FromRequestParts<AppState> for CurrentUser {
         })?;
 
         match row {
-            Some((id, email, is_admin)) => Ok(CurrentUser {
+            Some((id, email, is_admin, read_all)) => Ok(CurrentUser {
                 id,
                 email,
                 is_admin,
+                read_all,
             }),
             None => Err(StatusCode::UNAUTHORIZED),
         }
@@ -114,14 +124,15 @@ pub async fn login(
     jar: CookieJar,
     Json(req): Json<LoginReq>,
 ) -> Result<(CookieJar, Json<CurrentUser>), StatusCode> {
-    let user: Option<(Uuid, String, String, bool)> =
-        sqlx::query_as("SELECT id, email, password_hash, is_admin FROM users WHERE email = $1")
-            .bind(&req.email)
-            .fetch_optional(&state.config)
-            .await
-            .map_err(internal)?;
+    let user: Option<(Uuid, String, String, bool, bool)> = sqlx::query_as(
+        "SELECT id, email, password_hash, is_admin, read_all FROM users WHERE email = $1",
+    )
+    .bind(&req.email)
+    .fetch_optional(&state.config)
+    .await
+    .map_err(internal)?;
 
-    let (id, email, password_hash, is_admin) = user.ok_or(StatusCode::UNAUTHORIZED)?;
+    let (id, email, password_hash, is_admin, read_all) = user.ok_or(StatusCode::UNAUTHORIZED)?;
     if !verify_password(&req.password, &password_hash) {
         return Err(StatusCode::UNAUTHORIZED);
     }
@@ -133,6 +144,7 @@ pub async fn login(
             id,
             email,
             is_admin,
+            read_all,
         }),
     ))
 }
@@ -208,6 +220,7 @@ pub async fn setup_create(
             id,
             email,
             is_admin: true,
+            read_all: false,
         }),
     ))
 }

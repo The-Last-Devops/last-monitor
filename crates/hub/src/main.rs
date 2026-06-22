@@ -69,7 +69,11 @@ async fn main() -> Result<()> {
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/me", get(auth::me))
         // admin user provisioning + data management
-        .route("/api/users", post(api::create_user))
+        .route("/api/users", get(api::list_users).post(api::create_user))
+        .route(
+            "/api/users/{id}",
+            patch(api::patch_user).delete(api::delete_user),
+        )
         .route("/api/admin/data", get(api::data_stats))
         .route("/api/admin/retention", post(api::set_retention))
         // management (session + RBAC)
@@ -78,7 +82,10 @@ async fn main() -> Result<()> {
             get(api::list_namespaces).post(api::create_namespace),
         )
         .route("/api/namespaces/{id}", delete(api::delete_namespace))
-        .route("/api/namespaces/{id}/members", post(api::add_member))
+        .route(
+            "/api/namespaces/{id}/members",
+            get(api::list_members).post(api::add_member),
+        )
         // API keys (reusable; systems auto-register)
         .route(
             "/api/namespaces/{id}/keys",

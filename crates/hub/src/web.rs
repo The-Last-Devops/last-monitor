@@ -15,13 +15,14 @@ use uuid::Uuid;
 use crate::auth::CurrentUser;
 use crate::AppState;
 
-/// True if the user may view the given server (admin, or member of its namespace).
+/// True if the user may view the given server (admin / read-only admin, or a
+/// member of its namespace).
 pub async fn can_view_system(
     state: &AppState,
     user: &CurrentUser,
     system_id: Uuid,
 ) -> Result<bool, StatusCode> {
-    if user.is_admin {
+    if user.can_read_all() {
         return Ok(true);
     }
     let row: Option<(i64,)> = sqlx::query_as(
@@ -247,7 +248,7 @@ pub async fn list_systems(
                 SELECT namespace_id FROM memberships WHERE user_id = $2) \
              ORDER BY s.name",
     )
-    .bind(user.is_admin)
+    .bind(user.can_read_all())
     .bind(user.id)
     .fetch_all(&state.config)
     .await
@@ -345,7 +346,7 @@ pub async fn fleet(
         "SELECT s.id, s.name FROM systems s WHERE $1 OR s.namespace_id IN ( \
             SELECT namespace_id FROM memberships WHERE user_id = $2)",
     )
-    .bind(user.is_admin)
+    .bind(user.can_read_all())
     .bind(user.id)
     .fetch_all(&state.config)
     .await
@@ -454,7 +455,7 @@ pub async fn list_monitors(
             SELECT namespace_id FROM memberships WHERE user_id = $2) \
          ORDER BY m.name",
     )
-    .bind(user.is_admin)
+    .bind(user.can_read_all())
     .bind(user.id)
     .fetch_all(&state.config)
     .await
