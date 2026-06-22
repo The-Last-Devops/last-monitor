@@ -32,20 +32,41 @@ async function removeUser(u) {
   catch (e) { alert(e.status === 400 ? "You can't delete yourself." : `Failed (${e.status}).`) }
 }
 
-// add user
-const nu = ref({ email: '', password: '', role: 'user' })
+// add user — created as a plain User; set their role in the table afterwards.
+const nu = ref({ email: '', password: '' })
+const showPw = ref(false)
 const adding = ref(false)
 const addErr = ref('')
+const created = ref(null) // { email, password } shown to copy & hand off
+
+function genPassword() {
+  const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no ambiguous chars
+  const a = new Uint32Array(16)
+  crypto.getRandomValues(a)
+  nu.value.password = Array.from(a, (n) => chars[n % chars.length]).join('')
+  showPw.value = true
+}
+
 async function addUser() {
   addErr.value = ''
   if (!nu.value.email.includes('@') || nu.value.password.length < 6) { addErr.value = 'Valid email and a password of 6+ chars.'; return }
   adding.value = true
   try {
-    await api.post('/api/users', { email: nu.value.email, password: nu.value.password, is_admin: nu.value.role === 'admin', read_all: nu.value.role === 'read_all' })
-    nu.value = { email: '', password: '', role: 'user' }
+    const email = nu.value.email.trim(), password = nu.value.password
+    await api.post('/api/users', { email, password })
+    created.value = { email, password }       // keep to copy/hand off
+    nu.value = { email: '', password: '' }; showPw.value = false
     await loadUsers()
   } catch (e) { addErr.value = e.status === 409 ? 'A user with that email already exists.' : `Failed (${e.status}).` }
   finally { adding.value = false }
+}
+
+const credentialsText = computed(() =>
+  created.value ? `Last Monitor\nURL: ${location.origin}\nEmail: ${created.value.email}\nPassword: ${created.value.password}` : ''
+)
+function copyCreds(ev) {
+  navigator.clipboard?.writeText(credentialsText.value)
+  const b = ev.target; const o = b.textContent; b.textContent = 'Copied'; setTimeout(() => (b.textContent = o), 1200)
 }
 
 // ---- per-namespace access ----
@@ -93,13 +114,29 @@ onMounted(async () => {
         <h2 class="text-sm font-semibold text-fg">Users &amp; system roles</h2>
         <form @submit.prevent="addUser" class="flex flex-wrap items-start gap-2">
           <input v-model="nu.email" placeholder="email@company.com" class="min-w-48 flex-1 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
-          <input v-model="nu.password" type="password" placeholder="password" class="w-40 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
-          <select v-model="nu.role" class="rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none">
-            <option v-for="r in SYS" :key="r.v" :value="r.v">{{ r.label }}</option>
-          </select>
+          <div class="relative w-52">
+            <input v-model="nu.password" :type="showPw ? 'text' : 'password'" placeholder="password" class="w-full rounded-lg border border-line bg-surface2 px-3 py-2 pr-9 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
+            <button type="button" @click="showPw = !showPw" :title="showPw ? 'Hide' : 'Show'" class="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-fg">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path v-if="showPw" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle v-if="showPw" cx="12" cy="12" r="3"/><path v-else d="M3 3l18 18M10.6 10.6a3 3 0 0 0 4.2 4.2M9.9 4.2A10 10 0 0 1 22 12a13 13 0 0 1-2.2 3M6.1 6.1A13 13 0 0 0 2 12s3.5 7 10 7a10 10 0 0 0 3-.5"/></svg>
+            </button>
+          </div>
+          <button type="button" @click="genPassword" class="rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-muted hover:border-accent/50 hover:text-fg">Generate</button>
           <button type="submit" :disabled="adding" class="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accentfg hover:opacity-90 disabled:opacity-50">{{ adding ? 'Adding…' : 'Add user' }}</button>
         </form>
         <p v-if="addErr" class="text-xs text-rose-400">{{ addErr }}</p>
+
+        <!-- credentials to hand off after creating a user -->
+        <div v-if="created" class="rounded-lg border border-accent/40 bg-accent/10 p-3">
+          <div class="mb-2 flex items-center justify-between">
+            <span class="text-xs font-medium text-accent">User created — send them these credentials</span>
+            <div class="flex items-center gap-2">
+              <button @click="copyCreds" class="rounded-md border border-line bg-surface2 px-2 py-1 text-xs text-muted hover:text-accent">Copy</button>
+              <button @click="created = null" class="text-muted hover:text-fg"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+          </div>
+          <pre class="overflow-x-auto whitespace-pre-wrap rounded-md bg-bg p-2.5 text-xs leading-relaxed text-fg">{{ credentialsText }}</pre>
+        </div>
+        <p v-else class="text-xs text-faint">New users start as <b>User</b> with no access — set their system role and namespace access below.</p>
 
         <div class="overflow-hidden rounded-xl border border-line bg-surface">
           <table class="w-full text-sm">
