@@ -1,6 +1,10 @@
 # syntax=docker/dockerfile:1
 # Build the Vue SPA, then the hub binary (which embeds the SPA via rust-embed),
 # then ship the binary with the migration files it reads at runtime.
+#
+# cargo-chef splits dependency compilation into its own layer that only rebuilds
+# when Cargo.toml/Cargo.lock change — so code-only pushes reuse the cached deps
+# layer (works with GHA layer cache, unlike --mount=type=cache mounts).
 
 # 1) Frontend build -> /web/dist
 FROM node:22-slim AS web
@@ -10,15 +14,26 @@ RUN npm install
 COPY frontend ./
 RUN npm run build
 
-# 2) Hub build. rust-embed reads crates/hub/../../frontend/dist at compile time.
-FROM rust:1-bookworm AS build
+# 2) cargo-chef base
+FROM rust:1-bookworm AS chef
+RUN cargo install cargo-chef --locked
 WORKDIR /app
+
+# 3) Plan: a recipe of just the dependency graph (stable across code changes)
+FROM chef AS planner
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
+RUN cargo chef prepare --recipe-path recipe.json
+
+# 4) Build: cook deps (cached layer), then compile the hub
+FROM chef AS build
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release -p hub --recipe-path recipe.json
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+# rust-embed reads crates/hub/../../frontend/dist at compile time.
 COPY --from=web /web/dist ./frontend/dist
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/app/target \
-    cargo build --release -p hub && cp target/release/last-hub /usr/local/bin/last-hub
+RUN cargo build --release -p hub && cp target/release/last-hub /usr/local/bin/last-hub
 
 FROM debian:bookworm-slim
 WORKDIR /app

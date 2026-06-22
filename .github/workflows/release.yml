@@ -62,7 +62,8 @@ jobs:
         with:
           context: .
           file: deploy/Dockerfile.${{ matrix.component }}
-          platforms: linux/amd64,linux/arm64
+          # hub runs centrally (amd64); only the agent needs arm64.
+          platforms: ${{ matrix.component == 'agent' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
