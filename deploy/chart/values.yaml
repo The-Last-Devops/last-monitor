@@ -5,14 +5,15 @@ image:
   # For private GHCR packages: kubectl create secret docker-registry ghcr ... then:
   pullSecrets: []        # e.g. [ghcr]
 
-# First admin (UI login).
+# First admin: leave password empty to create the admin on first login (the UI
+# shows a one-time setup screen). Set both to pre-seed it instead.
 admin:
   email: admin@local
-  password: changeme
+  password: ""
 
-# Shared API key the bundled agent DaemonSet uses. The hub bootstraps it into the
-# 'default' namespace (LOCAL_AGENT_TOKEN), so the agent enrolls with no UI step.
-apiKey: change-me-please
+# Agent enrollment key. Leave empty — the chart auto-generates one (kept stable
+# across upgrades) so agents enroll with no manual step. Set to override.
+apiKey: ""
 cluster: my-cluster
 
 timescaledb:
@@ -29,10 +30,14 @@ hub:
   dataDatabaseUrl: ""
   service:
     type: ClusterIP                   # NodePort/LoadBalancer to expose the UI
+  # Point a domain at the hub. Enable it, set the host, and the chart creates an
+  # Ingress (nginx by default) — change className for traefik/etc.
   ingress:
     enabled: false
-    className: ""
+    className: nginx
     host: ""                          # e.g. mon.example.com
+    annotations: {}                   # e.g. cert-manager.io/cluster-issuer: letsencrypt
+    tls: false                        # true → terminate HTTPS using <release>-tls secret
 
 agent:
   enabled: true
