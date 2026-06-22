@@ -38,6 +38,7 @@ const showPw = ref(false)
 const adding = ref(false)
 const addErr = ref('')
 const created = ref(null) // { email, password } shown to copy & hand off
+const showCreatedPw = ref(false)
 
 function genPassword() {
   const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no ambiguous chars
@@ -55,6 +56,7 @@ async function addUser() {
     const email = nu.value.email.trim(), password = nu.value.password
     await api.post('/api/users', { email, password })
     created.value = { email, password }       // keep to copy/hand off
+    showCreatedPw.value = false
     nu.value = { email: '', password: '' }; showPw.value = false
     await loadUsers()
   } catch (e) { addErr.value = e.status === 409 ? 'A user with that email already exists.' : `Failed (${e.status}).` }
@@ -112,21 +114,23 @@ onMounted(async () => {
       <!-- users -->
       <section class="space-y-3">
         <h2 class="text-sm font-semibold text-fg">Users &amp; system roles</h2>
-        <form @submit.prevent="addUser" class="flex flex-wrap items-start gap-2">
-          <input v-model="nu.email" placeholder="email@company.com" class="min-w-48 flex-1 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
-          <div class="relative w-52">
-            <input v-model="nu.password" :type="showPw ? 'text' : 'password'" placeholder="password" class="w-full rounded-lg border border-line bg-surface2 px-3 py-2 pr-9 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
-            <button type="button" @click="showPw = !showPw" :title="showPw ? 'Hide' : 'Show'" class="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-fg">
-              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path v-if="showPw" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle v-if="showPw" cx="12" cy="12" r="3"/><path v-else d="M3 3l18 18M10.6 10.6a3 3 0 0 0 4.2 4.2M9.9 4.2A10 10 0 0 1 22 12a13 13 0 0 1-2.2 3M6.1 6.1A13 13 0 0 0 2 12s3.5 7 10 7a10 10 0 0 0 3-.5"/></svg>
-            </button>
+        <form @submit.prevent="addUser" class="max-w-xl space-y-2">
+          <input v-model="nu.email" placeholder="email@company.com" class="w-full rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
+          <div class="flex items-stretch gap-2">
+            <div class="relative flex-1">
+              <input v-model="nu.password" :type="showPw ? 'text' : 'password'" placeholder="password" class="w-full rounded-lg border border-line bg-surface2 px-3 py-2 pr-9 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
+              <button type="button" @click="showPw = !showPw" :title="showPw ? 'Hide' : 'Show'" class="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-fg">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path v-if="showPw" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle v-if="showPw" cx="12" cy="12" r="3"/><path v-else d="M3 3l18 18M10.6 10.6a3 3 0 0 0 4.2 4.2M9.9 4.2A10 10 0 0 1 22 12a13 13 0 0 1-2.2 3M6.1 6.1A13 13 0 0 0 2 12s3.5 7 10 7a10 10 0 0 0 3-.5"/></svg>
+              </button>
+            </div>
+            <button type="button" @click="genPassword" class="shrink-0 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-muted hover:border-accent/50 hover:text-fg">Generate</button>
+            <button type="submit" :disabled="adding" class="shrink-0 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accentfg hover:opacity-90 disabled:opacity-50">{{ adding ? 'Adding…' : 'Add user' }}</button>
           </div>
-          <button type="button" @click="genPassword" class="rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-muted hover:border-accent/50 hover:text-fg">Generate</button>
-          <button type="submit" :disabled="adding" class="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accentfg hover:opacity-90 disabled:opacity-50">{{ adding ? 'Adding…' : 'Add user' }}</button>
         </form>
         <p v-if="addErr" class="text-xs text-rose-400">{{ addErr }}</p>
 
         <!-- credentials to hand off after creating a user -->
-        <div v-if="created" class="rounded-lg border border-accent/40 bg-accent/10 p-3">
+        <div v-if="created" class="max-w-xl rounded-lg border border-accent/40 bg-accent/10 p-3">
           <div class="mb-2 flex items-center justify-between">
             <span class="text-xs font-medium text-accent">User created — send them these credentials</span>
             <div class="flex items-center gap-2">
@@ -134,7 +138,15 @@ onMounted(async () => {
               <button @click="created = null" class="text-muted hover:text-fg"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
             </div>
           </div>
-          <pre class="overflow-x-auto whitespace-pre-wrap rounded-md bg-bg p-2.5 text-xs leading-relaxed text-fg">{{ credentialsText }}</pre>
+          <div class="space-y-1 rounded-md bg-bg p-2.5 text-xs leading-relaxed text-fg">
+            <div><span class="inline-block w-20 text-faint">Email</span>{{ created.email }}</div>
+            <div class="flex items-center gap-2">
+              <span><span class="inline-block w-20 text-faint">Password</span><span class="font-mono">{{ showCreatedPw ? created.password : '•'.repeat(created.password.length) }}</span></span>
+              <button @click="showCreatedPw = !showCreatedPw" :title="showCreatedPw ? 'Hide' : 'Show'" class="text-muted hover:text-accent">
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path v-if="showCreatedPw" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle v-if="showCreatedPw" cx="12" cy="12" r="3"/><path v-else d="M3 3l18 18M10.6 10.6a3 3 0 0 0 4.2 4.2M9.9 4.2A10 10 0 0 1 22 12a13 13 0 0 1-2.2 3M6.1 6.1A13 13 0 0 0 2 12s3.5 7 10 7a10 10 0 0 0 3-.5"/></svg>
+              </button>
+            </div>
+          </div>
         </div>
         <p v-else class="text-xs text-faint">New users start as <b>User</b> with no access — set their system role and namespace access below.</p>
 
