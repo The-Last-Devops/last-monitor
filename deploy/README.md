@@ -15,7 +15,7 @@ data on TimescaleDB), each with its own PVC.
 ```bash
 helm install lm ./deploy/chart \
   --namespace last-monitor --create-namespace \
-  --set hub.ingress.enabled=true --set hub.ingress.host=monitor.senprints.net \
+  --set hub.ingress.host=monitor.senprints.net \
   --set timescaledb.storageClass=sp-hostpath
 ```
 
@@ -25,7 +25,7 @@ Nothing required to set:
 - **DB password** is auto-generated and kept stable across `helm upgrade`.
 
 ### Expose the UI
-- Domain (nginx ingress by default): `--set hub.ingress.enabled=true --set hub.ingress.host=monitor.senprints.net`
+- Domain (nginx ingress by default): `--set hub.ingress.host=monitor.senprints.net` (host alone enables it)
   - Other controller: `--set hub.ingress.className=traefik`
   - HTTPS via cert-manager: `--set hub.ingress.tls=true --set hub.ingress.annotations."cert-manager\.io/cluster-issuer"=letsencrypt`
 - Or `--set hub.service.type=NodePort` / `LoadBalancer`, or

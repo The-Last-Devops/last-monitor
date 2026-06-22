@@ -32,11 +32,11 @@ hub:
   dataDatabaseUrl: ""
   service:
     type: ClusterIP                   # NodePort/LoadBalancer to expose the UI
-  # Point a domain at the hub. Enable it, set the host, and the chart creates an
-  # Ingress (nginx by default) — change className for traefik/etc.
+  # Point a domain at the hub: just set host and the chart creates an Ingress
+  # (nginx by default) — change className for traefik/etc. enabled is implied by host.
   ingress:
     enabled: false
     className: nginx
-    host: ""                          # e.g. mon.example.com
+    host: ""                          # e.g. mon.example.com — setting this enables the Ingress
     annotations: {}                   # e.g. cert-manager.io/cluster-issuer: letsencrypt
     tls: false                        # true → terminate HTTPS using <release>-tls secret

@@ -39,7 +39,7 @@ spec:
   type: {{ .Values.hub.service.type }}
   selector: { app: {{ include "lm.hub" . }} }
   ports: [{ port: 8080, targetPort: 8080 }]
-{{- if .Values.hub.ingress.enabled }}
+{{- if or .Values.hub.ingress.enabled .Values.hub.ingress.host }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
