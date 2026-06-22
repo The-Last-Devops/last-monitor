@@ -1,6 +1,6 @@
 # Run the agent on a monitored host via Docker.
 #
-#   HUB_URL=https://hub.example.com AGENT_TOKEN=xxxxx docker compose -f agent.compose.yml up -d
+#   HUB_URL=https://hub.example.com API_KEY=xxxxx docker compose -f agent.compose.yml up -d
 #
 # To measure the HOST (not just the container), we share the host's PID and
 # network namespaces so the agent reads the host's /proc and network counters.
@@ -16,8 +16,7 @@ services:
     network_mode: host
     environment:
       HUB_URL: ${HUB_URL:?set HUB_URL}
-      AGENT_TOKEN: ${AGENT_TOKEN:?set AGENT_TOKEN}
-      INTERVAL: ${INTERVAL:-15}
+      API_KEY: ${API_KEY:?set API_KEY}
       # Report the HOST disk: the host root is mounted read-only at /host below.
       DISK_PATH: /host
       RUST_LOG: info

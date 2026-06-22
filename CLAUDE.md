@@ -13,11 +13,12 @@ service checks + alerting. Multi-user with namespace-scoped RBAC and public stat
 Cargo workspace with three crates plus a hub-served SSR frontend:
 
 - `crates/shared` — types exchanged between agent and hub (e.g. `MetricsReport`,
-  `IngestAck`, the `AGENT_TOKEN_HEADER` constant). Both sides depend on this; keep the
+  `IngestAck`, the `API_KEY_HEADER` constant). Both sides depend on this; keep the
   wire format here so they can't drift.
 - `crates/agent` — `last-agent` binary. Runs on each monitored server, collects host
   metrics via `sysinfo`, and **pushes** them to the hub. Configured purely by env vars
-  (`HUB_URL`, `AGENT_TOKEN`, `INTERVAL`). The hub may return a new interval in `IngestAck`.
+  (`HUB_URL`, `API_KEY`; `INTERVAL` is an optional override). The push cadence is
+  controlled by the hub, which returns the next interval in `IngestAck`.
 - `crates/hub` — the central Axum server: ingest endpoint, service probes, alert engine,
   auth/RBAC, JSON API, **and** the server-rendered web UI.
 
@@ -67,7 +68,7 @@ cargo build
 cargo run -p hub
 
 # Run an agent against a hub
-HUB_URL=http://localhost:8080 AGENT_TOKEN=<token> INTERVAL=15 cargo run -p agent
+HUB_URL=http://localhost:8080 API_KEY=<api-key> cargo run -p agent
 
 # Tests
 cargo test                      # whole workspace

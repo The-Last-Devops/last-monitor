@@ -16,8 +16,6 @@ apiKey: ""
 # Label that groups this cluster's nodes in the UI (Kubernetes › <cluster>).
 cluster: my-cluster
 
-interval: 15             # seconds between metric pushes
-
 resources:
   requests: { cpu: 20m, memory: 32Mi }
   limits: { memory: 128Mi }

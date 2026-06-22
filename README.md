@@ -92,7 +92,7 @@ API key is managed for you. Run the agent anywhere; hosts appear automatically.
 ```bash
 # Docker (reports host metrics via shared namespaces + mounts)
 docker run -d --restart=unless-stopped --pid=host \
-  -e HUB_URL=https://hub.example.com -e AGENT_TOKEN=<api-key> -e DISK_PATH=/host \
+  -e HUB_URL=https://hub.example.com -e API_KEY=<api-key> -e DISK_PATH=/host \
   -v /:/host:ro -v /var/run/docker.sock:/var/run/docker.sock:ro \
   ghcr.io/<owner>/last-monitor-agent:latest
 ```
@@ -109,7 +109,7 @@ cargo fmt                    # format
 
 bash scripts/frontend.sh dev # Vite dev server on :5173 (HMR; proxies the API to :8080)
 bash scripts/frontend.sh build  # produce frontend/dist embedded by the hub
-HUB_URL=http://localhost:8080 AGENT_TOKEN=<key> cargo run -p agent   # run an agent
+HUB_URL=http://localhost:8080 API_KEY=<key> cargo run -p agent   # run an agent
 ```
 
 During UI work use the Vite dev server (**:5173**) — it hot-reloads and is immune to hub

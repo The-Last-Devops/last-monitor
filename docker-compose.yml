@@ -42,7 +42,7 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@local}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
       # Auto-provisions the bundled agent's server + token.
-      LOCAL_AGENT_TOKEN: ${LOCAL_AGENT_TOKEN:-local-dev-token}
+      LOCAL_API_KEY: ${LOCAL_API_KEY:-local-dev-token}
     ports:
       - "8080:8080"
     # Needed for ICMP "ping" monitors (raw sockets).
@@ -62,7 +62,7 @@ services:
     pid: host
     environment:
       HUB_URL: http://hub:8080
-      AGENT_TOKEN: ${LOCAL_AGENT_TOKEN:-local-dev-token}
+      API_KEY: ${LOCAL_API_KEY:-local-dev-token}
       INTERVAL: ${AGENT_INTERVAL:-3}
       # Host root mounted below -> reports host disk.
       DISK_PATH: /host

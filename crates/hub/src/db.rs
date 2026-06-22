@@ -24,11 +24,11 @@ pub async fn connect() -> Result<AppState> {
     Ok(AppState { config, data })
 }
 
-/// If `LOCAL_AGENT_TOKEN` is set, ensure a `default` namespace and a `local`
-/// server enrolled with that token exist (idempotent). Lets the bundled
+/// If `LOCAL_API_KEY` is set, ensure a `default` namespace and a `local`
+/// server enrolled with that key exist (idempotent). Lets the bundled
 /// docker-compose agent report out of the box with no manual provisioning.
 pub async fn bootstrap_local_server(pool: &sqlx::PgPool) -> Result<()> {
-    let token = match std::env::var("LOCAL_AGENT_TOKEN") {
+    let api_key = match std::env::var("LOCAL_API_KEY") {
         Ok(t) if !t.is_empty() => t,
         _ => return Ok(()),
     };
@@ -44,7 +44,7 @@ pub async fn bootstrap_local_server(pool: &sqlx::PgPool) -> Result<()> {
          ON CONFLICT (key) DO NOTHING",
     )
     .bind(ns)
-    .bind(&token)
+    .bind(&api_key)
     .execute(pool)
     .await?;
     // Give every admin owner access to the default namespace.

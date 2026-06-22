@@ -39,11 +39,10 @@ spec:
             - { name: HUB_URL, value: {{ .Values.hubUrl | quote }} }
             - { name: AGENT_KIND, value: "k8s" }
             - { name: CLUSTER, value: {{ .Values.cluster | quote }} }
-            - { name: INTERVAL, value: {{ .Values.interval | quote }} }
             - { name: DISK_PATH, value: "/host" }
             - name: NODE_NAME
               valueFrom: { fieldRef: { fieldPath: spec.nodeName } }
-            - name: AGENT_TOKEN
+            - name: API_KEY
               valueFrom: { secretKeyRef: { name: {{ .Release.Name }}, key: api-key } }
           resources:
             {{- toYaml .Values.resources | nindent 12 }}

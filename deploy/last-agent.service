@@ -2,7 +2,7 @@
 #
 #   sudo cp target/release/last-agent /usr/local/bin/
 #   sudo cp deploy/last-agent.service /etc/systemd/system/
-#   sudo mkdir -p /etc/last-monitor && sudoedit /etc/last-monitor/agent.env   # HUB_URL, AGENT_TOKEN, INTERVAL
+#   sudo mkdir -p /etc/last-monitor && sudoedit /etc/last-monitor/agent.env   # HUB_URL, API_KEY
 #   sudo systemctl enable --now last-agent
 #
 [Unit]

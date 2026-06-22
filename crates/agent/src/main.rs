@@ -2,7 +2,7 @@
 //!
 //! Configuration via environment variables:
 //!   HUB_URL      e.g. http://hub.example.com:8080  (required)
-//!   AGENT_TOKEN  enrollment token issued by the hub (required)
+//!   API_KEY      API key issued by the hub (required)
 //!   INTERVAL     report interval in seconds (default 15)
 #![allow(clippy::items_after_test_module)]
 
@@ -14,7 +14,7 @@ use sysinfo::{Components, Networks, System};
 
 struct Config {
     hub_url: String,
-    token: String,
+    api_key: String,
     interval: Duration,
     /// Filesystem path whose usage we report. In Docker, mount the host root and
     /// set DISK_PATH=/host so the host's disk (not the container's) is measured.
@@ -31,7 +31,7 @@ struct Config {
 
 fn load_config() -> Result<Config> {
     let hub_url = std::env::var("HUB_URL").context("HUB_URL is required")?;
-    let token = std::env::var("AGENT_TOKEN").context("AGENT_TOKEN is required")?;
+    let api_key = std::env::var("API_KEY").context("API_KEY is required")?;
     let interval = std::env::var("INTERVAL")
         .ok()
         .and_then(|s| s.parse::<u64>().ok())
@@ -44,7 +44,7 @@ fn load_config() -> Result<Config> {
         .unwrap_or_default();
     Ok(Config {
         hub_url: hub_url.trim_end_matches('/').to_string(),
-        token,
+        api_key,
         interval: Duration::from_secs(interval.max(1)),
         disk_path,
         kind,
@@ -477,7 +477,7 @@ async fn main() -> Result<()> {
         report.gpus = collect_gpus().await;
         match client
             .post(&ingest_url)
-            .header(API_KEY_HEADER, &cfg.token)
+            .header(API_KEY_HEADER, &cfg.api_key)
             .json(&report)
             .send()
             .await

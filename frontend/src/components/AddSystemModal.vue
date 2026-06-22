@@ -12,13 +12,13 @@ const TYPES = [
 ]
 const METHODS = {
   node: [
-    { id: 'binary', label: 'Binary', snippet: (k) => `curl -fsSL ${HUB}/install.sh | \\\n  HUB_URL=${HUB} AGENT_TOKEN=${k} INTERVAL=15 sh` },
-    { id: 'docker', label: 'Docker', snippet: (k) => `docker run -d --name last-agent \\\n  --network host --pid host \\\n  -e HUB_URL=${HUB} -e AGENT_TOKEN=${k} -e INTERVAL=15 \\\n  -v /proc:/host/proc:ro -v /sys:/host/sys:ro \\\n  ghcr.io/the-last-devops/last-monitor-agent:main` },
-    { id: 'compose', label: 'Compose', snippet: (k) => `services:\n  last-agent:\n    image: ghcr.io/the-last-devops/last-monitor-agent:main\n    network_mode: host\n    pid: host\n    environment:\n      HUB_URL: ${HUB}\n      AGENT_TOKEN: ${k}\n    volumes:\n      - /proc:/host/proc:ro\n      - /sys:/host/sys:ro\n    restart: unless-stopped` },
+    { id: 'binary', label: 'Binary', snippet: (k) => `curl -fsSL ${HUB}/install.sh | \\\n  HUB_URL=${HUB} API_KEY=${k} sh` },
+    { id: 'docker', label: 'Docker', snippet: (k) => `docker run -d --name last-agent \\\n  --network host --pid host \\\n  -e HUB_URL=${HUB} -e API_KEY=${k} \\\n  -v /proc:/host/proc:ro -v /sys:/host/sys:ro \\\n  ghcr.io/the-last-devops/last-monitor-agent:main` },
+    { id: 'compose', label: 'Compose', snippet: (k) => `services:\n  last-agent:\n    image: ghcr.io/the-last-devops/last-monitor-agent:main\n    network_mode: host\n    pid: host\n    environment:\n      HUB_URL: ${HUB}\n      API_KEY: ${k}\n    volumes:\n      - /proc:/host/proc:ro\n      - /sys:/host/sys:ro\n    restart: unless-stopped` },
   ],
   docker: [
-    { id: 'docker', label: 'Docker', snippet: (k) => `docker run -d --name last-agent \\\n  --network host --pid host \\\n  -e HUB_URL=${HUB} -e AGENT_TOKEN=${k} -e INTERVAL=15 -e AGENT_KIND=docker \\\n  -v /proc:/host/proc:ro -v /sys:/host/sys:ro \\\n  -v /var/run/docker.sock:/var/run/docker.sock:ro \\\n  ghcr.io/the-last-devops/last-monitor-agent:main` },
-    { id: 'compose', label: 'Compose', snippet: (k) => `services:\n  last-agent:\n    image: ghcr.io/the-last-devops/last-monitor-agent:main\n    network_mode: host\n    pid: host\n    environment:\n      HUB_URL: ${HUB}\n      AGENT_TOKEN: ${k}\n      AGENT_KIND: docker\n    volumes:\n      - /proc:/host/proc:ro\n      - /sys:/host/sys:ro\n      - /var/run/docker.sock:/var/run/docker.sock:ro\n    restart: unless-stopped` },
+    { id: 'docker', label: 'Docker', snippet: (k) => `docker run -d --name last-agent \\\n  --network host --pid host \\\n  -e HUB_URL=${HUB} -e API_KEY=${k} -e AGENT_KIND=docker \\\n  -v /proc:/host/proc:ro -v /sys:/host/sys:ro \\\n  -v /var/run/docker.sock:/var/run/docker.sock:ro \\\n  ghcr.io/the-last-devops/last-monitor-agent:main` },
+    { id: 'compose', label: 'Compose', snippet: (k) => `services:\n  last-agent:\n    image: ghcr.io/the-last-devops/last-monitor-agent:main\n    network_mode: host\n    pid: host\n    environment:\n      HUB_URL: ${HUB}\n      API_KEY: ${k}\n      AGENT_KIND: docker\n    volumes:\n      - /proc:/host/proc:ro\n      - /sys:/host/sys:ro\n      - /var/run/docker.sock:/var/run/docker.sock:ro\n    restart: unless-stopped` },
   ],
   k8s: [
     { id: 'helm', label: 'Helm', snippet: (k) => `helm install last-agent oci://ghcr.io/the-last-devops/charts/last-monitor-agent \\\n  --namespace last-monitor --create-namespace \\\n  --set hubUrl=${HUB} \\\n  --set apiKey=${k} \\\n  --set cluster=${state.cluster || 'my-cluster'}` },

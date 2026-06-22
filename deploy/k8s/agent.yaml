@@ -48,15 +48,13 @@ spec:
               value: "k8s"
             - name: CLUSTER
               value: "<CLUSTER>"
-            - name: INTERVAL
-              value: "15"
             - name: DISK_PATH
               value: "/host"
             - name: NODE_NAME            # stable identity = k8s node name
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: AGENT_TOKEN
+            - name: API_KEY
               valueFrom:
                 secretKeyRef:
                   name: last-agent

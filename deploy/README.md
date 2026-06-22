@@ -54,7 +54,7 @@ helm install lm-agent ./deploy/agent \
 ```
 
 For a single host outside k8s, run the agent container/binary directly:
-`HUB_URL=... AGENT_TOKEN=<api-key> CLUSTER=... last-agent` (see the top-level README),
+`HUB_URL=... API_KEY=<api-key> CLUSTER=... last-agent` (see the top-level README),
 or use the standalone manifest `deploy/k8s/agent.yaml`.
 
 ## Images
