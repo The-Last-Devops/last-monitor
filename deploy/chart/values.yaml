@@ -20,8 +20,8 @@ cluster: my-cluster
 # Set enabled=false to use external databases (hub.configDatabaseUrl/dataDatabaseUrl).
 timescaledb:
   enabled: true
-  image: timescale/timescaledb:latest-pg16   # data DB (metrics/heartbeat hypertables)
-  configImage: postgres:16-alpine            # config DB (plain Postgres)
+  image: timescale/timescaledb:latest-pg18   # data DB (metrics/heartbeat hypertables)
+  configImage: postgres:18-alpine            # config DB (plain Postgres)
   password: ""                        # leave empty — auto-generated, stable across upgrades
   storageClass: ""                    # "" = cluster default; applies to both DBs
   configStorage: 1Gi                  # config DB volume (small: users/config/rules)

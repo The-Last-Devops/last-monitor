@@ -1,6 +1,6 @@
 services:
   db:
-    image: timescale/timescaledb:latest-pg16
+    image: timescale/timescaledb:latest-pg18
     environment:
       POSTGRES_USER: lastmon
       POSTGRES_PASSWORD: lastmon
