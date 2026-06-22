@@ -97,7 +97,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p /tmp/digests
-          touch "/tmp/digests/${{ steps.build.outputs.digest }}.sha"
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"   # filename can't contain ':'
       - uses: actions/upload-artifact@v4
         with:
           name: digest-${{ matrix.component }}-${{ matrix.arch }}
@@ -142,7 +143,7 @@ jobs:
         run: |
           docker buildx imagetools create \
             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(for f in *.sha; do printf '%s@%s ' "$IMAGE" "${f%.sha}"; done)
+            $(for f in *; do printf '%s@sha256:%s ' "$IMAGE" "$f"; done)
         env:
           DOCKER_METADATA_OUTPUT_JSON: ${{ steps.meta.outputs.json }}
       - name: Inspect
