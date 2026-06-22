@@ -3,7 +3,7 @@
 //! Configuration via environment variables:
 //!   HUB_URL      e.g. http://hub.example.com:8080  (required)
 //!   API_KEY      API key issued by the hub (required)
-//!   INTERVAL     report interval in seconds (default 15)
+//!   INTERVAL     initial report interval, seconds (default 60; hub ramps it live)
 #![allow(clippy::items_after_test_module)]
 
 use std::time::Duration;
@@ -32,10 +32,13 @@ struct Config {
 fn load_config() -> Result<Config> {
     let hub_url = std::env::var("HUB_URL").context("HUB_URL is required")?;
     let api_key = std::env::var("API_KEY").context("API_KEY is required")?;
+    // Default to 1-minute pushes (matches the smallest stored rollup; low load).
+    // The hub ramps this down to near-realtime via IngestAck while a host is being
+    // viewed, then back up. INTERVAL only overrides the initial value.
     let interval = std::env::var("INTERVAL")
         .ok()
         .and_then(|s| s.parse::<u64>().ok())
-        .unwrap_or(15);
+        .unwrap_or(60);
     let disk_path = std::env::var("DISK_PATH").unwrap_or_else(|_| "/".to_string());
     let kind = std::env::var("AGENT_KIND").unwrap_or_else(|_| "node".to_string());
     let cluster = std::env::var("CLUSTER").unwrap_or_default();
@@ -419,8 +422,12 @@ async fn main() -> Result<()> {
         .init();
 
     let cfg = load_config()?;
+    // Don't follow redirects: a http→https redirect (301/302) would silently turn
+    // our POST into a GET and the hub would answer 405. Surface it instead so the
+    // user fixes HUB_URL to https.
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
+        .redirect(reqwest::redirect::Policy::none())
         .build()?;
     let ingest_url = format!("{}/api/ingest", cfg.hub_url);
 
@@ -490,6 +497,10 @@ async fn main() -> Result<()> {
                 }
                 tracing::debug!(cpu = report.cpu_percent, "report sent");
             }
+            Ok(resp) if resp.status().is_redirection() => tracing::warn!(
+                status = %resp.status(),
+                "hub redirected the request — set HUB_URL to the final URL (likely https://)"
+            ),
             Ok(resp) => tracing::warn!(status = %resp.status(), "hub rejected report"),
             Err(e) => tracing::warn!(error = %e, "failed to reach hub"),
         }
