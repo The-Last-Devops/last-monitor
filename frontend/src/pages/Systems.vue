@@ -152,6 +152,14 @@ const fleetSeries = (arr) => (arr || []).filter((s) => visibleNames.value.has(s.
 // Selection is unified: the row checkbox (`selected`, by id) both marks for
 // bulk-delete AND isolates the node on the charts. Hover a row → transient highlight.
 const hoverNode = ref(null)
+// Debounce hover→isolate: only refocus the charts once the cursor settles for a
+// moment, so flicking across nodes doesn't strobe the graphs. Leaving clears now.
+let hoverTimer = null
+function onLegendHover(name) {
+  clearTimeout(hoverTimer)
+  if (!name) { hoverNode.value = null; return }
+  hoverTimer = setTimeout(() => { hoverNode.value = name }, 200)
+}
 const fleetTime = ref('') // hovered timestamp (empty when not hovering)
 const fmtTs = (ts) => new Date(ts * 1000).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
 const pinnedSystems = computed(() => servers.value.filter((s) => selected.has(s.id)))
@@ -260,7 +268,7 @@ const detailLink = (s) => {
         <p v-if="!visible.length" class="rounded-xl border border-line bg-surface p-4 text-sm text-muted">No hosts match the filter. <button @click="resetFilters" class="text-accent hover:underline">Reset</button></p>
         <FleetCharts v-else :charts="fleetCharts" :time="gappedFleet?.t || []" :span-seconds="FSPAN[frange]" :view-range="fviewRange"
           :focus-names="fleetFocus" :selected-names="selectedNames" sync-key="fleet"
-          @legend-hover="hoverNode = $event" @legend-toggle="toggleByName" @zoom="setFzoom" />
+          @legend-hover="onLegendHover" @legend-toggle="toggleByName" @zoom="setFzoom" />
       </section>
 
       <!-- Hosts: one flat table; Type / Cluster / Namespace are clickable filters -->
@@ -282,7 +290,7 @@ const detailLink = (s) => {
             </tr></thead>
             <tbody>
               <template v-for="s in rows" :key="s.id">
-                <tr class="lm-row border-b border-line" :class="selected.has(s.id) ? 'sel' : ''" @mouseenter="hoverNode = s.name" @mouseleave="hoverNode = null">
+                <tr class="lm-row border-b border-line" :class="selected.has(s.id) ? 'sel' : ''" @mouseenter="onLegendHover(s.name)" @mouseleave="onLegendHover(null)">
                   <td class="px-3 py-3"><input type="checkbox" :checked="selected.has(s.id)" @change="toggleRow(s.id)" class="h-4 w-4 accent-accent" /></td>
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-1.5">
