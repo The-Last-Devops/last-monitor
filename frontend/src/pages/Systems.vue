@@ -293,22 +293,17 @@ const detailLink = (s) => {
           <h2 class="text-sm font-semibold text-fg">Needs attention</h2>
           <span class="rounded-full bg-surface2 px-2 py-0.5 text-xs text-muted">{{ attnHosts.length }} hosts</span>
         </div>
-        <ul class="divide-y divide-line/60 border-t border-line/60">
-          <li v-for="h in attnHosts" :key="h.s.id" class="flex items-center justify-between gap-3 px-4 py-2 hover:bg-surface2/40">
-            <RouterLink :to="{ name: 'system', params: { id: h.s.id } }" class="flex min-w-0 items-baseline gap-2 hover:text-accent">
-              <span class="truncate text-sm text-fg">{{ h.s.name }}</span>
-              <span class="shrink-0 text-xs text-faint">{{ h.s.namespace }}</span>
-            </RouterLink>
-            <div class="flex shrink-0 items-center gap-1.5">
-              <span v-for="i in h.issues" :key="i.key" :title="ISSUE[i.key].label + (i.val != null ? ' ' + i.val + '%' : '')"
-                class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs" :class="i.crit ? 'bg-red-500/15 text-red-400' : 'bg-amber-500/15 text-amber-400'">
-                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path :d="ISSUE[i.key].icon"/></svg>
-                <span v-if="i.val != null" class="tabular-nums">{{ i.val }}%</span>
-                <span v-else>offline</span>
-              </span>
-            </div>
-          </li>
-        </ul>
+        <div class="flex flex-wrap gap-2 border-t border-line/60 p-3">
+          <RouterLink v-for="h in attnHosts" :key="h.s.id" :to="{ name: 'system', params: { id: h.s.id } }"
+            :title="h.s.namespace" class="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs hover:border-accent/50">
+            <span class="text-fg">{{ h.s.name }}</span>
+            <span v-for="i in h.issues" :key="i.key" :title="ISSUE[i.key].label + (i.val != null ? ' ' + i.val + '%' : '')"
+              class="inline-flex items-center gap-0.5 tabular-nums" :class="i.crit ? 'text-red-400' : 'text-amber-400'">
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path :d="ISSUE[i.key].icon"/></svg>
+              <span v-if="i.val != null">{{ i.val }}%</span>
+            </span>
+          </RouterLink>
+        </div>
       </section>
 
       <!-- toolbar -->
