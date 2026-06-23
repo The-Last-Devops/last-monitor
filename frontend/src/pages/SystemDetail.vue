@@ -13,7 +13,7 @@ const route = useRoute()
 const router = useRouter()
 const id = computed(() => route.params.id)
 const type = computed(() => route.query.type || 'node')
-const name = computed(() => route.query.name || id.value)
+const name = computed(() => route.query.name || meta.value?.name || id.value)
 const parent = computed(() => route.query.parent || '')
 const ptype = computed(() => route.query.ptype || '')
 const TYPE_LABEL = { node: 'Node', host: 'Host', docker: 'Docker', k8s: 'Kubernetes', container: 'Container' }
@@ -25,7 +25,7 @@ const kind = computed(() => {
   return 'node'
 })
 const typeLabel = computed(() => TYPE_LABEL[kind.value])
-const RANGES = [['30m', '1m'], ['1h', '1m'], ['3h', '1m'], ['6h', '5m'], ['12h', '5m'], ['24h', '15m']]
+const RANGES = [['30m', '1m'], ['1h', '1m'], ['3h', '2m'], ['6h', '5m'], ['12h', '10m'], ['24h', '15m'], ['7d', '1h'], ['30d', '6h'], ['90d', '1d'], ['1y', '1d']]
 // range persisted in the URL so F5 keeps it
 const range = computed(() => route.query.range || '30m')
 const resOf = computed(() => RANGES.find(([r]) => r === range.value)?.[1] || '1m')
@@ -33,7 +33,7 @@ function setRange(r) { router.replace({ query: { ...route.query, range: r, zoom:
 // drag-zoom window persisted in the URL as a human-readable range, shared by all charts
 const viewRange = computed(() => decodeZoom(route.query.zoom))
 function setZoom(r) { router.replace({ query: { ...route.query, zoom: encodeZoom(r) } }) }
-const SPAN = { '30m': 1800, '1h': 3600, '3h': 10800, '6h': 21600, '12h': 43200, '24h': 86400 }
+const SPAN = { '30m': 1800, '1h': 3600, '3h': 10800, '6h': 21600, '12h': 43200, '24h': 86400, '7d': 604800, '30d': 2592000, '90d': 7776000, '1y': 31536000 }
 // charts always span the full selected window (blank where data is missing)
 const spanSeconds = computed(() => SPAN[range.value] || 0)
 

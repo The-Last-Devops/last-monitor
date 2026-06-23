@@ -10,86 +10,156 @@ use sqlx::PgPool;
 
 /// Best-effort downsampling setup. Errors (e.g. policy already exists) are logged
 /// and ignored so startup never fails on re-run.
+// Aggregation expressions reused at every rollup level — column names match the
+// raw table, so the SAME expressions roll a finer tier up into a coarser one
+// (avg of avgs over equal-width buckets; max of cumulative counters stays a max).
+const SYS_AGG: &str = "avg(cpu_percent) AS cpu_percent, avg(mem_used) AS mem_used, \
+     avg(mem_total) AS mem_total, avg(swap_used) AS swap_used, avg(swap_total) AS swap_total, \
+     avg(disk_used) AS disk_used, avg(disk_total) AS disk_total, \
+     max(net_rx) AS net_rx, max(net_tx) AS net_tx, max(disk_read) AS disk_read, max(disk_write) AS disk_write, \
+     avg(load1) AS load1, avg(load5) AS load5, avg(load15) AS load15, \
+     avg(cpu_user) AS cpu_user, avg(cpu_system) AS cpu_system, avg(cpu_iowait) AS cpu_iowait, \
+     avg(cpu_steal) AS cpu_steal, avg(disk_util) AS disk_util";
+const CTR_AGG: &str = "avg(cpu_percent) AS cpu_percent, avg(mem_used) AS mem_used, \
+     max(net_rx) AS net_rx, max(net_tx) AS net_tx";
+
+/// One rollup tier: (suffix, bucket, source-table, source-time-column).
+const SYS_TIERS: &[(&str, &str, &str, &str)] = &[
+    ("1m", "1 minute", "system_metrics", "time"),
+    ("5m", "5 minutes", "system_metrics_1m", "bucket"),
+    ("15m", "15 minutes", "system_metrics_5m", "bucket"),
+    ("1h", "1 hour", "system_metrics_15m", "bucket"),
+];
+const CTR_TIERS: &[(&str, &str, &str, &str)] = &[
+    ("1m", "1 minute", "container_metrics", "time"),
+    ("5m", "5 minutes", "container_metrics_1m", "bucket"),
+    ("15m", "15 minutes", "container_metrics_5m", "bucket"),
+    ("1h", "1 hour", "container_metrics_15m", "bucket"),
+];
+/// Refresh start_offset per tier — must stay within the SOURCE tier's retention
+/// (raw 8h, 1m 2d, 5m 10d, 15m 45d) so a refresh never blanks materialized rows.
+const REFRESH_OFFSET: &[(&str, &str)] = &[
+    ("1m", "6 hours"),
+    ("5m", "1 day"),
+    ("15m", "3 days"),
+    ("1h", "14 days"),
+];
+/// drop_after per tier (raw is hours, rollups are days). Heartbeats handled separately.
+const RETENTION: &[(&str, &str)] = &[
+    ("", "8 hours"),
+    ("1m", "2 days"),
+    ("5m", "10 days"),
+    ("15m", "45 days"),
+    ("1h", "365 days"),
+];
+const COMPRESS_AFTER: &[(&str, &str)] = &[
+    ("1m", "1 day"),
+    ("5m", "2 days"),
+    ("15m", "7 days"),
+    ("1h", "14 days"),
+];
+
 pub async fn setup(data: &PgPool) {
-    let stmts = [
-        // Raw system_metrics is the short, hour-granularity hot tier: small chunks so
-        // an hours-based retention policy can actually drop data (default kept 24h).
-        "SELECT set_chunk_time_interval('system_metrics', INTERVAL '1 hour')",
-        // Container raw + heartbeats keep day chunks (longer retention).
-        "SELECT set_chunk_time_interval('container_metrics', INTERVAL '1 day')",
-        "SELECT set_chunk_time_interval('heartbeats', INTERVAL '1 day')",
-        // 1-minute rollup from raw system_metrics.
-        "CREATE MATERIALIZED VIEW IF NOT EXISTS system_metrics_1m \
-         WITH (timescaledb.continuous) AS \
-         SELECT system_id, time_bucket('1 minute', time) AS bucket, \
-                avg(cpu_percent) AS cpu_percent, avg(mem_used) AS mem_used, avg(mem_total) AS mem_total, \
-                avg(disk_used) AS disk_used, avg(disk_total) AS disk_total, \
-                max(net_rx) AS net_rx, max(net_tx) AS net_tx, avg(load1) AS load1 \
-         FROM system_metrics GROUP BY system_id, bucket WITH NO DATA",
-        // 1-hour rollup from raw system_metrics.
-        "CREATE MATERIALIZED VIEW IF NOT EXISTS system_metrics_1h \
-         WITH (timescaledb.continuous) AS \
-         SELECT system_id, time_bucket('1 hour', time) AS bucket, \
-                avg(cpu_percent) AS cpu_percent, avg(mem_used) AS mem_used, avg(mem_total) AS mem_total, \
-                avg(disk_used) AS disk_used, avg(disk_total) AS disk_total, \
-                max(net_rx) AS net_rx, max(net_tx) AS net_tx, avg(load1) AS load1 \
-         FROM system_metrics GROUP BY system_id, bucket WITH NO DATA",
-        // Refresh policies.
-        "SELECT add_continuous_aggregate_policy('system_metrics_1m', start_offset => INTERVAL '6 hours', \
-            end_offset => INTERVAL '1 minute', schedule_interval => INTERVAL '1 minute')",
-        "SELECT add_continuous_aggregate_policy('system_metrics_1h', start_offset => INTERVAL '3 days', \
-            end_offset => INTERVAL '1 hour', schedule_interval => INTERVAL '1 hour')",
-        // Container rollups (parity with system_metrics): 1-minute from raw, then a
-        // 1-hour rollup built hierarchically from the 1-minute one so it survives a
-        // short raw retention. Grouped per (system_id, name).
-        "CREATE MATERIALIZED VIEW IF NOT EXISTS container_metrics_1m \
-         WITH (timescaledb.continuous) AS \
-         SELECT system_id, name, time_bucket('1 minute', time) AS bucket, \
-                avg(cpu_percent) AS cpu_percent, avg(mem_used) AS mem_used, \
-                max(net_rx) AS net_rx, max(net_tx) AS net_tx \
-         FROM container_metrics GROUP BY system_id, name, bucket WITH NO DATA",
-        "CREATE MATERIALIZED VIEW IF NOT EXISTS container_metrics_1h \
-         WITH (timescaledb.continuous) AS \
-         SELECT system_id, name, time_bucket('1 hour', bucket) AS bucket, \
-                avg(cpu_percent) AS cpu_percent, avg(mem_used) AS mem_used, \
-                max(net_rx) AS net_rx, max(net_tx) AS net_tx \
-         FROM container_metrics_1m GROUP BY system_id, name, time_bucket('1 hour', bucket) WITH NO DATA",
-        "SELECT add_continuous_aggregate_policy('container_metrics_1m', start_offset => INTERVAL '6 hours', \
-            end_offset => INTERVAL '1 minute', schedule_interval => INTERVAL '1 minute')",
-        "SELECT add_continuous_aggregate_policy('container_metrics_1h', start_offset => INTERVAL '3 days', \
-            end_offset => INTERVAL '1 hour', schedule_interval => INTERVAL '1 hour')",
-        // Retention tiers (raw system_metrics defaults to 24h, editable in hours).
-        "SELECT add_retention_policy('system_metrics', INTERVAL '24 hours')",
-        "SELECT add_retention_policy('system_metrics_1m', INTERVAL '7 days')",
-        "SELECT add_retention_policy('system_metrics_1h', INTERVAL '30 days')",
-        "SELECT add_retention_policy('container_metrics', INTERVAL '7 days')",
-        "SELECT add_retention_policy('container_metrics_1m', INTERVAL '7 days')",
-        "SELECT add_retention_policy('container_metrics_1h', INTERVAL '30 days')",
-        "SELECT add_retention_policy('heartbeats', INTERVAL '30 days')",
-        // Compression (append-only data → ~pure win). Raw system_metrics is the
-        // short hot tier (1-day retention) so it stays uncompressed; compress the
-        // longer-lived rollups + container/heartbeat history.
-        "ALTER TABLE container_metrics SET (timescaledb.compress, \
-            timescaledb.compress_segmentby = 'system_id', timescaledb.compress_orderby = 'time DESC')",
-        "SELECT add_compression_policy('container_metrics', INTERVAL '2 days')",
-        "ALTER TABLE heartbeats SET (timescaledb.compress, \
-            timescaledb.compress_segmentby = 'monitor_id', timescaledb.compress_orderby = 'time DESC')",
-        "SELECT add_compression_policy('heartbeats', INTERVAL '2 days')",
-        "ALTER MATERIALIZED VIEW system_metrics_1m SET (timescaledb.compress = true)",
-        "SELECT add_compression_policy('system_metrics_1m', INTERVAL '1 day')",
-        "ALTER MATERIALIZED VIEW system_metrics_1h SET (timescaledb.compress = true)",
-        "SELECT add_compression_policy('system_metrics_1h', INTERVAL '7 days')",
-        "ALTER MATERIALIZED VIEW container_metrics_1m SET (timescaledb.compress = true)",
-        "SELECT add_compression_policy('container_metrics_1m', INTERVAL '1 day')",
-        "ALTER MATERIALIZED VIEW container_metrics_1h SET (timescaledb.compress = true)",
-        "SELECT add_compression_policy('container_metrics_1h', INTERVAL '7 days')",
+    // Pre-ladder schema had only _1m/_1h rollups (8 columns, _1h sourced from raw).
+    // If the _5m tier is absent we're upgrading (or fresh): drop the old rollup chain
+    // so it's recreated with the full column set + hierarchical sources, and reset
+    // retention so the new defaults apply. After this _5m exists → block is skipped,
+    // leaving any admin retention edits intact.
+    let migrated = sqlx::query_as::<_, (Option<String>,)>(
+        "SELECT to_regclass('public.system_metrics_5m')::text",
+    )
+    .fetch_one(data)
+    .await
+    .ok()
+    .and_then(|(v,)| v)
+    .is_some();
+    if !migrated {
+        let mut reset = vec![
+            "DROP MATERIALIZED VIEW IF EXISTS system_metrics_1h CASCADE".to_string(),
+            "DROP MATERIALIZED VIEW IF EXISTS system_metrics_15m CASCADE".to_string(),
+            "DROP MATERIALIZED VIEW IF EXISTS system_metrics_5m CASCADE".to_string(),
+            "DROP MATERIALIZED VIEW IF EXISTS system_metrics_1m CASCADE".to_string(),
+            "DROP MATERIALIZED VIEW IF EXISTS container_metrics_1h CASCADE".to_string(),
+            "DROP MATERIALIZED VIEW IF EXISTS container_metrics_15m CASCADE".to_string(),
+            "DROP MATERIALIZED VIEW IF EXISTS container_metrics_5m CASCADE".to_string(),
+            "DROP MATERIALIZED VIEW IF EXISTS container_metrics_1m CASCADE".to_string(),
+        ];
+        for t in RETENTION_TABLES {
+            reset.push(format!(
+                "SELECT remove_retention_policy('{t}', if_exists => true)"
+            ));
+        }
+        for s in &reset {
+            let _ = sqlx::query(s).execute(data).await;
+        }
+    }
+
+    let mut stmts: Vec<String> = vec![
+        // Raw is the short hot tier (8h) → 1h chunks so retention drops at that grain.
+        "SELECT set_chunk_time_interval('system_metrics', INTERVAL '1 hour')".into(),
+        "SELECT set_chunk_time_interval('container_metrics', INTERVAL '1 hour')".into(),
+        "SELECT set_chunk_time_interval('heartbeats', INTERVAL '1 day')".into(),
     ];
-    for s in stmts {
+
+    // Hierarchical rollup chains: raw → 1m → 5m → 15m → 1h (system + container).
+    for (chain, agg, group_extra) in [(SYS_TIERS, SYS_AGG, ""), (CTR_TIERS, CTR_AGG, "name, ")] {
+        let table_base = if group_extra.is_empty() {
+            "system_metrics"
+        } else {
+            "container_metrics"
+        };
+        for (suffix, bucket, src, srccol) in chain {
+            stmts.push(format!(
+                "CREATE MATERIALIZED VIEW IF NOT EXISTS {table_base}_{suffix} \
+                 WITH (timescaledb.continuous) AS \
+                 SELECT system_id, {group_extra}time_bucket('{bucket}', {srccol}) AS bucket, {agg} \
+                 FROM {src} GROUP BY system_id, {group_extra}time_bucket('{bucket}', {srccol}) WITH NO DATA"
+            ));
+        }
+        for (suffix, bucket, _, _) in chain {
+            let off = REFRESH_OFFSET.iter().find(|(s, _)| s == suffix).unwrap().1;
+            stmts.push(format!(
+                "SELECT add_continuous_aggregate_policy('{table_base}_{suffix}', \
+                    start_offset => INTERVAL '{off}', end_offset => INTERVAL '{bucket}', \
+                    schedule_interval => INTERVAL '{bucket}')"
+            ));
+        }
+        // retention + compression per tier
+        for (suffix, keep) in RETENTION {
+            let tbl = if suffix.is_empty() {
+                table_base.to_string()
+            } else {
+                format!("{table_base}_{suffix}")
+            };
+            stmts.push(format!(
+                "SELECT add_retention_policy('{tbl}', INTERVAL '{keep}')"
+            ));
+        }
+        for (suffix, after) in COMPRESS_AFTER {
+            stmts.push(format!(
+                "ALTER MATERIALIZED VIEW {table_base}_{suffix} SET (timescaledb.compress = true)"
+            ));
+            stmts.push(format!(
+                "SELECT add_compression_policy('{table_base}_{suffix}', INTERVAL '{after}')"
+            ));
+        }
+    }
+
+    // Heartbeats: kept a year so uptime history + incidents span long ranges.
+    stmts.push("SELECT add_retention_policy('heartbeats', INTERVAL '365 days')".into());
+    stmts.push(
+        "ALTER TABLE heartbeats SET (timescaledb.compress, \
+            timescaledb.compress_segmentby = 'monitor_id', timescaledb.compress_orderby = 'time DESC')"
+            .into(),
+    );
+    stmts.push("SELECT add_compression_policy('heartbeats', INTERVAL '7 days')".into());
+
+    for s in &stmts {
         if let Err(e) = sqlx::query(s).execute(data).await {
             tracing::debug!(error = %e, "downsampling setup (ignored)");
         }
     }
-    tracing::info!("downsampling + retention + compression configured");
+    tracing::info!("downsampling ladder (1m/5m/15m/1h) + retention + compression configured");
 }
 
 #[derive(Serialize)]
@@ -108,9 +178,10 @@ pub struct RetentionTier {
     pub value: Option<i64>,
 }
 
-/// The raw realtime tier is managed in hours; everything else in days.
+/// The raw realtime tiers (system + container) are managed in hours; the
+/// downsampled rollups + heartbeats in days.
 fn unit_for(table: &str) -> &'static str {
-    if table == "system_metrics" {
+    if table == "system_metrics" || table == "container_metrics" {
         "hours"
     } else {
         "days"
@@ -173,26 +244,24 @@ pub async fn stats(data: &PgPool) -> DataStats {
     .map(|(s,)| s)
     .unwrap_or_else(|_| "—".into());
 
-    let tables = vec![
-        hypertable_stat(data, "system_metrics", "Raw metrics").await,
-        hypertable_stat(data, "system_metrics_1m", "1-minute rollup").await,
-        hypertable_stat(data, "system_metrics_1h", "1-hour rollup").await,
-        hypertable_stat(data, "container_metrics", "Container metrics").await,
-        hypertable_stat(data, "container_metrics_1m", "Container 1-minute rollup").await,
-        hypertable_stat(data, "container_metrics_1h", "Container 1-hour rollup").await,
-        hypertable_stat(data, "heartbeats", "Heartbeats").await,
-    ];
-
-    // (table, label) for each tier; unit + value are filled in below.
+    // (table, label) for each tier — used for both the size table and retention.
     let tiers = [
         ("system_metrics", "Raw (realtime)"),
         ("system_metrics_1m", "1-minute rollup"),
+        ("system_metrics_5m", "5-minute rollup"),
+        ("system_metrics_15m", "15-minute rollup"),
         ("system_metrics_1h", "1-hour rollup"),
         ("container_metrics", "Container (raw)"),
-        ("container_metrics_1m", "Container 1-minute rollup"),
-        ("container_metrics_1h", "Container 1-hour rollup"),
+        ("container_metrics_1m", "Container 1-minute"),
+        ("container_metrics_5m", "Container 5-minute"),
+        ("container_metrics_15m", "Container 15-minute"),
+        ("container_metrics_1h", "Container 1-hour"),
         ("heartbeats", "Heartbeats"),
     ];
+    let mut tables = Vec::with_capacity(tiers.len());
+    for (table, label) in tiers {
+        tables.push(hypertable_stat(data, table, label).await);
+    }
     let mut retention = Vec::with_capacity(tiers.len());
     for (table, label) in tiers {
         retention.push(RetentionTier {
@@ -214,9 +283,13 @@ pub async fn stats(data: &PgPool) -> DataStats {
 const RETENTION_TABLES: &[&str] = &[
     "system_metrics",
     "system_metrics_1m",
+    "system_metrics_5m",
+    "system_metrics_15m",
     "system_metrics_1h",
     "container_metrics",
     "container_metrics_1m",
+    "container_metrics_5m",
+    "container_metrics_15m",
     "container_metrics_1h",
     "heartbeats",
 ];

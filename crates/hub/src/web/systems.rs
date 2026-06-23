@@ -36,20 +36,23 @@ pub async fn system_metrics_series(
     if !can_view_system(&state, &user, id).await? {
         return Err(StatusCode::FORBIDDEN);
     }
-    let interval = range_interval(&q.range);
-    // mem/disk percentages are computed in SQL to keep the row tuple within
+    // Read the tier that covers this range (raw for short, rollups for long) and
+    // bucket to the display resolution so the point count stays bounded and the
+    // chart spans the whole window. mem/disk % computed in SQL to stay within
     // sqlx's 16-element FromRow limit.
+    let (suffix, timecol, interval, bucket) = chart_tier(&q.range);
     let sql = format!(
-        "SELECT time, cpu_percent AS cpu, \
-                CASE WHEN mem_total>0 THEN mem_used::float8/mem_total*100 ELSE 0 END AS mem_pct, \
-                CASE WHEN disk_total>0 THEN disk_used::float8/disk_total*100 ELSE 0 END AS disk_pct, \
-                net_rx, net_tx, COALESCE(disk_read,0) AS dread, COALESCE(disk_write,0) AS dwrite, \
-                load1 AS l1, COALESCE(load5,0) AS l5, COALESCE(load15,0) AS l15, \
-                COALESCE(cpu_user,0) AS cu, COALESCE(cpu_system,0) AS cs, \
-                COALESCE(cpu_iowait,0) AS cio, COALESCE(cpu_steal,0) AS cst, \
-                mem_used AS mu, COALESCE(disk_util,0) AS disk_util \
-         FROM system_metrics WHERE system_id = $1 AND time > now() - interval '{interval}' \
-         ORDER BY time ASC LIMIT 4000"
+        "SELECT time_bucket('{bucket}', {timecol}) AS time, avg(cpu_percent)::float8 AS cpu, \
+                CASE WHEN avg(mem_total)>0 THEN avg(mem_used)::float8/avg(mem_total)*100 ELSE 0 END AS mem_pct, \
+                CASE WHEN avg(disk_total)>0 THEN avg(disk_used)::float8/avg(disk_total)*100 ELSE 0 END AS disk_pct, \
+                max(net_rx) AS net_rx, max(net_tx) AS net_tx, \
+                max(COALESCE(disk_read,0)) AS dread, max(COALESCE(disk_write,0)) AS dwrite, \
+                avg(load1)::float8 AS l1, avg(COALESCE(load5,0))::float8 AS l5, avg(COALESCE(load15,0))::float8 AS l15, \
+                avg(COALESCE(cpu_user,0))::float8 AS cu, avg(COALESCE(cpu_system,0))::float8 AS cs, \
+                avg(COALESCE(cpu_iowait,0))::float8 AS cio, avg(COALESCE(cpu_steal,0))::float8 AS cst, \
+                avg(mem_used)::float8 AS mu, avg(COALESCE(disk_util,0))::float8 AS disk_util \
+         FROM system_metrics{suffix} WHERE system_id = $1 AND {timecol} > now() - interval '{interval}' \
+         GROUP BY 1 ORDER BY 1 LIMIT 4000"
     );
     // FromRow struct (not a tuple) so we're not capped at sqlx's 16-column limit.
     #[derive(sqlx::FromRow)]
@@ -69,7 +72,7 @@ pub async fn system_metrics_series(
         cs: f64,
         cio: f64,
         cst: f64,
-        mu: i64,
+        mu: f64,
         disk_util: f64,
     }
     let rows: Vec<Sample> = sqlx::query_as(&sql)
@@ -123,7 +126,7 @@ pub async fn system_metrics_series(
         h.t.push(ts);
         h.cpu.push(cpu);
         h.mem_pct.push(mem_pct);
-        h.mem_used.push(mu as f64);
+        h.mem_used.push(mu);
         h.disk_pct.push(disk_pct);
         h.load1.push(l1);
         h.load5.push(l5);
@@ -303,15 +306,14 @@ pub async fn fleet(
     .map_err(internal)?;
     let names: HashMap<Uuid, String> = sys.into_iter().collect();
 
-    let interval = range_interval(&q.range);
-    let bucket = range_bucket(&q.range);
+    let (suffix, timecol, interval, bucket) = chart_tier(&q.range);
     let sql = format!(
-        "SELECT system_id, time_bucket('{bucket}', time) AS b, \
+        "SELECT system_id, time_bucket('{bucket}', {timecol}) AS b, \
                 avg(cpu_percent) AS cpu, \
                 avg(CASE WHEN mem_total>0 THEN mem_used::float8/mem_total*100 ELSE 0 END) AS mem, \
                 avg(CASE WHEN disk_total>0 THEN disk_used::float8/disk_total*100 ELSE 0 END) AS disk, \
                 max(net_rx) AS net_rx, max(net_tx) AS net_tx \
-         FROM system_metrics WHERE time > now() - interval '{interval}' \
+         FROM system_metrics{suffix} WHERE {timecol} > now() - interval '{interval}' \
          GROUP BY system_id, b ORDER BY b"
     );
     let rows: Vec<(Uuid, chrono::DateTime<chrono::Utc>, f64, f64, f64, i64, i64)> =
@@ -421,7 +423,7 @@ pub async fn system_containers(
     if !can_view_system(&state, &user, id).await? {
         return Err(StatusCode::FORBIDDEN);
     }
-    let interval = range_interval(&q.range);
+    let (_, _, interval, _) = chart_tier(&q.range);
     let sql = format!(
         "SELECT time, name, cpu_percent, mem_used, net_rx, net_tx FROM container_metrics \
          WHERE system_id = $1 AND time > now() - interval '{interval}' ORDER BY time ASC LIMIT 20000"
@@ -485,7 +487,7 @@ pub async fn system_temps(
     if !can_view_system(&state, &user, id).await? {
         return Err(StatusCode::FORBIDDEN);
     }
-    let interval = range_interval(&q.range);
+    let (_, _, interval, _) = chart_tier(&q.range);
     let sql = format!(
         "SELECT time, temps FROM system_metrics WHERE system_id = $1 AND temps IS NOT NULL \
          AND time > now() - interval '{interval}' ORDER BY time ASC LIMIT 2000"
@@ -533,7 +535,7 @@ pub async fn system_gpu(
     if !can_view_system(&state, &user, id).await? {
         return Err(StatusCode::FORBIDDEN);
     }
-    let interval = range_interval(&q.range);
+    let (_, _, interval, _) = chart_tier(&q.range);
     let sql = format!(
         "SELECT time, gpus FROM system_metrics WHERE system_id = $1 AND gpus IS NOT NULL \
          AND gpus <> '[]'::jsonb AND time > now() - interval '{interval}' ORDER BY time ASC LIMIT 2000"

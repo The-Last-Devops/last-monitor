@@ -173,7 +173,9 @@ const attnHosts = computed(() => {
 // human-readable problem text for tooltips
 const issueText = (i) => (i.key === 'down' ? 'Offline — not reporting in' : `High ${ISSUE[i.key].label.toLowerCase()}: ${i.val}% (${i.crit ? 'critical' : 'warning'})`)
 const chipTitle = (h) => `${h.s.name} · ${h.s.namespace}\n` + h.issues.map(issueText).join('\n')
-function sortBy(col) { if (sortState.col === col) sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc'; else { sortState.col = col; sortState.dir = 'asc' } }
+// Picking a new column defaults to descending — we usually want the busiest
+// (near-overload) hosts at the top; click again to flip to ascending.
+function sortBy(col) { if (sortState.col === col) sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc'; else { sortState.col = col; sortState.dir = 'desc' } }
 const arrow = (col) => (sortState.col === col ? (sortState.dir === 'desc' ? ' ↓' : ' ↑') : '')
 // click a row attribute (type/cluster/ns) → set that filter dimension (replacing any existing)
 function setFilter(key, val) { const toks = chips.value.filter((t) => !t.toLowerCase().startsWith(key + ':')); toks.push(`${key}:${val}`); q.value = toks.join(' ') }

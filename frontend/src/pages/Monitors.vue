@@ -256,7 +256,7 @@ onUnmounted(() => clearInterval(timer))
         <label v-if="f.kind === 'dns'" class="block w-72 text-xs text-faint">Expected IP (optional, substring)<input v-model="f.expected_ip" placeholder="1.2.3.4" class="mt-1 block w-full rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" /></label>
 
         <!-- http options -->
-        <details v-if="isHttp(f.kind)" class="rounded-lg border border-line bg-surface2/40 p-3">
+        <details v-if="isHttp(f.kind)" open class="rounded-lg border border-line bg-surface2/40 p-3">
           <summary class="cursor-pointer text-xs uppercase tracking-wider text-faint">HTTP options</summary>
           <div class="mt-3 space-y-3">
             <div class="flex flex-wrap gap-3">

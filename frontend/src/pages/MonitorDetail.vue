@@ -22,8 +22,10 @@ const RANGES = [
   { v: '24h', label: '24h' },
   { v: '7d', label: '7d' },
   { v: '30d', label: '30d' },
+  { v: '90d', label: '90d' },
+  { v: '1y', label: '1y' },
 ]
-const SPAN = { '1h': 3600, '6h': 21600, '24h': 86400, '7d': 604800, '30d': 2592000 }
+const SPAN = { '1h': 3600, '6h': 21600, '24h': 86400, '7d': 604800, '30d': 2592000, '90d': 7776000, '1y': 31536000 }
 const spanSeconds = computed(() => SPAN[range.value] || 86400)
 
 // Pair status transitions (newest-first from the API) into down incidents:

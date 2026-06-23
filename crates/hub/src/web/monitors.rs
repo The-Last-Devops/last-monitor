@@ -275,6 +275,8 @@ fn hb_range(range: &Option<String>) -> (&'static str, &'static str) {
         Some("6h") => ("6 hours", "5 minutes"),
         Some("7d") => ("7 days", "1 hour"),
         Some("30d") => ("30 days", "6 hours"),
+        Some("90d") => ("90 days", "1 day"),
+        Some("1y") => ("365 days", "1 day"),
         _ => ("24 hours", "15 minutes"),
     }
 }

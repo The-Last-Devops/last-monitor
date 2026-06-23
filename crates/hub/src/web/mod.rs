@@ -48,23 +48,25 @@ pub struct RangeQuery {
     #[serde(default)]
     pub range: Option<String>,
 }
-/// Maps a UI range key to a Postgres interval. Bounded by raw retention (1 day).
-fn range_interval(range: &Option<String>) -> &'static str {
+/// Resolves a UI range to which downsampling tier to read and how to display it.
+/// Raw is kept ~8h, 1m→2d, 5m→10d, 15m→45d, 1h→365d, so each range reads the
+/// finest tier that still covers it (and stays light). Returns
+/// (table_suffix, time_column, window_interval, display_bucket).
+pub fn chart_tier(
+    range: &Option<String>,
+) -> (&'static str, &'static str, &'static str, &'static str) {
     match range.as_deref() {
-        Some("30m") => "30 minutes",
-        Some("3h") => "3 hours",
-        Some("6h") => "6 hours",
-        Some("12h") => "12 hours",
-        Some("24h") => "24 hours",
-        _ => "1 hour",
-    }
-}
-fn range_bucket(range: &Option<String>) -> &'static str {
-    match range.as_deref() {
-        Some("6h") => "5 minutes",
-        Some("12h") => "10 minutes",
-        Some("24h") => "15 minutes",
-        _ => "1 minute", // 30m / 1h / 3h
+        Some("30m") => ("", "time", "30 minutes", "1 minute"),
+        Some("1h") => ("", "time", "1 hour", "1 minute"),
+        Some("3h") => ("", "time", "3 hours", "2 minutes"),
+        Some("6h") => ("", "time", "6 hours", "5 minutes"),
+        Some("12h") => ("_1m", "bucket", "12 hours", "10 minutes"),
+        Some("24h") => ("_1m", "bucket", "24 hours", "15 minutes"),
+        Some("7d") => ("_5m", "bucket", "7 days", "1 hour"),
+        Some("30d") => ("_15m", "bucket", "30 days", "6 hours"),
+        Some("90d") => ("_1h", "bucket", "90 days", "1 day"),
+        Some("1y") => ("_1h", "bucket", "365 days", "1 day"),
+        _ => ("", "time", "1 hour", "1 minute"),
     }
 }
 fn internal<E: std::fmt::Display>(e: E) -> StatusCode {
