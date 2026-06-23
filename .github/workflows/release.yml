@@ -50,7 +50,7 @@ jobs:
           - component: hub
             arch: arm64
     env:
-      IMAGE: ghcr.io/${{ github.repository_owner }}/last-monitor-${{ matrix.component }}
+      IMAGE: ghcr.io/the-last-devops/last-monitor-${{ matrix.component }}
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
     steps:
       - uses: actions/checkout@v4
@@ -99,7 +99,7 @@ jobs:
       matrix:
         component: [hub, agent]
     env:
-      IMAGE: ghcr.io/${{ github.repository_owner }}/last-monitor-${{ matrix.component }}
+      IMAGE: ghcr.io/the-last-devops/last-monitor-${{ matrix.component }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -145,5 +145,5 @@ jobs:
           for c in chart agent; do
             helm package "deploy/$c" --version "$VERSION" --app-version "$VERSION"
           done
-          helm push "last-monitor-${VERSION}.tgz" "oci://ghcr.io/${{ github.repository_owner }}/charts"
-          helm push "last-monitor-agent-${VERSION}.tgz" "oci://ghcr.io/${{ github.repository_owner }}/charts"
+          helm push "last-monitor-${VERSION}.tgz" "oci://ghcr.io/the-last-devops/charts"
+          helm push "last-monitor-agent-${VERSION}.tgz" "oci://ghcr.io/the-last-devops/charts"
