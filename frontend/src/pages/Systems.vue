@@ -115,7 +115,7 @@ const rows = computed(() => sortList(visible.value, sortState))
 function avg(arr, f) { const v = arr.map(f).filter((x) => x != null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null }
 const hero = computed(() => {
   const all = visible.value, on = all.filter(online).length
-  return { online: on, total: all.length, cpu: avg(all, (x) => x.cpu_percent), mem: avg(all, (x) => pct(x.mem_used, x.mem_total)), nodes: all.filter((s) => s.kind === 'node').length }
+  return { online: on, total: all.length, cpu: avg(all, (x) => x.cpu_percent), mem: avg(all, (x) => pct(x.mem_used, x.mem_total)), disk: avg(all, (x) => pct(x.disk_used, x.disk_total)) }
 })
 
 function sortBy(col) { if (sortState.col === col) sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc'; else { sortState.col = col; sortState.dir = 'asc' } }
@@ -222,7 +222,7 @@ const detailLink = (s) => {
           <div class="mt-1.5 text-2xl font-semibold text-fg">{{ hero.online }}<span class="text-sm text-faint"> / {{ hero.total }}</span></div>
           <div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.total ? (hero.online / hero.total) * 100 : 0) + '%' }"></div></div>
         </div>
-        <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs uppercase tracking-wider text-muted">Nodes</div><div class="mt-1.5 text-2xl font-semibold text-fg">{{ hero.nodes }}</div></div>
+        <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs uppercase tracking-wider text-muted">Avg disk</div><div class="mt-1.5 text-2xl font-semibold text-fg">{{ hero.disk ?? '—' }}%</div><div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.disk || 0) + '%' }"></div></div></div>
         <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs uppercase tracking-wider text-muted">Avg CPU</div><div class="mt-1.5 text-2xl font-semibold text-fg">{{ hero.cpu ?? '—' }}%</div><div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.cpu || 0) + '%' }"></div></div></div>
         <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs uppercase tracking-wider text-muted">Avg memory</div><div class="mt-1.5 text-2xl font-semibold text-fg">{{ hero.mem ?? '—' }}%</div><div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.mem || 0) + '%' }"></div></div></div>
       </section>
