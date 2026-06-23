@@ -32,14 +32,25 @@ jobs:
           files: last-monitor-*.tar.gz
           generate_release_notes: true
 
-  # Multi-arch container images pushed to GHCR.
-  images:
-    name: Image (${{ matrix.component }})
-    runs-on: ubuntu-latest
+  # Per-arch image build on NATIVE runners (no QEMU = fast & reliable), pushed by
+  # digest; the manifest job below stitches them into the semver + latest tags.
+  # Mirrors ci.yml. hub runs centrally (amd64 only); only the agent needs arm64.
+  image:
+    name: Image ${{ matrix.component }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      packages: write
     strategy:
+      fail-fast: false
       matrix:
         component: [hub, agent]
+        arch: [amd64, arm64]
+        exclude:
+          - component: hub
+            arch: arm64
     env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/last-monitor-${{ matrix.component }}
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
     steps:
       - uses: actions/checkout@v4
@@ -49,32 +60,74 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Image metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/last-monitor-${{ matrix.component }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=raw,value=latest
-      - name: Build & push
-        uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v6
+        id: build
         with:
           context: .
           file: deploy/Dockerfile.${{ matrix.component }}
-          # hub runs centrally (amd64); only the agent needs arm64.
-          platforms: ${{ matrix.component == 'agent' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/${{ matrix.arch }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=rel-${{ matrix.component }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=rel-${{ matrix.component }}-${{ matrix.arch }}
+      - name: Export digest
+        shell: bash
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"   # filename can't contain ':'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.component }}-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  # Stitch the per-arch digests into the semver + latest tags (pure registry op).
+  manifest:
+    name: Manifest (${{ matrix.component }})
+    needs: [image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        component: [hub, agent]
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/last-monitor-${{ matrix.component }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-${{ matrix.component }}-*
+          merge-multiple: true
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+      - name: Create manifest list
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(for f in *; do printf '%s@sha256:%s ' "$IMAGE" "$f"; done)
+        env:
+          DOCKER_METADATA_OUTPUT_JSON: ${{ steps.meta.outputs.json }}
+      - name: Inspect
+        run: docker buildx imagetools inspect "$IMAGE:latest"
 
   # Helm charts published as OCI artifacts to GHCR (public alongside the images).
   #   hub:   helm install lm oci://ghcr.io/<owner>/charts/last-monitor --version <tag>
