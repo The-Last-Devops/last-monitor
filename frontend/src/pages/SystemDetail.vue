@@ -65,6 +65,13 @@ const fmtBps = (v) => {
   while (n >= 1024 && i < 3) { n /= 1024; i++ }
   return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${u[i]}/s`
 }
+// Total bytes → human size (RAM/disk capacity in the metadata bar).
+const fmtBytes = (v) => {
+  if (v == null || v <= 0) return null
+  const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; let n = v
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++ }
+  return `${n.toFixed(n < 10 && i > 1 ? 1 : 0)} ${u[i]}`
+}
 
 const metrics = ref(null)
 const containersList = ref([])
@@ -233,6 +240,8 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
       <span><span class="text-faint">Namespace</span> <RouterLink :to="{ path: '/', query: { q: `ns:${meta.namespace}` } }" class="text-fg hover:text-accent">{{ meta.namespace }}</RouterLink></span>
       <span v-if="meta.hostname"><span class="text-faint">Hostname</span> <RouterLink :to="{ path: '/', query: { q: meta.hostname } }" class="text-fg hover:text-accent">{{ meta.hostname }}</RouterLink></span>
       <span v-if="meta.cpu_model"><span class="text-faint">CPU</span> <span class="text-fg">{{ meta.cpu_model }}<template v-if="meta.cpu_cores"> · {{ meta.cpu_cores }} cores</template></span></span>
+      <span v-if="fmtBytes(meta.mem_total)"><span class="text-faint">RAM</span> <span class="text-fg">{{ fmtBytes(meta.mem_total) }}</span></span>
+      <span v-if="fmtBytes(meta.disk_total)"><span class="text-faint">Disk</span> <span class="text-fg">{{ fmtBytes(meta.disk_total) }}</span></span>
       <span v-if="meta.kernel"><span class="text-faint">Kernel</span> <RouterLink :to="{ path: '/', query: { q: `kernel:${meta.kernel}` } }" class="text-fg hover:text-accent">{{ meta.kernel }}</RouterLink></span>
       <span v-if="meta.agent_version"><span class="text-faint">Agent</span> <RouterLink :to="{ path: '/', query: { q: `agent:${meta.agent_version}` } }" class="text-fg hover:text-accent">v{{ meta.agent_version }}</RouterLink></span>
     </div>
