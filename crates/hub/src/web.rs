@@ -481,23 +481,41 @@ pub async fn list_monitors(
     .await
     .map_err(internal)?;
 
-    let mut rows = Vec::with_capacity(monitors.len());
-    for (id, name, kind, target, namespace, interval_secs, enabled, config) in monitors {
-        let latest: Option<(
+    // Latest heartbeat for ALL monitors in ONE query (was N+1). DISTINCT ON + the
+    // (monitor_id, time DESC) index makes this a fast per-monitor index scan.
+    let ids: Vec<Uuid> = monitors.iter().map(|m| m.0).collect();
+    #[allow(clippy::type_complexity)]
+    let beat_rows: Vec<(
+        Uuid,
+        chrono::DateTime<chrono::Utc>,
+        bool,
+        Option<i32>,
+        Option<String>,
+    )> = sqlx::query_as(
+        "SELECT DISTINCT ON (monitor_id) monitor_id, time, up, latency_ms, message \
+         FROM heartbeats WHERE monitor_id = ANY($1) ORDER BY monitor_id, time DESC",
+    )
+    .bind(&ids)
+    .fetch_all(&state.data)
+    .await
+    .map_err(internal)?;
+    #[allow(clippy::type_complexity)]
+    let mut latest: std::collections::HashMap<
+        Uuid,
+        (
             chrono::DateTime<chrono::Utc>,
             bool,
             Option<i32>,
             Option<String>,
-        )> = sqlx::query_as(
-            "SELECT time, up, latency_ms, message FROM heartbeats \
-             WHERE monitor_id = $1 ORDER BY time DESC LIMIT 1",
-        )
-        .bind(id)
-        .fetch_optional(&state.data)
-        .await
-        .map_err(internal)?;
+        ),
+    > = std::collections::HashMap::with_capacity(beat_rows.len());
+    for (mid, t, up, lat, msg) in beat_rows {
+        latest.insert(mid, (t, up, lat, msg));
+    }
 
-        let (last_check, up, latency_ms, message) = match latest {
+    let mut rows = Vec::with_capacity(monitors.len());
+    for (id, name, kind, target, namespace, interval_secs, enabled, config) in monitors {
+        let (last_check, up, latency_ms, message) = match latest.remove(&id) {
             Some((t, up, lat, msg)) => (Some(t), Some(up), lat, msg),
             None => (None, None, None, None),
         };
