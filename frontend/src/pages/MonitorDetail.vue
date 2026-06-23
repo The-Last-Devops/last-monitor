@@ -75,11 +75,13 @@ onUnmounted(() => timer && clearInterval(timer))
 </script>
 
 <template>
-  <AppShell :title="m?.name || 'Service'">
+  <AppShell :title="m?.name || 'Service'" hide-title>
     <template #title-after>
-      <span class="text-sm text-faint">›
-        <RouterLink :to="{ name: 'monitors' }" class="hover:text-accent">Services</RouterLink>
-      </span>
+      <nav class="flex items-center gap-2 text-lg font-semibold">
+        <RouterLink :to="{ name: 'monitors' }" class="text-muted hover:text-accent">Services</RouterLink>
+        <span class="text-faint">›</span>
+        <span class="truncate text-fg">{{ m?.name || 'Service' }}</span>
+      </nav>
     </template>
 
     <div v-if="err" class="rounded-xl border border-line bg-surface p-6 text-center text-rose-400">{{ err }}</div>

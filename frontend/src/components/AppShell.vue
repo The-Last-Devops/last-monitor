@@ -30,6 +30,9 @@ const groups = computed(() =>
   [
     {
       key: 'infra', label: 'Infrastructure',
+      // `owns` = extra route names (e.g. detail pages) that belong to this group
+      // so it stays highlighted + expanded when you're on them.
+      owns: ['system'],
       children: [
         { label: 'All', name: 'systems' },
         { label: 'Needs attention', name: 'attention' },
@@ -37,6 +40,7 @@ const groups = computed(() =>
     },
     {
       key: 'services', label: 'Services',
+      owns: ['monitor'],
       children: [
         { label: 'All', name: 'monitors' },
         { label: 'Down', name: 'monitors', down: true },
@@ -73,7 +77,7 @@ const childActive = (c) => {
   if (c.name === 'monitors') return (route.query.status === 'down') === !!c.down
   return true
 }
-const groupActive = (g) => g.children.some((c) => childActive(c))
+const groupActive = (g) => g.children.some((c) => childActive(c)) || (g.owns || []).includes(route.name)
 // A group is expanded when it's the active route's group (always open) or when
 // the user has clicked its chevron open. No hover — opening is an explicit click.
 const openKey = ref(null)
