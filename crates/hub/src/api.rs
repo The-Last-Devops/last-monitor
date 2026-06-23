@@ -17,6 +17,22 @@ fn internal<E: std::fmt::Display>(e: E) -> StatusCode {
     StatusCode::INTERNAL_SERVER_ERROR
 }
 
+#[derive(Serialize)]
+pub struct About {
+    pub version: &'static str,
+    pub git_sha: &'static str,
+    pub build_date: &'static str,
+}
+
+/// GET /api/about — build metadata for the About page.
+pub async fn about(_user: CurrentUser) -> Json<About> {
+    Json(About {
+        version: env!("CARGO_PKG_VERSION"),
+        git_sha: env!("GIT_SHA"),
+        build_date: env!("BUILD_DATE"),
+    })
+}
+
 // ---- users (admin-only provisioning) ---------------------------------------
 
 #[derive(Deserialize)]

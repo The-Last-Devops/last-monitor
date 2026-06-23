@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use crate::AppState;
 
-const SESSION_COOKIE: &str = "session";
+pub(crate) const SESSION_COOKIE: &str = "session";
 const SESSION_DAYS: i64 = 30;
 
 /// The authenticated user, extracted from the session cookie on each request.

@@ -8,6 +8,7 @@
 
 mod alert;
 mod api;
+mod audit;
 mod auth;
 mod data_admin;
 mod db;
@@ -79,6 +80,8 @@ async fn main() -> Result<()> {
         .route("/api/users/{id}/memberships", get(api::user_memberships))
         .route("/api/admin/data", get(api::data_stats))
         .route("/api/admin/retention", post(api::set_retention))
+        .route("/api/audit", get(audit::list))
+        .route("/api/about", get(api::about))
         // management (session + RBAC)
         .route(
             "/api/namespaces",
@@ -139,9 +142,14 @@ async fn main() -> Result<()> {
         .route("/api/systems/{id}/temps", get(web::system_temps))
         .route("/api/systems/{id}/gpu", get(web::system_gpu))
         .route("/api/monitors", get(web::list_monitors))
-        .with_state(state)
         // SPA: anything not matched above is served from the embedded Vue build.
         .fallback(spa::handler)
+        // Audit middleware logs mutating /api calls (needs state; before with_state).
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            audit::record,
+        ))
+        .with_state(state)
         .layer(TraceLayer::new_for_http());
 
     let addr: SocketAddr = std::env::var("BIND_ADDR")

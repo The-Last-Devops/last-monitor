@@ -14,5 +14,24 @@ fn main() {
     if !keep.exists() {
         let _ = fs::write(&keep, b"");
     }
+
+    // Build metadata for the About page.
+    let git_sha = std::process::Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|| "unknown".into());
+    println!("cargo:rustc-env=GIT_SHA={git_sha}");
+    let build_date = std::process::Command::new("date")
+        .args(["-u", "+%Y-%m-%d %H:%M UTC"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default();
+    println!("cargo:rustc-env=BUILD_DATE={build_date}");
+
     println!("cargo:rerun-if-changed=build.rs");
 }
