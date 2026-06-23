@@ -18,10 +18,28 @@ const s3State = ref({ configured: false, secret_set: false })
 const s3keys = ref([])
 const s3msg = ref('')
 
+// scheduled backups
+const sched = ref({ enabled: false, mode: 'daily', interval_hours: 24, daily_time: '03:00', include_metrics: false, keep: 14 })
+const lastBackupAt = ref(null)
+const schedMsg = ref('')
+async function loadSchedule() {
+  try {
+    const r = await api.get('/api/admin/backup/schedule')
+    if (r.schedule) sched.value = { ...sched.value, ...r.schedule }
+    lastBackupAt.value = r.last_backup_at
+  } catch {}
+}
+async function saveSchedule() {
+  schedMsg.value = ''
+  try { await api.put('/api/admin/backup/schedule', sched.value); flash('sched', 'Saved.'); await loadSchedule() }
+  catch (e) { flash('sched', `Save failed (${e.status}).`, false) }
+}
+const lastBackupTxt = computed(() => (lastBackupAt.value ? new Date(lastBackupAt.value).toLocaleString() : 'never'))
+
 const downloadHref = computed(() => `/api/admin/backup?metrics=${includeMetrics.value}`)
 
 function flash(target, text, ok = true) {
-  const r = target === 's3' ? s3msg : msg
+  const r = target === 's3' ? s3msg : target === 'sched' ? schedMsg : msg
   r.value = (ok ? '✓ ' : '') + text
 }
 
@@ -71,7 +89,7 @@ async function restoreS3(key) {
   finally { busy.value = false }
 }
 
-onMounted(() => { if (isAdmin.value) { loadS3(); listS3() } })
+onMounted(() => { if (isAdmin.value) { loadS3(); listS3(); loadSchedule() } })
 </script>
 
 <template>
@@ -130,6 +148,29 @@ onMounted(() => { if (isAdmin.value) { loadS3(); listS3() } })
               </tr>
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <!-- scheduled backups -->
+      <section class="rounded-xl border border-line bg-surface p-4 space-y-3">
+        <div class="flex items-center gap-2">
+          <h2 class="text-sm font-semibold text-fg">Scheduled backups</h2>
+          <span class="text-xs text-faint">→ S3 · last run: {{ lastBackupTxt }}</span>
+        </div>
+        <p class="text-xs text-faint">Automatically back up to the S3 bucket above on a schedule and keep the most recent N. Requires S3 configured.</p>
+        <label class="flex items-center gap-2 text-sm text-fg">
+          <input v-model="sched.enabled" type="checkbox" class="h-4 w-4" /> Enable scheduled backups
+        </label>
+        <div class="flex flex-wrap items-end gap-3">
+          <label class="text-xs text-faint">Frequency<select v-model="sched.mode" class="mt-1 block rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none"><option value="daily">Daily at…</option><option value="interval">Every N hours</option></select></label>
+          <label v-if="sched.mode === 'daily'" class="text-xs text-faint">Time (UTC)<input v-model="sched.daily_time" type="time" class="mt-1 block rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none" /></label>
+          <label v-else class="text-xs text-faint">Every (hours)<input v-model.number="sched.interval_hours" type="number" min="1" class="mt-1 block w-24 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none" /></label>
+          <label class="text-xs text-faint">Keep last<input v-model.number="sched.keep" type="number" min="1" class="mt-1 block w-24 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none" /></label>
+          <label class="flex items-center gap-2 self-end pb-2 text-sm text-fg"><input v-model="sched.include_metrics" type="checkbox" class="h-4 w-4" /> Include metrics</label>
+        </div>
+        <div class="flex items-center gap-3">
+          <button @click="saveSchedule" class="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accentfg hover:opacity-90">Save schedule</button>
+          <span v-if="schedMsg" class="text-xs" :class="schedMsg.startsWith('✓') ? 'text-accent' : 'text-rose-400'">{{ schedMsg }}</span>
         </div>
       </section>
     </div>

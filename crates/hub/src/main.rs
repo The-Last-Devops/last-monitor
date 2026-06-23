@@ -53,6 +53,7 @@ async fn main() -> Result<()> {
     // Background engines.
     probe::spawn(state.clone());
     alert::spawn(state.clone());
+    backup::spawn(state.clone());
 
     use axum::routing::{delete, patch, post};
     let app = Router::new()
@@ -95,6 +96,10 @@ async fn main() -> Result<()> {
         .route("/api/admin/backup/s3/upload", post(backup::s3_upload))
         .route("/api/admin/backup/s3/list", get(backup::s3_list))
         .route("/api/admin/backup/s3/restore", post(backup::s3_restore))
+        .route(
+            "/api/admin/backup/schedule",
+            get(backup::schedule_get).put(backup::schedule_put),
+        )
         .route("/api/audit", get(audit::list))
         .route("/api/about", get(api::about))
         // management (session + RBAC)
