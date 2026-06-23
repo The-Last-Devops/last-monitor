@@ -1,7 +1,14 @@
 <script setup>
 import { ref, watch, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import AppShell from '../components/AppShell.vue'
 import { api } from '../lib/api'
+
+const route = useRoute()
+const selectedNsName = () => {
+  const sel = (route.query.ns || '').split(',').filter(Boolean)
+  return sel.length === 1 ? sel[0] : null
+}
 
 const namespaces = ref([])
 const nsId = ref('')
@@ -45,7 +52,8 @@ async function removeChannel(c) {
 
 onMounted(async () => {
   try { namespaces.value = await api.get('/api/namespaces') } catch { namespaces.value = [] }
-  if (namespaces.value[0]) nsId.value = namespaces.value[0].id
+  const match = namespaces.value.find((n) => n.name === selectedNsName())
+  nsId.value = (match || namespaces.value[0])?.id || ''
 })
 </script>
 

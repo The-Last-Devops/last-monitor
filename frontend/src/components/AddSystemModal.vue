@@ -1,6 +1,14 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute } from 'vue-router'
 import { api } from '../lib/api'
+
+const route = useRoute()
+// the namespace selected in the sidebar (?ns=), if exactly one is active
+function selectedNsName() {
+  const sel = (route.query.ns || '').split(',').filter(Boolean)
+  return sel.length === 1 ? sel[0] : null
+}
 
 const emit = defineEmits(['close'])
 const HUB = location.origin
@@ -34,7 +42,8 @@ const snippet = computed(() => (state.key ? methods.value[state.method].snippet(
 onMounted(async () => {
   try {
     namespaces.value = await api.get('/api/namespaces')
-    if (namespaces.value[0]) state.nsId = namespaces.value[0].id
+    const match = namespaces.value.find((n) => n.name === selectedNsName())
+    state.nsId = (match || namespaces.value[0])?.id || ''
   } catch { namespaces.value = [] }
 })
 

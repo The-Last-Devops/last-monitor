@@ -1,7 +1,14 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import AppShell from '../components/AppShell.vue'
 import { api } from '../lib/api'
+
+const route = useRoute()
+const selectedNsName = () => {
+  const sel = (route.query.ns || '').split(',').filter(Boolean)
+  return sel.length === 1 ? sel[0] : null
+}
 
 const monitors = ref([])
 const namespaces = ref([])
@@ -54,7 +61,11 @@ const fmtAgo = (t) => {
 }
 
 onMounted(async () => {
-  try { namespaces.value = await api.get('/api/namespaces'); if (namespaces.value[0]) nm.value.nsId = namespaces.value[0].id } catch {}
+  try {
+    namespaces.value = await api.get('/api/namespaces')
+    const match = namespaces.value.find((n) => n.name === selectedNsName())
+    nm.value.nsId = (match || namespaces.value[0])?.id || ''
+  } catch {}
   await load()
   timer = setInterval(load, 10000)
 })
