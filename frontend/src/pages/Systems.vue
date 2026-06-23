@@ -268,7 +268,7 @@ const detailLink = (s) => {
 </script>
 
 <template>
-  <AppShell :title="attnMode ? 'Needs attention' : 'Systems'">
+  <AppShell :title="attnMode ? 'Needs attention' : 'Infrastructure'">
     <div class="space-y-5">
       <!-- hero -->
       <section class="grid grid-cols-2 gap-4 sm:grid-cols-4">

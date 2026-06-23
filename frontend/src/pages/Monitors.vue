@@ -62,7 +62,7 @@ onUnmounted(() => clearInterval(timer))
 </script>
 
 <template>
-  <AppShell title="Monitors">
+  <AppShell title="Services">
     <div class="mx-auto max-w-5xl space-y-4">
       <div class="flex items-center justify-between gap-3">
         <p class="text-sm text-muted">Service checks — HTTP / TCP / ping / keyword. Status comes from the latest heartbeat.</p>

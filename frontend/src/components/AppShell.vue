@@ -76,13 +76,13 @@ watch(() => props.title, (t) => { document.title = t ? `${t} — Last Monitor` :
       <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-2">
         <div class="flex items-center gap-2.5 px-3 py-2 text-sm text-fg">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-          Systems
+          Infrastructure
         </div>
         <RouterLink :to="{ path: '/', query: route.query.ns ? { ns: route.query.ns } : {} }" class="flex items-center gap-2.5 rounded-lg py-2 pl-10 pr-3 text-sm text-muted transition hover:bg-surface2 hover:text-fg" exact-active-class="!bg-accent/10 font-medium !text-accent">All</RouterLink>
         <RouterLink :to="{ name: 'attention', query: route.query.ns ? { ns: route.query.ns } : {} }" class="flex items-center justify-between gap-2.5 rounded-lg py-2 pl-10 pr-3 text-sm text-muted transition hover:bg-surface2 hover:text-fg" active-class="!bg-accent/10 font-medium !text-accent">Needs attention</RouterLink>
         <RouterLink :to="{ name: 'monitors', query: route.query.ns ? { ns: route.query.ns } : {} }" class="mt-1 flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted transition hover:bg-surface2 hover:text-fg" active-class="!bg-accent/10 font-medium !text-accent">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-          Monitors
+          Services
         </RouterLink>
         <div class="px-3 pb-1 pt-4 text-[11px] uppercase tracking-wider text-faint">Manage</div>
         <RouterLink :to="{ name: 'namespaces' }" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted transition hover:bg-surface2 hover:text-fg" active-class="!bg-accent/10 font-medium !text-accent">

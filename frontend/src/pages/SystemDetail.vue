@@ -226,7 +226,7 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
     <!-- breadcrumb sits in the top bar (left); status on the right -->
     <template #title-after>
       <nav class="flex items-center gap-1.5 text-base font-semibold">
-        <RouterLink :to="{ path: '/', query: route.query.ns ? { ns: route.query.ns } : {} }" class="text-muted hover:text-accent">Systems</RouterLink>
+        <RouterLink :to="{ path: '/', query: route.query.ns ? { ns: route.query.ns } : {} }" class="text-muted hover:text-accent">Infrastructure</RouterLink>
         <span class="text-faint">›</span><span class="text-fg">{{ name }}</span>
       </nav>
     </template>
