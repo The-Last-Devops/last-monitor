@@ -760,6 +760,37 @@ pub async fn create_monitor(
     Ok(Json(id))
 }
 
+/// GET /api/monitors/:id/debug — last ok + last err request/response detail.
+pub async fn monitor_debug(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Value>, StatusCode> {
+    let ns = ns_of(
+        &state,
+        "SELECT namespace_id FROM monitors WHERE id = $1",
+        id,
+    )
+    .await?;
+    rbac::require_role(&state, &user, ns, Role::Viewer).await?;
+    let rows: Vec<(String, Value, String)> =
+        sqlx::query_as("SELECT outcome, detail, at::text FROM monitor_debug WHERE monitor_id = $1")
+            .bind(id)
+            .fetch_all(&state.config)
+            .await
+            .map_err(internal)?;
+    let (mut ok, mut err) = (Value::Null, Value::Null);
+    for (outcome, detail, at) in rows {
+        let entry = serde_json::json!({ "detail": detail, "at": at });
+        if outcome == "ok" {
+            ok = entry;
+        } else {
+            err = entry;
+        }
+    }
+    Ok(Json(serde_json::json!({ "ok": ok, "err": err })))
+}
+
 // ---- notification channels --------------------------------------------------
 
 #[derive(Serialize)]
@@ -985,6 +1016,8 @@ pub struct PatchMonitor {
     pub interval_secs: Option<i32>,
     #[serde(default)]
     pub enabled: Option<bool>,
+    #[serde(default)]
+    pub config: Option<Value>,
 }
 
 /// PATCH /api/monitors/:id — edit fields / toggle enabled.
@@ -1003,13 +1036,15 @@ pub async fn patch_monitor(
     rbac::require_role(&state, &user, ns, Role::Editor).await?;
     sqlx::query(
         "UPDATE monitors SET name = COALESCE($2, name), target = COALESCE($3, target), \
-         interval_secs = COALESCE($4, interval_secs), enabled = COALESCE($5, enabled) WHERE id = $1",
+         interval_secs = COALESCE($4, interval_secs), enabled = COALESCE($5, enabled), \
+         config = COALESCE($6, config) WHERE id = $1",
     )
     .bind(id)
     .bind(req.name)
     .bind(req.target)
     .bind(req.interval_secs)
     .bind(req.enabled)
+    .bind(req.config.map(sqlx::types::Json))
     .execute(&state.config)
     .await
     .map_err(internal)?;

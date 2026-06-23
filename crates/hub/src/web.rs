@@ -454,6 +454,7 @@ pub struct MonitorRow {
     pub target: String,
     pub interval_secs: i32,
     pub enabled: bool,
+    pub config: serde_json::Value,
     pub up: Option<bool>,
     pub latency_ms: Option<i32>,
     pub last_check: Option<chrono::DateTime<chrono::Utc>>,
@@ -466,8 +467,8 @@ pub async fn list_monitors(
     State(state): State<AppState>,
     user: CurrentUser,
 ) -> Result<Json<Vec<MonitorRow>>, StatusCode> {
-    let monitors: Vec<(Uuid, String, String, String, i32, bool)> = sqlx::query_as(
-        "SELECT m.id, m.name, m.kind::text, m.target, m.interval_secs, m.enabled FROM monitors m \
+    let monitors: Vec<(Uuid, String, String, String, i32, bool, sqlx::types::Json<serde_json::Value>)> = sqlx::query_as(
+        "SELECT m.id, m.name, m.kind::text, m.target, m.interval_secs, m.enabled, m.config FROM monitors m \
          WHERE $1 OR m.namespace_id IN ( \
             SELECT namespace_id FROM memberships WHERE user_id = $2) \
          ORDER BY m.name",
@@ -479,7 +480,7 @@ pub async fn list_monitors(
     .map_err(internal)?;
 
     let mut rows = Vec::with_capacity(monitors.len());
-    for (id, name, kind, target, interval_secs, enabled) in monitors {
+    for (id, name, kind, target, interval_secs, enabled, config) in monitors {
         let latest: Option<(
             chrono::DateTime<chrono::Utc>,
             bool,
@@ -505,6 +506,7 @@ pub async fn list_monitors(
             target,
             interval_secs,
             enabled,
+            config: config.0,
             up,
             latency_ms,
             last_check,
