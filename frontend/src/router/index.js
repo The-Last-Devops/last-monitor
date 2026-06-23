@@ -8,6 +8,9 @@ const routes = [
   { path: '/system/:id', name: 'system', component: () => import('../pages/SystemDetail.vue') },
   { path: '/namespaces', name: 'namespaces', component: () => import('../pages/Namespaces.vue') },
   { path: '/members', name: 'members', component: () => import('../pages/Members.vue') },
+  { path: '/monitors', name: 'monitors', component: () => import('../pages/Monitors.vue') },
+  { path: '/notifications', name: 'notifications', component: () => import('../pages/Notifications.vue') },
+  { path: '/data', name: 'data', component: () => import('../pages/DataRetention.vue') },
 ]
 
 const router = createRouter({
