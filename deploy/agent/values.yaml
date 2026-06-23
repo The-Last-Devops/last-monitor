@@ -2,7 +2,8 @@
 # UI under Add System. One DaemonSet pod runs per node and pushes host metrics.
 
 image: ghcr.io/the-last-devops/last-monitor-agent:main
-pullPolicy: IfNotPresent
+# :main is a mutable rolling tag → Always so a redeploy pulls the new build.
+pullPolicy: Always
 pullSecrets: []          # e.g. [ghcr] for private packages
 
 # Where the hub is reachable from inside this cluster.

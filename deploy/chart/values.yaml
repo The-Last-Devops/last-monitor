@@ -4,7 +4,9 @@
 
 image:
   hub: ghcr.io/the-last-devops/last-monitor-hub:main
-  pullPolicy: IfNotPresent
+  # :main is a mutable rolling tag → Always, so a redeploy actually pulls the new
+  # build. Pin a version tag (e.g. :1.1.0) and set IfNotPresent for production.
+  pullPolicy: Always
   # For private GHCR packages: kubectl create secret docker-registry ghcr ... then:
   pullSecrets: []        # e.g. [ghcr]
 

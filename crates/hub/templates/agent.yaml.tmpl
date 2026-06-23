@@ -37,6 +37,7 @@ spec:
       containers:
         - name: agent
           image: "<IMAGE>"
+          imagePullPolicy: Always   # :main is mutable; always pull the latest build
           env:
             - name: HUB_URL
               value: "<HUB_URL>"
