@@ -52,6 +52,14 @@ const stats = computed(() => {
 const evTime = (iso) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 const monName = (id) => monitors.value.find((m) => m.id === id)?.name || id.slice(0, 8)
 
+// left-list search + rough per-row uptime% from the recent-beats window
+const q = ref('')
+const filtered = computed(() => {
+  const t = q.value.trim().toLowerCase()
+  return t ? shown.value.filter((m) => m.name.toLowerCase().includes(t) || (m.target || '').toLowerCase().includes(t)) : shown.value
+})
+const upPct = (m) => (m.recent && m.recent.length ? Math.round((m.recent.filter(Boolean).length / m.recent.length) * 100) : null)
+
 async function load() {
   try { monitors.value = await api.get('/api/monitors'); err.value = '' }
   catch { if (!monitors.value.length) err.value = 'Failed to load monitors' }
@@ -176,30 +184,45 @@ onUnmounted(() => clearInterval(timer))
 
 <template>
   <AppShell :title="downOnly ? 'Services — Down' : 'Services'">
-    <div class="space-y-4">
-      <div class="flex items-center justify-between gap-3">
-        <p class="text-sm text-muted">Service checks — HTTP, TCP, ping, DNS, TLS, databases (Postgres/MySQL/Mongo/Redis), push &amp; more. Click a name for its uptime history.</p>
-        <button @click="formOpen ? (formOpen = false) : openCreate()" class="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-accentfg hover:opacity-90">
+    <div class="flex gap-4">
+      <!-- LEFT: monitor list (Uptime-Kuma style) -->
+      <aside class="flex w-[330px] shrink-0 flex-col gap-3">
+        <button @click="formOpen ? (formOpen = false) : openCreate()" class="flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-accentfg hover:opacity-90">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> Add monitor
         </button>
-      </div>
+        <input v-model="q" placeholder="Search…" class="w-full rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
+        <p v-if="loading" class="text-sm text-muted">Loading…</p>
+        <p v-else-if="err" class="text-sm text-rose-400">{{ err }}</p>
+        <p v-else-if="!filtered.length" class="rounded-xl border border-line bg-surface p-4 text-center text-sm text-muted">{{ downOnly ? 'Nothing down. 🎉' : (q ? 'No matches.' : 'No monitors yet.') }}</p>
+        <div v-else class="space-y-1 overflow-y-auto">
+          <div v-for="m in filtered" :key="m.id" class="group relative rounded-lg border border-line bg-surface px-2.5 py-2 hover:border-accent/40">
+            <RouterLink :to="{ name: 'monitor', params: { id: m.id } }" class="block">
+              <div class="flex items-center gap-2">
+                <span class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums"
+                  :class="!m.enabled ? 'bg-surface2 text-faint' : upPct(m) == null ? 'bg-surface2 text-muted' : upPct(m) >= 99 ? 'bg-accent/15 text-accent' : upPct(m) >= 90 ? 'bg-amber-500/15 text-amber-400' : 'bg-red-500/15 text-red-400'">
+                  {{ !m.enabled ? 'OFF' : upPct(m) == null ? 'N/A' : upPct(m) + '%' }}
+                </span>
+                <span class="min-w-0 flex-1 truncate text-sm font-medium text-fg group-hover:text-accent" :title="m.name">{{ m.name }}</span>
+              </div>
+              <div class="mt-1.5 flex items-end gap-px" :title="`last ${m.recent ? m.recent.length : 0} checks`">
+                <span v-for="(u, i) in (m.recent || [])" :key="i" class="h-3.5 w-[3px] rounded-sm" :class="u ? 'bg-accent' : 'bg-red-500'"></span>
+                <span v-if="!m.recent || !m.recent.length" class="text-[10px] text-faint">no checks yet</span>
+              </div>
+            </RouterLink>
+            <div class="absolute right-1.5 top-1.5 hidden items-center gap-1.5 group-hover:flex">
+              <button @click.prevent="openEdit(m)" class="rounded bg-surface2 p-1 text-muted hover:text-accent" title="Edit">
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+              </button>
+              <button @click.prevent="removeMonitor(m)" class="rounded bg-surface2 p-1 text-muted hover:text-rose-400" title="Delete">
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </aside>
 
-      <!-- quick stats -->
-      <div v-if="!downOnly && monitors.length" class="grid grid-cols-3 gap-3 sm:max-w-md">
-        <div class="rounded-xl border border-line bg-surface px-4 py-3">
-          <div class="text-[11px] uppercase tracking-wider text-faint">Up</div>
-          <div class="text-2xl font-semibold tabular-nums text-accent">{{ stats.up }}</div>
-        </div>
-        <div class="rounded-xl border border-line bg-surface px-4 py-3">
-          <div class="text-[11px] uppercase tracking-wider text-faint">Down</div>
-          <div class="text-2xl font-semibold tabular-nums" :class="stats.down ? 'text-red-500' : 'text-muted'">{{ stats.down }}</div>
-        </div>
-        <div class="rounded-xl border border-line bg-surface px-4 py-3">
-          <div class="text-[11px] uppercase tracking-wider text-faint">Paused</div>
-          <div class="text-2xl font-semibold tabular-nums text-faint">{{ stats.paused }}</div>
-        </div>
-      </div>
-
+      <!-- RIGHT: create/edit form OR overview (quick stats + events) -->
+      <div class="min-w-0 flex-1 space-y-4">
       <!-- create / edit form -->
       <form v-if="formOpen" @submit.prevent="submit" class="space-y-4 rounded-xl border border-line bg-surface p-4">
         <div class="text-sm font-semibold text-fg">{{ isEdit ? 'Edit monitor' : 'New monitor' }}</div>
@@ -270,100 +293,33 @@ onUnmounted(() => clearInterval(timer))
         </div>
       </form>
 
-      <p v-if="loading" class="text-sm text-muted">Loading…</p>
-      <p v-else-if="err" class="text-sm text-rose-400">{{ err }}</p>
-      <p v-else-if="!shown.length" class="rounded-xl border border-line bg-surface p-6 text-center text-sm text-muted">{{ downOnly ? 'No services are currently down. 🎉' : 'No monitors yet. Add a service check above.' }}</p>
+      <!-- overview: quick stats + recent events (shown when not adding/editing) -->
+      <template v-else>
+        <!-- quick stats -->
+        <div v-if="!downOnly" class="grid grid-cols-4 gap-3">
+          <div class="rounded-xl border border-line bg-surface px-4 py-3">
+            <div class="text-[11px] uppercase tracking-wider text-faint">Up</div>
+            <div class="text-2xl font-semibold tabular-nums text-accent">{{ stats.up }}</div>
+          </div>
+          <div class="rounded-xl border border-line bg-surface px-4 py-3">
+            <div class="text-[11px] uppercase tracking-wider text-faint">Down</div>
+            <div class="text-2xl font-semibold tabular-nums" :class="stats.down ? 'text-red-500' : 'text-muted'">{{ stats.down }}</div>
+          </div>
+          <div class="rounded-xl border border-line bg-surface px-4 py-3">
+            <div class="text-[11px] uppercase tracking-wider text-faint">Paused</div>
+            <div class="text-2xl font-semibold tabular-nums text-faint">{{ stats.paused }}</div>
+          </div>
+          <div class="rounded-xl border border-line bg-surface px-4 py-3">
+            <div class="text-[11px] uppercase tracking-wider text-faint">Total</div>
+            <div class="text-2xl font-semibold tabular-nums text-fg">{{ stats.total }}</div>
+          </div>
+        </div>
 
-      <div v-else class="overflow-x-auto rounded-xl border border-line bg-surface">
-        <table class="w-full text-sm">
-          <thead><tr class="border-b border-line text-left text-[11px] uppercase tracking-wider text-faint">
-            <th class="px-4 py-3 font-medium">Status</th>
-            <th class="px-4 py-3 font-medium">Name</th>
-            <th class="px-4 py-3 font-medium">Type</th>
-            <th class="px-4 py-3 font-medium">Namespace</th>
-            <th class="px-4 py-3 font-medium">Target</th>
-            <th class="px-4 py-3 font-medium">Recent</th>
-            <th class="px-4 py-3 font-medium text-right">Latency</th>
-            <th class="px-4 py-3 font-medium text-right">Last check</th>
-            <th class="px-4 py-3"></th>
-          </tr></thead>
-          <tbody>
-            <template v-for="m in shown" :key="m.id">
-            <tr class="border-b border-line/60 last:border-0 hover:bg-surface2/50">
-              <td class="px-4 py-3">
-                <span v-if="!m.enabled" class="inline-flex items-center gap-1.5 text-xs font-medium text-faint"><span class="h-2 w-2 rounded-full bg-faint"></span>Paused</span>
-                <span v-else class="inline-flex items-center gap-1.5 text-xs font-medium" :class="statusOf(m) === 'up' ? 'text-accent' : statusOf(m) === 'down' ? 'text-red-500' : 'text-muted'">
-                  <span class="h-2 w-2 rounded-full" :class="statusOf(m) === 'up' ? 'bg-accent' : statusOf(m) === 'down' ? 'bg-red-500' : 'bg-faint'"></span>
-                  {{ statusOf(m) === 'up' ? 'Up' : statusOf(m) === 'down' ? 'Down' : 'Pending' }}
-                </span>
-              </td>
-              <td class="px-4 py-3">
-                <RouterLink :to="{ name: 'monitor', params: { id: m.id } }" class="font-medium text-fg hover:text-accent hover:underline">{{ m.name }}</RouterLink>
-                <div v-if="m.message" class="text-xs text-faint">{{ m.message }}</div>
-              </td>
-              <td class="px-4 py-3 text-muted">{{ kindLabel(m.kind) }}</td>
-              <td class="px-4 py-3 text-muted">{{ m.namespace }}</td>
-              <td class="px-4 py-3 font-mono text-xs text-muted">
-                <span v-if="m.kind === 'push'" class="flex items-center gap-1.5">
-                  <span class="block max-w-[20rem] truncate" :title="pushUrl(m)">{{ pushUrl(m) }}</span>
-                  <button @click="copyText(pushUrl(m), $event)" class="shrink-0 rounded border border-line bg-surface2 px-1.5 py-0.5 text-[10px] not-italic text-muted hover:text-accent">Copy</button>
-                </span>
-                <span v-else class="block max-w-[24rem] truncate" :title="m.target">{{ m.target }}</span>
-              </td>
-              <td class="px-4 py-3">
-                <div v-if="m.recent && m.recent.length" class="flex items-end gap-px" :title="`last ${m.recent.length} checks`">
-                  <span v-for="(u, i) in m.recent" :key="i" class="h-4 w-1 rounded-sm" :class="u ? 'bg-accent' : 'bg-red-500'"></span>
-                </div>
-                <span v-else class="text-xs text-faint">—</span>
-              </td>
-              <td class="px-4 py-3 text-right tabular-nums text-muted">{{ m.latency_ms != null ? m.latency_ms + ' ms' : '—' }}</td>
-              <td class="px-4 py-3 text-right tabular-nums text-muted">{{ fmtAgo(m.last_check) }}</td>
-              <td class="px-4 py-3">
-                <div class="flex items-center justify-end gap-3">
-                  <button @click="toggleDebug(m)" :class="debugOpen === m.id ? 'text-accent' : 'text-muted hover:text-accent'" title="Debug (last request/response)">
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m8 3 4 8 5-5 5 15H2L8 3z"/></svg>
-                  </button>
-                  <button @click="openEdit(m)" class="text-muted hover:text-accent" title="Edit monitor">
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
-                  </button>
-                  <button @click="removeMonitor(m)" title="Delete monitor" class="text-muted hover:text-rose-400">
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-                  </button>
-                </div>
-              </td>
-            </tr>
-            <tr v-if="debugOpen === m.id" class="border-b border-line/60 bg-surface2/40">
-              <td colspan="9" class="px-4 py-4">
-                <div v-if="!debugData" class="text-sm text-muted">Loading…</div>
-                <div v-else class="grid gap-4 lg:grid-cols-2">
-                  <div>
-                    <div class="mb-1 flex items-center justify-between">
-                      <span class="text-xs font-medium text-accent">Last success</span>
-                      <button v-if="debugData.ok" @click="copyDebug(debugData.ok, $event)" class="rounded-md border border-line bg-surface px-2 py-0.5 text-xs text-muted hover:text-accent">Copy</button>
-                    </div>
-                    <pre v-if="debugData.ok" class="max-h-72 overflow-auto rounded-lg border border-line bg-bg p-3 text-xs leading-relaxed text-fg">{{ fmtDebug(debugData.ok) }}</pre>
-                    <p v-else class="text-xs text-faint">No successful check recorded yet.</p>
-                  </div>
-                  <div>
-                    <div class="mb-1 flex items-center justify-between">
-                      <span class="text-xs font-medium text-red-400">Last failure</span>
-                      <button v-if="debugData.err" @click="copyDebug(debugData.err, $event)" class="rounded-md border border-line bg-surface px-2 py-0.5 text-xs text-muted hover:text-accent">Copy</button>
-                    </div>
-                    <pre v-if="debugData.err" class="max-h-72 overflow-auto rounded-lg border border-line bg-bg p-3 text-xs leading-relaxed text-fg">{{ fmtDebug(debugData.err) }}</pre>
-                    <p v-else class="text-xs text-faint">No failure recorded.</p>
-                  </div>
-                </div>
-              </td>
-            </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- recent events feed (Uptime-Kuma style) -->
-      <section v-if="!downOnly && events.length" class="space-y-2">
-        <h2 class="text-sm font-semibold text-fg">Recent events</h2>
-        <div class="overflow-x-auto rounded-xl border border-line bg-surface">
+        <!-- recent events feed (Uptime-Kuma style) -->
+        <section class="space-y-2">
+          <h2 class="text-sm font-semibold text-fg">Recent events</h2>
+          <p v-if="!events.length" class="rounded-xl border border-line bg-surface p-6 text-center text-sm text-muted">No status changes recorded recently.</p>
+        <div v-else class="overflow-x-auto rounded-xl border border-line bg-surface">
           <table class="w-full text-sm">
             <thead><tr class="border-b border-line text-left text-[11px] uppercase tracking-wider text-faint">
               <th class="px-4 py-2.5 font-medium">Status</th>
@@ -387,7 +343,9 @@ onUnmounted(() => clearInterval(timer))
             </tbody>
           </table>
         </div>
-      </section>
+        </section>
+      </template>
+      </div>
     </div>
   </AppShell>
 </template>
