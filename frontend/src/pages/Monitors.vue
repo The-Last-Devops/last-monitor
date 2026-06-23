@@ -12,6 +12,7 @@ const selectedNsName = () => {
 
 const monitors = ref([])
 const namespaces = ref([])
+const events = ref([])
 const loading = ref(true)
 const err = ref('')
 let timer = null
@@ -38,9 +39,23 @@ const pushUrl = (m) => `${location.origin}/pub/push/${m.config?.push_token || ''
 const downOnly = computed(() => route.query.status === 'down')
 const shown = computed(() => (downOnly.value ? monitors.value.filter((m) => m.enabled && m.up === false) : monitors.value))
 
+// Quick stats (Uptime-Kuma style) across the active monitors.
+const stats = computed(() => {
+  let up = 0, down = 0, paused = 0
+  for (const m of monitors.value) {
+    if (!m.enabled) paused++
+    else if (m.up === true) up++
+    else if (m.up === false) down++
+  }
+  return { up, down, paused, total: monitors.value.length }
+})
+const evTime = (iso) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+const monName = (id) => monitors.value.find((m) => m.id === id)?.name || id.slice(0, 8)
+
 async function load() {
   try { monitors.value = await api.get('/api/monitors'); err.value = '' }
   catch { if (!monitors.value.length) err.value = 'Failed to load monitors' }
+  try { events.value = await api.get('/api/events?range=7d') } catch { events.value = [] }
   loading.value = false
 }
 
@@ -169,6 +184,22 @@ onUnmounted(() => clearInterval(timer))
         </button>
       </div>
 
+      <!-- quick stats -->
+      <div v-if="!downOnly && monitors.length" class="grid grid-cols-3 gap-3 sm:max-w-md">
+        <div class="rounded-xl border border-line bg-surface px-4 py-3">
+          <div class="text-[11px] uppercase tracking-wider text-faint">Up</div>
+          <div class="text-2xl font-semibold tabular-nums text-accent">{{ stats.up }}</div>
+        </div>
+        <div class="rounded-xl border border-line bg-surface px-4 py-3">
+          <div class="text-[11px] uppercase tracking-wider text-faint">Down</div>
+          <div class="text-2xl font-semibold tabular-nums" :class="stats.down ? 'text-red-500' : 'text-muted'">{{ stats.down }}</div>
+        </div>
+        <div class="rounded-xl border border-line bg-surface px-4 py-3">
+          <div class="text-[11px] uppercase tracking-wider text-faint">Paused</div>
+          <div class="text-2xl font-semibold tabular-nums text-faint">{{ stats.paused }}</div>
+        </div>
+      </div>
+
       <!-- create / edit form -->
       <form v-if="formOpen" @submit.prevent="submit" class="space-y-4 rounded-xl border border-line bg-surface p-4">
         <div class="text-sm font-semibold text-fg">{{ isEdit ? 'Edit monitor' : 'New monitor' }}</div>
@@ -251,6 +282,7 @@ onUnmounted(() => clearInterval(timer))
             <th class="px-4 py-3 font-medium">Type</th>
             <th class="px-4 py-3 font-medium">Namespace</th>
             <th class="px-4 py-3 font-medium">Target</th>
+            <th class="px-4 py-3 font-medium">Recent</th>
             <th class="px-4 py-3 font-medium text-right">Latency</th>
             <th class="px-4 py-3 font-medium text-right">Last check</th>
             <th class="px-4 py-3"></th>
@@ -278,6 +310,12 @@ onUnmounted(() => clearInterval(timer))
                 </span>
                 <span v-else class="block max-w-[24rem] truncate" :title="m.target">{{ m.target }}</span>
               </td>
+              <td class="px-4 py-3">
+                <div v-if="m.recent && m.recent.length" class="flex items-end gap-px" :title="`last ${m.recent.length} checks`">
+                  <span v-for="(u, i) in m.recent" :key="i" class="h-4 w-1 rounded-sm" :class="u ? 'bg-accent' : 'bg-red-500'"></span>
+                </div>
+                <span v-else class="text-xs text-faint">—</span>
+              </td>
               <td class="px-4 py-3 text-right tabular-nums text-muted">{{ m.latency_ms != null ? m.latency_ms + ' ms' : '—' }}</td>
               <td class="px-4 py-3 text-right tabular-nums text-muted">{{ fmtAgo(m.last_check) }}</td>
               <td class="px-4 py-3">
@@ -295,7 +333,7 @@ onUnmounted(() => clearInterval(timer))
               </td>
             </tr>
             <tr v-if="debugOpen === m.id" class="border-b border-line/60 bg-surface2/40">
-              <td colspan="8" class="px-4 py-4">
+              <td colspan="9" class="px-4 py-4">
                 <div v-if="!debugData" class="text-sm text-muted">Loading…</div>
                 <div v-else class="grid gap-4 lg:grid-cols-2">
                   <div>
@@ -321,6 +359,35 @@ onUnmounted(() => clearInterval(timer))
           </tbody>
         </table>
       </div>
+
+      <!-- recent events feed (Uptime-Kuma style) -->
+      <section v-if="!downOnly && events.length" class="space-y-2">
+        <h2 class="text-sm font-semibold text-fg">Recent events</h2>
+        <div class="overflow-x-auto rounded-xl border border-line bg-surface">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b border-line text-left text-[11px] uppercase tracking-wider text-faint">
+              <th class="px-4 py-2.5 font-medium">Status</th>
+              <th class="px-4 py-2.5 font-medium">Monitor</th>
+              <th class="px-4 py-2.5 font-medium">When</th>
+              <th class="px-4 py-2.5 font-medium">Message</th>
+            </tr></thead>
+            <tbody>
+              <tr v-for="(e, i) in events" :key="i" class="border-b border-line/60 last:border-0 hover:bg-surface2/40">
+                <td class="px-4 py-2.5">
+                  <span class="inline-flex items-center gap-1.5 text-xs font-medium" :class="e.up ? 'text-accent' : 'text-red-500'">
+                    <span class="h-2 w-2 rounded-full" :class="e.up ? 'bg-accent' : 'bg-red-500'"></span>{{ e.up ? 'Up' : 'Down' }}
+                  </span>
+                </td>
+                <td class="px-4 py-2.5">
+                  <RouterLink :to="{ name: 'monitor', params: { id: e.monitor_id } }" class="text-fg hover:text-accent hover:underline">{{ e.name }}</RouterLink>
+                </td>
+                <td class="px-4 py-2.5 tabular-nums text-muted">{{ evTime(e.at) }}</td>
+                <td class="px-4 py-2.5 text-muted">{{ e.message || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   </AppShell>
 </template>

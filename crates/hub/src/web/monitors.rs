@@ -14,10 +14,12 @@ pub struct MonitorRow {
     pub latency_ms: Option<i32>,
     pub last_check: Option<chrono::DateTime<chrono::Utc>>,
     pub message: Option<String>,
+    /// Last ~40 heartbeats (oldest→newest) for the row's mini uptime bar.
+    pub recent: Vec<bool>,
 }
 
 /// GET /api/monitors — each monitor (scoped to the caller's namespaces) plus
-/// its latest heartbeat. Admins see every monitor.
+/// its latest heartbeat + a recent-beats sparkline. Admins see every monitor.
 pub async fn list_monitors(
     State(state): State<AppState>,
     user: CurrentUser,
@@ -67,6 +69,24 @@ pub async fn list_monitors(
         latest.insert(mid, (t, up, lat, msg));
     }
 
+    // Last ~40 beats per monitor (oldest→newest) for the mini uptime bar — ONE
+    // windowed query for all monitors.
+    let recent_rows: Vec<(Uuid, bool)> = sqlx::query_as(
+        "SELECT monitor_id, up FROM ( \
+           SELECT monitor_id, up, time, \
+                  row_number() OVER (PARTITION BY monitor_id ORDER BY time DESC) AS rn \
+           FROM heartbeats WHERE monitor_id = ANY($1) \
+         ) t WHERE rn <= 40 ORDER BY monitor_id, time ASC",
+    )
+    .bind(&ids)
+    .fetch_all(&state.data)
+    .await
+    .map_err(internal)?;
+    let mut recent: std::collections::HashMap<Uuid, Vec<bool>> = std::collections::HashMap::new();
+    for (mid, up) in recent_rows {
+        recent.entry(mid).or_default().push(up);
+    }
+
     let mut rows = Vec::with_capacity(monitors.len());
     for (id, name, kind, target, namespace, interval_secs, enabled, config) in monitors {
         let (last_check, up, latency_ms, message) = match latest.remove(&id) {
@@ -86,6 +106,7 @@ pub async fn list_monitors(
             latency_ms,
             last_check,
             message,
+            recent: recent.remove(&id).unwrap_or_default(),
         });
     }
     Ok(Json(rows))
@@ -267,12 +288,15 @@ pub async fn monitor_heartbeats(
 ) -> Result<Json<HeartbeatSeries>, StatusCode> {
     load_monitor(&state, &user, id).await?; // authorize
     let (interval, bucket) = hb_range(&q.range);
+    // gapfill → empty buckets come back as NULL so the chart/strip show blanks for
+    // the whole window instead of stretching a few points across it.
     let rows: Vec<(chrono::DateTime<chrono::Utc>, Option<f64>, Option<f64>)> =
         sqlx::query_as(&format!(
-            "SELECT time_bucket('{bucket}', time) AS b, \
+            "SELECT time_bucket_gapfill('{bucket}', time) AS b, \
                 avg(latency_ms)::float8 AS latency, \
                 min((up)::int)::float8 AS up \
-         FROM heartbeats WHERE monitor_id = $1 AND time > now() - interval '{interval}' \
+         FROM heartbeats \
+         WHERE monitor_id = $1 AND time >= now() - interval '{interval}' AND time <= now() \
          GROUP BY b ORDER BY b"
         ))
         .bind(id)
@@ -291,4 +315,95 @@ pub async fn monitor_heartbeats(
         s.up.push(up);
     }
     Ok(Json(s))
+}
+
+#[derive(Serialize)]
+pub struct MonitorEvent {
+    pub at: chrono::DateTime<chrono::Utc>,
+    pub up: bool,
+    pub message: Option<String>,
+}
+
+/// GET /api/monitors/:id/events?range= — status transitions (up↔down) for the
+/// monitor, newest first. The frontend pairs down→up to show incident durations.
+pub async fn monitor_events(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Path(id): Path<Uuid>,
+    axum::extract::Query(q): axum::extract::Query<RangeQuery>,
+) -> Result<Json<Vec<MonitorEvent>>, StatusCode> {
+    load_monitor(&state, &user, id).await?;
+    let (interval, _) = hb_range(&q.range);
+    let rows: Vec<(chrono::DateTime<chrono::Utc>, bool, Option<String>)> = sqlx::query_as(&format!(
+        "WITH h AS ( \
+           SELECT time, up, message, lag(up) OVER (ORDER BY time) AS prev \
+           FROM heartbeats WHERE monitor_id = $1 AND time > now() - interval '{interval}' \
+         ) SELECT time, up, message FROM h WHERE prev IS NULL OR up <> prev ORDER BY time DESC LIMIT 200"
+    ))
+    .bind(id)
+    .fetch_all(&state.data)
+    .await
+    .map_err(internal)?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|(at, up, message)| MonitorEvent { at, up, message })
+            .collect(),
+    ))
+}
+
+#[derive(Serialize)]
+pub struct GlobalEvent {
+    pub monitor_id: Uuid,
+    pub name: String,
+    pub at: chrono::DateTime<chrono::Utc>,
+    pub up: bool,
+    pub message: Option<String>,
+}
+
+/// GET /api/events?range= — recent status transitions across all the caller's
+/// monitors (newest first), for the Services overview events feed.
+pub async fn recent_events(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    axum::extract::Query(q): axum::extract::Query<RangeQuery>,
+) -> Result<Json<Vec<GlobalEvent>>, StatusCode> {
+    // monitors the caller can see (id → name) from the config DB
+    let mons: Vec<(Uuid, String)> = sqlx::query_as(
+        "SELECT m.id, m.name FROM monitors m \
+         WHERE $1 OR m.namespace_id IN (SELECT namespace_id FROM memberships WHERE user_id = $2)",
+    )
+    .bind(user.can_read_all())
+    .bind(user.id)
+    .fetch_all(&state.config)
+    .await
+    .map_err(internal)?;
+    let names: std::collections::HashMap<Uuid, String> = mons.into_iter().collect();
+    let ids: Vec<Uuid> = names.keys().copied().collect();
+    let (interval, _) = hb_range(&q.range);
+    let rows: Vec<(Uuid, chrono::DateTime<chrono::Utc>, bool, Option<String>)> =
+        sqlx::query_as(&format!(
+            "WITH h AS ( \
+           SELECT monitor_id, time, up, message, \
+                  lag(up) OVER (PARTITION BY monitor_id ORDER BY time) AS prev \
+           FROM heartbeats WHERE monitor_id = ANY($1) AND time > now() - interval '{interval}' \
+         ) SELECT monitor_id, time, up, message FROM h WHERE prev IS NULL OR up <> prev \
+           ORDER BY time DESC LIMIT 100"
+        ))
+        .bind(&ids)
+        .fetch_all(&state.data)
+        .await
+        .map_err(internal)?;
+    Ok(Json(
+        rows.into_iter()
+            .filter_map(|(mid, at, up, message)| {
+                names.get(&mid).map(|name| GlobalEvent {
+                    monitor_id: mid,
+                    name: name.clone(),
+                    at,
+                    up,
+                    message,
+                })
+            })
+            .collect(),
+    ))
 }

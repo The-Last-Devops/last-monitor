@@ -10,6 +10,7 @@ const id = route.params.id
 
 const m = ref(null)
 const hb = ref({ t: [], latency: [], up: [] })
+const events = ref([])
 const debug = ref(null)
 const range = ref('24h')
 const err = ref('')
@@ -22,6 +23,34 @@ const RANGES = [
   { v: '7d', label: '7d' },
   { v: '30d', label: '30d' },
 ]
+const SPAN = { '1h': 3600, '6h': 21600, '24h': 86400, '7d': 604800, '30d': 2592000 }
+const spanSeconds = computed(() => SPAN[range.value] || 86400)
+
+// Pair status transitions (newest-first from the API) into down incidents:
+// a down event opens an incident, the next transition (up) closes it.
+const incidents = computed(() => {
+  const asc = [...events.value].reverse() // oldest→newest
+  const out = []
+  for (let i = 0; i < asc.length; i++) {
+    if (asc[i].up) continue
+    const start = new Date(asc[i].at).getTime()
+    const next = asc[i + 1]
+    const end = next ? new Date(next.at).getTime() : null // null = ongoing
+    out.push({ at: asc[i].at, reason: asc[i].message || 'Down', start, end, ongoing: !next })
+  }
+  return out.reverse() // newest first
+})
+function durTxt(ms) {
+  let s = Math.max(0, Math.round(ms / 1000))
+  const d = Math.floor(s / 86400); s -= d * 86400
+  const h = Math.floor(s / 3600); s -= h * 3600
+  const mi = Math.floor(s / 60); s -= mi * 60
+  if (d) return `${d}d ${h}h`
+  if (h) return `${h}h ${mi}m`
+  if (mi) return `${mi}m ${s}s`
+  return `${s}s`
+}
+const evTime = (iso) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
 
 const status = computed(() => {
   if (!m.value) return 'pending'
@@ -56,10 +85,13 @@ async function loadMeta() {
 async function loadHb() {
   try { hb.value = await api.get(`/api/monitors/${id}/heartbeats?range=${range.value}`) } catch { hb.value = { t: [], latency: [], up: [] } }
 }
+async function loadEvents() {
+  try { events.value = await api.get(`/api/monitors/${id}/events?range=${range.value}`) } catch { events.value = [] }
+}
 async function loadDebug() {
   try { debug.value = await api.get(`/api/monitors/${id}/debug`) } catch { debug.value = null }
 }
-watch(range, loadHb)
+watch(range, () => { loadHb(); loadEvents() })
 
 const fmtDebug = (d) => (typeof d === 'string' ? d : JSON.stringify(d, null, 2))
 function copy(d, e) {
@@ -68,8 +100,8 @@ function copy(d, e) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadMeta(), loadHb(), loadDebug()])
-  timer = setInterval(() => { loadMeta(); loadHb() }, 30000)
+  await Promise.all([loadMeta(), loadHb(), loadEvents(), loadDebug()])
+  timer = setInterval(() => { loadMeta(); loadHb(); loadEvents() }, 30000)
 })
 onUnmounted(() => timer && clearInterval(timer))
 </script>
@@ -135,8 +167,26 @@ onUnmounted(() => timer && clearInterval(timer))
       <!-- latency chart -->
       <div class="rounded-xl border border-line bg-surface p-4">
         <div class="mb-2 text-[11px] uppercase tracking-wider text-faint">Response time</div>
-        <UplotChart v-if="hb.t.length" :time="hb.t" :series="latencySeries" unit="ms" :height="180" :sync-key="'mon:' + id" />
+        <UplotChart v-if="hb.t.length" :time="hb.t" :series="latencySeries" unit="ms" :height="180" :span-seconds="spanSeconds" :sync-key="'mon:' + id" />
         <p v-else class="text-xs text-faint">No latency data in this range yet.</p>
+      </div>
+
+      <!-- down history / incidents -->
+      <div class="rounded-xl border border-line bg-surface p-4">
+        <div class="mb-2 text-[11px] uppercase tracking-wider text-faint">Down history</div>
+        <p v-if="!incidents.length" class="text-xs text-faint">No downtime in this range. 🎉</p>
+        <ul v-else class="divide-y divide-line/60">
+          <li v-for="(it, i) in incidents" :key="i" class="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-sm">
+            <span class="inline-flex items-center gap-1.5 font-medium" :class="it.ongoing ? 'text-red-500' : 'text-amber-400'">
+              <span class="h-2 w-2 rounded-full" :class="it.ongoing ? 'bg-red-500' : 'bg-amber-400'"></span>
+              {{ it.ongoing ? 'Down' : 'Resolved' }}
+            </span>
+            <span class="tabular-nums text-muted">{{ evTime(it.at) }}</span>
+            <span class="text-faint">·</span>
+            <span class="tabular-nums text-fg">{{ it.ongoing ? durTxt(Date.now() - it.start) + ' (ongoing)' : durTxt(it.end - it.start) }}</span>
+            <span class="min-w-0 flex-1 truncate text-muted" :title="it.reason">{{ it.reason }}</span>
+          </li>
+        </ul>
       </div>
 
       <!-- last request/response -->
