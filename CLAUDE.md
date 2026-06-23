@@ -24,7 +24,7 @@ Cargo workspace with three crates plus a hub-served SSR frontend:
 
 ### Decisions that are load-bearing (don't silently reverse them)
 
-- **Push model, not pull.** Agents reach out to the hub (`POST /api/ingest`), authenticating
+- **Push model, not pull.** Agents reach out to the hub (`POST /pub/ingest`), authenticating
   with a per-server enrollment token in the `x-agent-token` header. This is what lets agents
   sit behind NAT/firewalls. The hub never connects back to agents.
 - **Two separate PostgreSQL databases, two `PgPool`s in the hub:**

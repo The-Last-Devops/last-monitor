@@ -55,11 +55,12 @@ async fn main() -> Result<()> {
     use axum::routing::{delete, patch, post};
     let app = Router::new()
         .route("/healthz", get(|| async { "ok" }))
-        // public self-service install assets (no session; echo caller-supplied values)
-        .route("/k8s/agent.yaml", get(install::k8s_agent_yaml))
-        .route("/install.sh", get(install::install_sh))
-        // agent ingest (api-key-authenticated, not session)
-        .route("/api/ingest", post(ingest::ingest))
+        // Everything machines hit (no human session) lives under /pub so a single
+        // Cloudflare Access "bypass" rule on /pub covers them all. They self-auth:
+        // ingest by api-key; install assets only echo caller-supplied values.
+        .route("/pub/ingest", post(ingest::ingest))
+        .route("/pub/agent.yaml", get(install::k8s_agent_yaml))
+        .route("/pub/install.sh", get(install::install_sh))
         // auth + first-run setup
         .route(
             "/api/setup",

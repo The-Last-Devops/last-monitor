@@ -449,7 +449,7 @@ async fn main() -> Result<()> {
         .timeout(Duration::from_secs(10))
         .redirect(reqwest::redirect::Policy::none())
         .build()?;
-    let ingest_url = format!("{}/api/ingest", cfg.hub_url);
+    let ingest_url = format!("{}/pub/ingest", cfg.hub_url);
 
     let mut sys = System::new_all();
     let mut nets = Networks::new_with_refreshed_list();

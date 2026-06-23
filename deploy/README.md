@@ -42,7 +42,7 @@ One key enrolls a whole DaemonSet; each node shows up under **Kubernetes › <cl
 
 **Easiest — the hub serves a ready-to-apply manifest** (this is what the UI shows):
 ```bash
-kubectl apply -f "https://monitor.senprints.net/k8s/agent.yaml?key=<api-key>&cluster=k8s-hanoi"
+kubectl apply -f "https://monitor.senprints.net/pub/agent.yaml?key=<api-key>&cluster=k8s-hanoi"
 ```
 The hub fills in its own URL, the key, and the cluster — no clone, no chart registry.
 
@@ -56,7 +56,7 @@ helm install lm-agent ./deploy/agent \
 # same cluster as the hub? use the in-cluster Service: --set hubUrl=http://lm-hub.last-monitor:8080
 ```
 
-For a single host outside k8s: `curl -fsSL https://monitor.senprints.net/install.sh | HUB_URL=… API_KEY=… sh`
+For a single host outside k8s: `curl -fsSL https://monitor.senprints.net/pub/install.sh | HUB_URL=… API_KEY=… sh`
 (native binary + systemd), or run the agent container directly.
 
 ## Images

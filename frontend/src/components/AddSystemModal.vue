@@ -20,7 +20,7 @@ const TYPES = [
 ]
 const METHODS = {
   node: [
-    { id: 'binary', label: 'Binary', snippet: (k) => `curl -fsSL ${HUB}/install.sh | \\\n  HUB_URL=${HUB} API_KEY=${k} sh` },
+    { id: 'binary', label: 'Binary', snippet: (k) => `curl -fsSL ${HUB}/pub/install.sh | \\\n  HUB_URL=${HUB} API_KEY=${k} sh` },
     { id: 'docker', label: 'Docker', snippet: (k) => `docker run -d --name last-agent \\\n  --network host --pid host \\\n  -e HUB_URL=${HUB} -e API_KEY=${k} \\\n  -v /proc:/host/proc:ro -v /sys:/host/sys:ro \\\n  ghcr.io/the-last-devops/last-monitor-agent:main` },
     { id: 'compose', label: 'Compose', snippet: (k) => `services:\n  last-agent:\n    image: ghcr.io/the-last-devops/last-monitor-agent:main\n    network_mode: host\n    pid: host\n    environment:\n      HUB_URL: ${HUB}\n      API_KEY: ${k}\n    volumes:\n      - /proc:/host/proc:ro\n      - /sys:/host/sys:ro\n    restart: unless-stopped` },
   ],
@@ -29,7 +29,7 @@ const METHODS = {
     { id: 'compose', label: 'Compose', snippet: (k) => `services:\n  last-agent:\n    image: ghcr.io/the-last-devops/last-monitor-agent:main\n    network_mode: host\n    pid: host\n    environment:\n      HUB_URL: ${HUB}\n      API_KEY: ${k}\n      AGENT_KIND: docker\n    volumes:\n      - /proc:/host/proc:ro\n      - /sys:/host/sys:ro\n      - /var/run/docker.sock:/var/run/docker.sock:ro\n    restart: unless-stopped` },
   ],
   k8s: [
-    { id: 'kubectl', label: 'kubectl', snippet: (k) => `kubectl apply -f "${HUB}/k8s/agent.yaml?key=${k}&cluster=${state.cluster || 'my-cluster'}"` },
+    { id: 'kubectl', label: 'kubectl', snippet: (k) => `kubectl apply -f "${HUB}/pub/agent.yaml?key=${k}&cluster=${state.cluster || 'my-cluster'}"` },
   ],
 }
 
