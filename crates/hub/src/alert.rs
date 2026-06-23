@@ -307,13 +307,21 @@ async fn server_name(state: &AppState, id: Uuid) -> Option<String> {
 // ---- notification dispatch --------------------------------------------------
 
 async fn notify(client: &reqwest::Client, rule: &Rule, body: &str) -> anyhow::Result<()> {
-    match rule.channel_kind.as_str() {
+    dispatch(client, &rule.channel_kind, &rule.channel_config, body).await
+}
+
+/// Send `body` through a notification channel. Shared by the alert engine and the
+/// "send test" endpoint. Adding a channel type is one match arm.
+pub async fn dispatch(
+    client: &reqwest::Client,
+    kind: &str,
+    config: &Value,
+    body: &str,
+) -> anyhow::Result<()> {
+    let str_field = |k: &str| config.get(k).and_then(Value::as_str).map(str::to_owned);
+    match kind {
         "webhook" => {
-            let url = rule
-                .channel_config
-                .get("url")
-                .and_then(Value::as_str)
-                .ok_or_else(|| anyhow::anyhow!("webhook channel missing url"))?;
+            let url = str_field("url").ok_or_else(|| anyhow::anyhow!("webhook missing url"))?;
             client
                 .post(url)
                 .json(&serde_json::json!({ "text": body }))
@@ -321,17 +329,30 @@ async fn notify(client: &reqwest::Client, rule: &Rule, body: &str) -> anyhow::Re
                 .await?
                 .error_for_status()?;
         }
+        // Slack incoming webhook expects {"text"}; Discord expects {"content"}.
+        "slack" => {
+            let url = str_field("url").ok_or_else(|| anyhow::anyhow!("slack missing url"))?;
+            client
+                .post(url)
+                .json(&serde_json::json!({ "text": body }))
+                .send()
+                .await?
+                .error_for_status()?;
+        }
+        "discord" => {
+            let url = str_field("url").ok_or_else(|| anyhow::anyhow!("discord missing url"))?;
+            client
+                .post(url)
+                .json(&serde_json::json!({ "content": body }))
+                .send()
+                .await?
+                .error_for_status()?;
+        }
         "telegram" => {
-            let token = rule
-                .channel_config
-                .get("bot_token")
-                .and_then(Value::as_str)
+            let token = str_field("bot_token")
                 .ok_or_else(|| anyhow::anyhow!("telegram missing bot_token"))?;
-            let chat_id = rule
-                .channel_config
-                .get("chat_id")
-                .and_then(Value::as_str)
-                .ok_or_else(|| anyhow::anyhow!("telegram missing chat_id"))?;
+            let chat_id =
+                str_field("chat_id").ok_or_else(|| anyhow::anyhow!("telegram missing chat_id"))?;
             let url = format!("https://api.telegram.org/bot{token}/sendMessage");
             client
                 .post(url)
@@ -340,7 +361,6 @@ async fn notify(client: &reqwest::Client, rule: &Rule, body: &str) -> anyhow::Re
                 .await?
                 .error_for_status()?;
         }
-        // TODO(email): SMTP dispatch — add a match arm + lettre dependency.
         other => anyhow::bail!("unsupported channel kind: {other}"),
     }
     Ok(())

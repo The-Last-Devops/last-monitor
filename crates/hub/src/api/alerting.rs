@@ -5,6 +5,7 @@ pub struct ChannelRow {
     pub id: Uuid,
     pub name: String,
     pub kind: String,
+    pub config: Value,
 }
 
 /// GET /api/namespaces/:id/channels
@@ -14,15 +15,21 @@ pub async fn list_channels(
     Path(ns): Path<Uuid>,
 ) -> Result<Json<Vec<ChannelRow>>, StatusCode> {
     rbac::require_role(&state, &user, ns, Role::Viewer).await?;
-    let rows: Vec<(Uuid, String, String)> =
-        sqlx::query_as("SELECT id, name, kind FROM channels WHERE namespace_id = $1 ORDER BY name")
-            .bind(ns)
-            .fetch_all(&state.config)
-            .await
-            .map_err(internal)?;
+    let rows: Vec<(Uuid, String, String, sqlx::types::Json<Value>)> = sqlx::query_as(
+        "SELECT id, name, kind, config FROM channels WHERE namespace_id = $1 ORDER BY name",
+    )
+    .bind(ns)
+    .fetch_all(&state.config)
+    .await
+    .map_err(internal)?;
     Ok(Json(
         rows.into_iter()
-            .map(|(id, name, kind)| ChannelRow { id, name, kind })
+            .map(|(id, name, kind, config)| ChannelRow {
+                id,
+                name,
+                kind,
+                config: config.0,
+            })
             .collect(),
     ))
 }
@@ -30,10 +37,12 @@ pub async fn list_channels(
 #[derive(Deserialize)]
 pub struct CreateChannel {
     pub name: String,
-    pub kind: String, // webhook | telegram | email
+    pub kind: String, // webhook | telegram | slack | discord
     #[serde(default)]
     pub config: Option<Value>,
 }
+
+const CHANNEL_KINDS: &[&str] = &["webhook", "telegram", "slack", "discord"];
 
 /// POST /api/namespaces/:id/channels — editors+ add a notification channel.
 pub async fn create_channel(
@@ -43,7 +52,7 @@ pub async fn create_channel(
     Json(req): Json<CreateChannel>,
 ) -> Result<Json<Uuid>, StatusCode> {
     rbac::require_role(&state, &user, ns, Role::Editor).await?;
-    if !matches!(req.kind.as_str(), "webhook" | "telegram" | "email") {
+    if !CHANNEL_KINDS.contains(&req.kind.as_str()) {
         return Err(StatusCode::BAD_REQUEST);
     }
     let (id,): (Uuid,) = sqlx::query_as(
@@ -60,6 +69,78 @@ pub async fn create_channel(
     .await
     .map_err(internal)?;
     Ok(Json(id))
+}
+
+#[derive(Deserialize)]
+pub struct PatchChannel {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub config: Option<Value>,
+}
+
+/// PATCH /api/channels/:id — edit a channel's name / config (editors+).
+pub async fn patch_channel(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Path(id): Path<Uuid>,
+    Json(req): Json<PatchChannel>,
+) -> Result<StatusCode, StatusCode> {
+    let ns = ns_of(
+        &state,
+        "SELECT namespace_id FROM channels WHERE id = $1",
+        id,
+    )
+    .await?;
+    rbac::require_role(&state, &user, ns, Role::Editor).await?;
+    sqlx::query(
+        "UPDATE channels SET name = COALESCE($2, name), config = COALESCE($3, config) WHERE id = $1",
+    )
+    .bind(id)
+    .bind(req.name)
+    .bind(req.config.map(sqlx::types::Json))
+    .execute(&state.config)
+    .await
+    .map_err(internal)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// POST /api/channels/:id/test — send a test notification through the channel.
+pub async fn test_channel(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let ns = ns_of(
+        &state,
+        "SELECT namespace_id FROM channels WHERE id = $1",
+        id,
+    )
+    .await
+    .map_err(|s| (s, "not found".into()))?;
+    rbac::require_role(&state, &user, ns, Role::Editor)
+        .await
+        .map_err(|s| (s, "forbidden".into()))?;
+    let row: Option<(String, sqlx::types::Json<Value>)> =
+        sqlx::query_as("SELECT kind, config FROM channels WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.config)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let (kind, config) = row.ok_or((StatusCode::NOT_FOUND, "not found".into()))?;
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    crate::alert::dispatch(
+        &client,
+        &kind,
+        &config.0,
+        "✅ Test notification from Last Monitor — this channel works.",
+    )
+    .await
+    .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ---- alert rules ------------------------------------------------------------

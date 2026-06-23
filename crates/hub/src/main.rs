@@ -150,7 +150,11 @@ async fn main() -> Result<()> {
         )
         .route("/api/monitors/{id}/events", get(web::monitor_events))
         .route("/api/events", get(web::recent_events))
-        .route("/api/channels/{id}", delete(api::delete_channel))
+        .route(
+            "/api/channels/{id}",
+            patch(api::patch_channel).delete(api::delete_channel),
+        )
+        .route("/api/channels/{id}/test", post(api::test_channel))
         .route("/api/alerts/{id}", delete(api::delete_alert))
         .route("/api/status-pages/{id}", delete(api::delete_status_page))
         .route(
