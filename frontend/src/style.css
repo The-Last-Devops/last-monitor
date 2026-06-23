@@ -9,8 +9,8 @@
   --surface2: 20 26 38;  /* #141A26 */
   --line: 30 38 50;      /* #1E2632 */
   --fg: 226 232 240;     /* slate-200 */
-  --muted: 100 116 139;  /* slate-500 */
-  --faint: 71 85 105;    /* slate-600 */
+  --muted: 148 163 184;  /* slate-400 — readable secondary text on dark (≥4.5:1) */
+  --faint: 100 116 139;  /* slate-500 — was slate-600, too low-contrast on dark */
   --accent: 52 225 196;  /* #34E1C4 teal */
   --accentfg: 6 35 31;
 }
