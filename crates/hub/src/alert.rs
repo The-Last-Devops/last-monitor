@@ -18,15 +18,20 @@ use crate::AppState;
 
 const TICK: Duration = Duration::from_secs(10);
 
+struct ChannelDef {
+    kind: String,
+    config: Value,
+    name: String,
+}
+
 struct Rule {
     id: Uuid,
     monitor_id: Option<Uuid>,
     system_id: Option<Uuid>,
     condition: Value,
-    cooldown_secs: i32,
-    channel_kind: String,
-    channel_config: Value,
-    channel_name: String,
+    /// Re-notify cadence while still firing; None = notify once, never repeat.
+    renotify_secs: Option<i32>,
+    channels: Vec<ChannelDef>,
 }
 
 struct Eval {
@@ -70,25 +75,24 @@ async fn tick(state: &AppState, client: &reqwest::Client) -> anyhow::Result<()> 
         let (was_firing, last_notified) = prior.unwrap_or((false, None));
 
         let now = chrono::Utc::now();
-        let cooldown_passed = last_notified
-            .map(|t| (now - t).num_seconds() >= rule.cooldown_secs as i64)
-            .unwrap_or(true);
+        // Re-notify only when the rule opts in (renotify_secs set) and the interval
+        // has elapsed since the last notification. None = fire once, never repeat.
+        let renotify_due = match (rule.renotify_secs, last_notified) {
+            (Some(secs), Some(t)) => (now - t).num_seconds() >= secs as i64,
+            (Some(_), None) => true,
+            (None, _) => false,
+        };
 
         let (should_notify, subject) = match (was_firing, eval.firing) {
             (false, true) => (true, "🔴 ALERT"),
-            (true, true) if cooldown_passed => (true, "🔴 ALERT (still firing)"),
+            (true, true) if renotify_due => (true, "🔴 ALERT (still firing)"),
             (true, false) => (true, "✅ RECOVERED"),
             _ => (false, ""),
         };
 
         if should_notify {
             let body = format!("{subject}: {}", eval.message);
-            match notify(client, &rule, &body).await {
-                Ok(()) => {
-                    tracing::info!(rule = %rule.id, channel = %rule.channel_name, "{subject}")
-                }
-                Err(e) => tracing::warn!(error = %e, rule = %rule.id, "notify failed"),
-            }
+            notify(client, &rule, &body).await;
         }
 
         // Record fired/recovered transitions for the history feed (not re-notifies).
@@ -125,50 +129,52 @@ async fn tick(state: &AppState, client: &reqwest::Client) -> anyhow::Result<()> 
 }
 
 async fn load_rules(state: &AppState) -> anyhow::Result<Vec<Rule>> {
-    let rows: Vec<(
+    // One row per (rule × channel); a rule with no channels still appears (LEFT
+    // JOIN) so it can record fire/recover events even though it can't notify.
+    type Row = (
         Uuid,
         Option<Uuid>,
         Option<Uuid>,
         Json<Value>,
-        i32,
-        String,
-        Json<Value>,
-        String,
-    )> = sqlx::query_as(
-        "SELECT r.id, r.monitor_id, r.system_id, r.condition, r.cooldown_secs, \
+        Option<i32>,
+        Option<String>,
+        Option<Json<Value>>,
+        Option<String>,
+    );
+    let rows: Vec<Row> = sqlx::query_as(
+        "SELECT r.id, r.monitor_id, r.system_id, r.condition, r.renotify_secs, \
                 c.kind, c.config, c.name \
-         FROM alerts r JOIN channels c ON c.id = r.channel_id \
-         WHERE r.enabled = true",
+         FROM alerts r \
+         LEFT JOIN alert_channels ac ON ac.alert_id = r.id \
+         LEFT JOIN channels c ON c.id = ac.channel_id \
+         WHERE r.enabled = true \
+         ORDER BY r.id",
     )
     .fetch_all(&state.config)
     .await?;
 
-    Ok(rows
-        .into_iter()
-        .map(
-            |(
+    // Collapse the rows into one Rule per id, accumulating its channels.
+    let mut rules: Vec<Rule> = Vec::new();
+    for (id, monitor_id, system_id, condition, renotify_secs, kind, config, name) in rows {
+        if rules.last().map(|r| r.id) != Some(id) {
+            rules.push(Rule {
                 id,
                 monitor_id,
                 system_id,
-                condition,
-                cooldown_secs,
-                channel_kind,
-                channel_config,
-                channel_name,
-            )| {
-                Rule {
-                    id,
-                    monitor_id,
-                    system_id,
-                    condition: condition.0,
-                    cooldown_secs,
-                    channel_kind,
-                    channel_config: channel_config.0,
-                    channel_name,
-                }
-            },
-        )
-        .collect())
+                condition: condition.0,
+                renotify_secs,
+                channels: Vec::new(),
+            });
+        }
+        if let (Some(kind), Some(config), Some(name)) = (kind, config, name) {
+            rules.last_mut().unwrap().channels.push(ChannelDef {
+                kind,
+                config: config.0,
+                name,
+            });
+        }
+    }
+    Ok(rules)
 }
 
 /// Returns None when there's no data yet to judge (avoids false alerts on cold start).
@@ -318,62 +324,13 @@ async fn server_name(state: &AppState, id: Uuid) -> Option<String> {
 
 // ---- notification dispatch --------------------------------------------------
 
-async fn notify(client: &reqwest::Client, rule: &Rule, body: &str) -> anyhow::Result<()> {
-    dispatch(client, &rule.channel_kind, &rule.channel_config, body).await
-}
-
-/// Send `body` through a notification channel. Shared by the alert engine and the
-/// "send test" endpoint. Adding a channel type is one match arm.
-pub async fn dispatch(
-    client: &reqwest::Client,
-    kind: &str,
-    config: &Value,
-    body: &str,
-) -> anyhow::Result<()> {
-    let str_field = |k: &str| config.get(k).and_then(Value::as_str).map(str::to_owned);
-    match kind {
-        "webhook" => {
-            let url = str_field("url").ok_or_else(|| anyhow::anyhow!("webhook missing url"))?;
-            client
-                .post(url)
-                .json(&serde_json::json!({ "text": body }))
-                .send()
-                .await?
-                .error_for_status()?;
+/// Fan a notification out to every channel wired to the rule. One channel
+/// failing must not stop the others, so each is dispatched independently.
+async fn notify(client: &reqwest::Client, rule: &Rule, body: &str) {
+    for ch in &rule.channels {
+        match crate::notify::dispatch(client, &ch.kind, &ch.config, body).await {
+            Ok(()) => tracing::info!(rule = %rule.id, channel = %ch.name, "notified"),
+            Err(e) => tracing::warn!(error = %e, rule = %rule.id, channel = %ch.name, "notify failed"),
         }
-        // Slack incoming webhook expects {"text"}; Discord expects {"content"}.
-        "slack" => {
-            let url = str_field("url").ok_or_else(|| anyhow::anyhow!("slack missing url"))?;
-            client
-                .post(url)
-                .json(&serde_json::json!({ "text": body }))
-                .send()
-                .await?
-                .error_for_status()?;
-        }
-        "discord" => {
-            let url = str_field("url").ok_or_else(|| anyhow::anyhow!("discord missing url"))?;
-            client
-                .post(url)
-                .json(&serde_json::json!({ "content": body }))
-                .send()
-                .await?
-                .error_for_status()?;
-        }
-        "telegram" => {
-            let token = str_field("bot_token")
-                .ok_or_else(|| anyhow::anyhow!("telegram missing bot_token"))?;
-            let chat_id =
-                str_field("chat_id").ok_or_else(|| anyhow::anyhow!("telegram missing chat_id"))?;
-            let url = format!("https://api.telegram.org/bot{token}/sendMessage");
-            client
-                .post(url)
-                .json(&serde_json::json!({ "chat_id": chat_id, "text": body }))
-                .send()
-                .await?
-                .error_for_status()?;
-        }
-        other => anyhow::bail!("unsupported channel kind: {other}"),
     }
-    Ok(())
 }

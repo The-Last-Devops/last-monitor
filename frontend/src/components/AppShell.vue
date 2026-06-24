@@ -49,7 +49,8 @@ const groups = computed(() =>
     {
       key: 'alert', label: 'Alert',
       children: [
-        { label: 'All', name: 'alerts' },
+        { label: 'Events', name: 'events' },
+        { label: 'Rules', name: 'alerts' },
         { label: 'Notify channel', name: 'notifications' },
       ],
     },
@@ -66,9 +67,9 @@ const groups = computed(() =>
     },
   ].map((g) => ({ ...g, children: g.children.filter((c) => !c.admin || isAdmin.value) })),
 )
-const NS_QUERY_PAGES = new Set(['systems', 'attention', 'monitors'])
+// Carry the namespace selection (?ns) onto every nav link so it never drops.
 const childTo = (c) => {
-  const query = NS_QUERY_PAGES.has(c.name) ? { ...nsq.value } : {}
+  const query = { ...nsq.value }
   if (c.down) query.status = 'down'
   return { name: c.name, query }
 }

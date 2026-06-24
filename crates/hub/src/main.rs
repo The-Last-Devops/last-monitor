@@ -15,6 +15,7 @@ mod data_admin;
 mod db;
 mod ingest;
 mod install;
+mod notify;
 mod probe;
 mod rbac;
 mod spa;
@@ -125,6 +126,7 @@ async fn main() -> Result<()> {
         .route("/api/keys/{id}", delete(api::delete_key))
         .route("/api/keys/{id}/systems", get(api::key_systems))
         .route("/api/namespaces/{id}/monitors", post(api::create_monitor))
+        .route("/api/channel-types", get(api::channel_types))
         .route(
             "/api/namespaces/{id}/channels",
             get(api::list_channels).post(api::create_channel),

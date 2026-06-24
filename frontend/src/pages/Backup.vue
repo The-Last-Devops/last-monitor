@@ -97,7 +97,7 @@ onMounted(() => { if (isAdmin.value) { loadS3(); listS3(); loadSchedule() } })
     <div v-if="!isAdmin" class="mx-auto max-w-md rounded-xl border border-line bg-surface p-6 text-center text-muted">
       Only system admins can manage backups.
     </div>
-    <div v-else class="max-w-3xl space-y-6">
+    <div v-else class="space-y-6">
       <p class="text-sm text-muted">A backup is a snapshot of the <b>configuration</b> (users, namespaces, RBAC, API keys, servers, monitors, alerts, channels, status pages). Optionally include the <b>metrics</b> history (much larger). Restore <b>overwrites</b> everything — admin only.</p>
 
       <label class="flex items-center gap-2 text-sm text-fg">

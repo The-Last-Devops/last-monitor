@@ -41,7 +41,7 @@ onMounted(async () => {
 
 <template>
   <AppShell title="About">
-    <div class="max-w-2xl space-y-5">
+    <div class="space-y-5">
       <div class="flex items-center gap-3">
         <span class="lm-logo inline-block h-10 w-10 rounded-lg"></span>
         <div>
