@@ -9,6 +9,34 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ## [Unreleased]
 
+## [1.7.1] — 2026-06-26
+
+### Added
+- **Agent auto-upgrades http→https.** If `HUB_URL` is `http://` but the hub sits
+  behind TLS and redirects, the agent now retries over https automatically — but
+  only when the redirect stays on the **same host**, so it never follows elsewhere
+  and can't leak its enrollment token. (Fixes k8s agents stuck on a 301.)
+- **Brand: a real logo** (uptime-pulse mark) for the favicon, GitHub avatar, and a
+  README banner. The favicon is now fixed (the sidebar logo still cycles hue).
+- Lots more unit tests (validators, RBAC roles, secret redaction, the agent's
+  redirect-upgrade guard).
+
+### Changed
+- **Services is now a sortable table** with bulk actions, and its create/edit form
+  moved to a full page (matching alert rules & channels). An alert rule's **source
+  is now editable** (re-targets in place). Namespace members are added from a
+  **picker of existing users** instead of a free-text email box.
+- Service rows show the **time window** their uptime/history covers; the alert-rule
+  editor shows each channel's provider icon.
+- Unified the page header (breadcrumb/title in one fixed-height bar; the sidebar
+  highlights the right item on detail pages); bolder nav in the light theme.
+
+### Fixed
+- A brand-new alert rule that's healthy no longer shows **"Pending" forever** — its
+  state is now recorded on the first evaluation.
+- **CI/release only rebuild the image whose code changed**; an unchanged component
+  is re-tagged from the previous release instead of rebuilt.
+
 ## [1.7.0] — 2026-06-26
 
 ### Added
@@ -223,7 +251,8 @@ Each released version's section is used verbatim as the GitHub Release notes
   agent, Uptime-Kuma-style service checks, and alerting, with multi-user namespace-scoped
   RBAC and public status pages.
 
-[Unreleased]: https://github.com/The-Last-Devops/last-monitor/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/The-Last-Devops/last-monitor/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/The-Last-Devops/last-monitor/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/The-Last-Devops/last-monitor/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.5...v1.6.0
 [1.5.5]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.4...v1.5.5
