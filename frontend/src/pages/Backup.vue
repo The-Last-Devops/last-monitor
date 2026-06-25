@@ -162,7 +162,7 @@ onMounted(() => { if (isAdmin.value) { loadS3(); listS3(); loadSchedule() } })
           <input v-model="sched.enabled" type="checkbox" class="h-4 w-4" /> Enable scheduled backups
         </label>
         <div class="flex flex-wrap items-end gap-3">
-          <label class="text-xs text-faint">Frequency<select v-model="sched.mode" class="mt-1 block rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none"><option value="daily">Daily at…</option><option value="interval">Every N hours</option></select></label>
+          <label class="text-xs text-faint">Frequency<UiSelect v-model="sched.mode" block class="mt-1" :options="[['daily', 'Daily at…'], ['interval', 'Every N hours']]" /></label>
           <label v-if="sched.mode === 'daily'" class="text-xs text-faint">Time (UTC)<input v-model="sched.daily_time" type="time" class="mt-1 block rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none" /></label>
           <label v-else class="text-xs text-faint">Every (hours)<input v-model.number="sched.interval_hours" type="number" min="1" class="mt-1 block w-24 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none" /></label>
           <label class="text-xs text-faint">Keep last<input v-model.number="sched.keep" type="number" min="1" class="mt-1 block w-24 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none" /></label>

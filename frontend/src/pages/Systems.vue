@@ -310,9 +310,9 @@ const detailLink = (s) => {
         </div>
         <div class="flex flex-wrap gap-2 border-t border-line/60 p-3">
           <RouterLink v-for="h in attnHosts" :key="h.s.id" :to="{ name: 'system', params: { id: h.s.id } }"
-            :title="chipTitle(h)" class="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs hover:border-accent/50">
+            v-tip="chipTitle(h)" class="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs hover:border-accent/50">
             <span class="text-fg">{{ h.s.name }}</span>
-            <span v-for="i in h.issues" :key="i.key" :title="issueText(i)"
+            <span v-for="i in h.issues" :key="i.key" v-tip="issueText(i)"
               class="inline-flex items-center gap-0.5 tabular-nums" :class="i.crit ? 'text-red-400' : 'text-amber-400'">
               <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path :d="ISSUE[i.key].icon"/></svg>
               <span v-if="i.val != null">{{ i.val }}%</span>
@@ -338,13 +338,13 @@ const detailLink = (s) => {
           <!-- active filter chips (each token in the query) + reset -->
           <span v-for="(c, i) in chips" :key="c + i" class="flex items-center gap-1 rounded-full border border-line bg-surface2 py-0.5 pl-2 pr-1 text-xs text-fg">
             <span class="tabular-nums">{{ c }}</span>
-            <button @click="removeChip(i)" title="Remove filter" class="grid h-4 w-4 place-items-center rounded-full text-faint hover:bg-red-500/15 hover:text-red-500"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            <button @click="removeChip(i)" v-tip="`Remove filter`" class="grid h-4 w-4 place-items-center rounded-full text-faint hover:bg-red-500/15 hover:text-red-500"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </span>
           <!-- selected nodes (row checkbox) — shown on charts, listed as chips -->
-          <span v-for="s in pinnedSystems" :key="'pin-' + s.id" :title="s.name" class="flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 py-0.5 pl-2 pr-1 text-xs text-accent">
+          <span v-for="s in pinnedSystems" :key="'pin-' + s.id" v-tip="s.name" class="flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 py-0.5 pl-2 pr-1 text-xs text-accent">
             <span class="h-2 w-2 rounded-full" :style="{ background: colorOf[s.name] }"></span>
             <span class="tabular-nums">{{ shortName(s.name) }}</span>
-            <button @click="toggleRow(s.id)" title="Deselect" class="grid h-4 w-4 place-items-center rounded-full hover:bg-accent/25"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            <button @click="toggleRow(s.id)" v-tip="`Deselect`" class="grid h-4 w-4 place-items-center rounded-full hover:bg-accent/25"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </span>
           <button v-if="chips.length || pinnedSystems.length || fviewRange" @click="resetFilters" class="text-xs text-muted hover:text-accent">Reset</button>
           <!-- range selector: a drag-zoom shows the custom window here as a chip -->
@@ -352,7 +352,7 @@ const detailLink = (s) => {
             <span v-if="fviewRange" class="flex items-center gap-1 rounded-lg border border-accent/40 bg-accent/10 py-1 pl-2 pr-1 text-xs text-accent">
               <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
               <span class="tabular-nums">{{ fmtTs(fviewRange[0]) }} – {{ fmtTs(fviewRange[1]) }}</span>
-              <button @click="setFzoom(null)" title="Clear zoom" class="grid h-4 w-4 place-items-center rounded-full hover:bg-accent/25"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+              <button @click="setFzoom(null)" v-tip="`Clear zoom`" class="grid h-4 w-4 place-items-center rounded-full hover:bg-accent/25"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
             </span>
             <div v-else class="flex rounded-lg border border-line bg-surface2 p-0.5 text-xs">
               <button v-for="rr in FRANGES" :key="rr" @click="setFrange(rr)" class="rounded-md px-2.5 py-1" :class="frange===rr?'bg-accent/15 font-medium text-accent':'text-muted hover:text-fg'">{{ rr }}</button>
@@ -390,14 +390,14 @@ const detailLink = (s) => {
                     <div class="flex items-center gap-1.5">
                       <button v-if="s.kind === 'docker'" @click="toggleDocker(s)" class="text-muted hover:text-accent"><svg class="h-4 w-4 transition-transform" :class="expanded.has(s.id) ? 'rotate-90' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></button>
                       <span v-else class="w-4 shrink-0"></span>
-                      <span class="h-2 w-2 shrink-0 rounded-full" :title="online(s) ? 'online' : 'offline'" :style="{ background: colorOf[s.name] }"></span>
+                      <span class="h-2 w-2 shrink-0 rounded-full" v-tip="online(s) ? 'online' : 'offline'" :style="{ background: colorOf[s.name] }"></span>
                       <RouterLink :to="detailLink(s)" class="text-fg hover:text-accent">{{ s.name }}</RouterLink>
                     </div>
                   </td>
-                  <td class="px-4 py-3"><button @click="setFilter('ns', s.namespace)" :title="`Filter ns:${s.namespace}`" class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted hover:text-accent">{{ s.namespace || '—' }}</button></td>
-                  <td class="px-4 py-3"><button @click="setFilter('kind', s.kind)" :title="`Filter kind:${s.kind}`" class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted hover:text-accent">{{ KIND_LABEL[s.kind] || s.kind }}</button></td>
-                  <td class="px-4 py-3"><button v-if="s.cluster" @click="setFilter('cluster', s.cluster)" :title="`Filter cluster:${s.cluster}`" class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted hover:text-accent">{{ s.cluster }}</button><span v-else class="text-faint">—</span></td>
-                  <td class="px-4 py-3"><button @click="setFilter('status', online(s)?'online':'offline')" :title="`Filter status:${online(s)?'online':'offline'}`" class="text-sm hover:underline" :class="online(s)?'text-accent':'text-red-500'">{{ online(s)?'online':'offline' }}</button></td>
+                  <td class="px-4 py-3"><button @click="setFilter('ns', s.namespace)" v-tip="`Filter ns:${s.namespace}`" class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted hover:text-accent">{{ s.namespace || '—' }}</button></td>
+                  <td class="px-4 py-3"><button @click="setFilter('kind', s.kind)" v-tip="`Filter kind:${s.kind}`" class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted hover:text-accent">{{ KIND_LABEL[s.kind] || s.kind }}</button></td>
+                  <td class="px-4 py-3"><button v-if="s.cluster" @click="setFilter('cluster', s.cluster)" v-tip="`Filter cluster:${s.cluster}`" class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted hover:text-accent">{{ s.cluster }}</button><span v-else class="text-faint">—</span></td>
+                  <td class="px-4 py-3"><button @click="setFilter('status', online(s)?'online':'offline')" v-tip="`Filter status:${online(s)?'online':'offline'}`" class="text-sm hover:underline" :class="online(s)?'text-accent':'text-red-500'">{{ online(s)?'online':'offline' }}</button></td>
                   <td class="px-4 py-3"><Gauge :v="online(s)?r(s.cpu_percent):null" /></td>
                   <td class="px-4 py-3"><Gauge :v="online(s)?pct(s.mem_used,s.mem_total):null" /></td>
                   <td class="px-4 py-3"><Gauge :v="online(s)?pct(s.disk_used,s.disk_total):null" /></td>

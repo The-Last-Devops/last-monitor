@@ -2,14 +2,14 @@
 //! into `audit_log`; admins read it via GET /api/audit.
 
 use axum::{
-    extract::{Request, State},
+    extract::{Query, Request, State},
     http::StatusCode,
     middleware::Next,
     response::Response,
     Json,
 };
 use axum_extra::extract::cookie::CookieJar;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use uuid::Uuid;
 
@@ -128,27 +128,114 @@ pub struct AuditRow {
     pub object_name: Option<String>,
 }
 
-/// GET /api/audit — admins read the recent action log (newest first).
+#[derive(Deserialize)]
+pub struct AuditQuery {
+    /// Free-text match against user / endpoint / object.
+    pub q: Option<String>,
+    /// Exact HTTP method: POST | PATCH | PUT | DELETE.
+    pub method: Option<String>,
+    /// Result class: ok (<300) | client (4xx) | server (5xx).
+    pub status: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+#[derive(Serialize)]
+pub struct AuditPage {
+    pub rows: Vec<AuditRow>,
+    /// Total rows matching the filters (for pagination), not just this page.
+    pub total: i64,
+    /// Current retention setting (days); null = kept forever.
+    pub retention_days: Option<i32>,
+}
+
+/// Delete audit rows older than the configured retention window. No-op when
+/// retention is unset (keep forever). Best-effort; errors are swallowed.
+pub async fn prune(state: &AppState) {
+    let days: Option<(Option<i32>,)> =
+        sqlx::query_as("SELECT audit_retention_days FROM app_settings WHERE id = 1")
+            .fetch_optional(&state.config)
+            .await
+            .ok()
+            .flatten();
+    if let Some((Some(d),)) = days {
+        if d > 0 {
+            let _ = sqlx::query(&format!(
+                "DELETE FROM audit_log WHERE at < now() - interval '{d} days'"
+            ))
+            .execute(&state.config)
+            .await;
+        }
+    }
+}
+
+/// GET /api/audit — admins read the action log (newest first), filtered + paginated.
 pub async fn list(
     State(state): State<AppState>,
     user: CurrentUser,
-) -> Result<Json<Vec<AuditRow>>, StatusCode> {
+    Query(qp): Query<AuditQuery>,
+) -> Result<Json<AuditPage>, StatusCode> {
     if !user.is_admin {
         return Err(StatusCode::FORBIDDEN);
     }
-    let rows: Vec<(String, Option<String>, String, String, i32, Option<String>)> = sqlx::query_as(
-        "SELECT to_char(at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'), \
-                    user_email, method, path, status, object_name FROM audit_log \
-             ORDER BY at DESC LIMIT 500",
-    )
-    .fetch_all(&state.config)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "audit list");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-    Ok(Json(
-        rows.into_iter()
+    // Pruning on read keeps the table bounded without a dedicated background loop.
+    prune(&state).await;
+
+    let q = qp.q.filter(|s| !s.trim().is_empty());
+    let method = qp.method.filter(|s| !s.trim().is_empty());
+    let status = qp.status.filter(|s| !s.trim().is_empty());
+    let limit = qp.limit.unwrap_or(100).clamp(1, 500);
+    let offset = qp.offset.unwrap_or(0).max(0);
+
+    // Every filter is bound and made optional in SQL (`$n IS NULL OR ...`) so the
+    // bind order is fixed regardless of which filters are present.
+    let where_sql = "WHERE ($1::text IS NULL OR (user_email ILIKE '%'||$1||'%' \
+                     OR path ILIKE '%'||$1||'%' OR object_name ILIKE '%'||$1||'%')) \
+                     AND ($2::text IS NULL OR method = $2) \
+                     AND ($3::text IS NULL \
+                          OR ($3 = 'ok' AND status < 300) \
+                          OR ($3 = 'client' AND status >= 400 AND status < 500) \
+                          OR ($3 = 'server' AND status >= 500))";
+
+    let (total,): (i64,) = sqlx::query_as(&format!("SELECT count(*) FROM audit_log {where_sql}"))
+        .bind(&q)
+        .bind(&method)
+        .bind(&status)
+        .fetch_one(&state.config)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "audit count");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let rows: Vec<(String, Option<String>, String, String, i32, Option<String>)> =
+        sqlx::query_as(&format!(
+            "SELECT to_char(at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'), \
+                user_email, method, path, status, object_name FROM audit_log {where_sql} \
+         ORDER BY at DESC LIMIT $4 OFFSET $5",
+        ))
+        .bind(&q)
+        .bind(&method)
+        .bind(&status)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&state.config)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "audit list");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let retention_days: Option<(Option<i32>,)> =
+        sqlx::query_as("SELECT audit_retention_days FROM app_settings WHERE id = 1")
+            .fetch_optional(&state.config)
+            .await
+            .ok()
+            .flatten();
+
+    Ok(Json(AuditPage {
+        rows: rows
+            .into_iter()
             .map(
                 |(at, user_email, method, path, status, object_name)| AuditRow {
                     at,
@@ -160,5 +247,35 @@ pub async fn list(
                 },
             )
             .collect(),
-    ))
+        total,
+        retention_days: retention_days.and_then(|(d,)| d),
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct RetentionReq {
+    /// Days to keep; null or 0 = keep forever.
+    pub days: Option<i32>,
+}
+
+/// PUT /api/admin/audit/retention — set how long the audit log is kept (admins).
+pub async fn set_retention(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Json(req): Json<RetentionReq>,
+) -> Result<StatusCode, StatusCode> {
+    if !user.is_admin {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let days = req.days.filter(|d| *d > 0); // 0/negative → keep forever (NULL)
+    sqlx::query("UPDATE app_settings SET audit_retention_days = $1 WHERE id = 1")
+        .bind(days)
+        .execute(&state.config)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "audit retention");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    prune(&state).await;
+    Ok(StatusCode::NO_CONTENT)
 }

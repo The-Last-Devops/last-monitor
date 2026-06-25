@@ -41,6 +41,12 @@ const SYS = [
 const sysOf = (u) => (u.is_admin ? 'admin' : u.read_all ? 'read_all' : 'user')
 const sysLabel = (u) => SYS.find((r) => r.v === sysOf(u))?.label
 const NS_ROLES = [{ v: 'viewer', label: 'Viewer' }, { v: 'editor', label: 'Editor' }, { v: 'owner', label: 'Owner' }]
+const memberColumns = [
+  { key: 'email', label: 'Member', sortable: true, nowrap: false },
+  { key: 'sysrole', label: 'System role' },
+  { key: 'access', label: 'Namespace access', nowrap: false },
+  { key: 'actions', label: '', align: 'right', width: '92px' },
+]
 const nsRoleLabel = (v) => NS_ROLES.find((r) => r.v === v)?.label || v
 const initials = (email) => (email || '?').slice(0, 2).toUpperCase()
 
@@ -159,75 +165,53 @@ onMounted(async () => {
     <div v-else class="space-y-4">
       <p class="max-w-3xl text-xs text-faint">People who can sign in. A member's <b class="text-fg">system role</b> sets platform-wide power; <b class="text-fg">namespace access</b> grants specific namespaces and what they can do inside each.</p>
 
-      <!-- toolbar -->
-      <div class="flex flex-wrap items-center gap-2.5">
-        <div class="relative min-w-[220px] flex-1">
-          <svg class="absolute left-3 top-2.5 h-4 w-4 text-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-          <input v-model="q" placeholder="Search members by email…" class="w-full rounded-lg border border-line bg-surface2 py-2 pl-9 pr-3 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
-        </div>
-        <div class="inline-flex overflow-hidden rounded-lg border border-line">
-          <button v-for="f in [{ v: 'all', l: 'All' }, { v: 'admin', l: 'Admins' }, { v: 'member', l: 'Members' }]" :key="f.v"
-            @click="filter = f.v" class="px-3.5 py-2 text-sm" :class="filter === f.v ? 'bg-accent/12 text-accent' : 'text-muted hover:text-fg'">{{ f.l }}</button>
-        </div>
-        <button @click="openAdd" class="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Add member
-        </button>
-      </div>
+      <DataTable :columns="memberColumns" :rows="shown" :row-key="(r) => r.id" :loading="loading" :filterable="false"
+        clickable @row-click="openEdit" empty="No members yet." empty-filtered="No members match.">
+        <template #toolbar>
+          <div class="relative min-w-[220px] flex-1">
+            <svg class="absolute left-3 top-2.5 h-4 w-4 text-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input v-model="q" placeholder="Search members by email…" class="w-full rounded-lg border border-line bg-surface2 py-1.5 pl-9 pr-3 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
+          </div>
+          <div class="inline-flex overflow-hidden rounded-lg border border-line">
+            <button v-for="f in [{ v: 'all', l: 'All' }, { v: 'admin', l: 'Admins' }, { v: 'member', l: 'Members' }]" :key="f.v"
+              @click="filter = f.v" class="px-3 py-1.5 text-sm" :class="filter === f.v ? 'bg-accent/12 text-accent' : 'text-muted hover:text-fg'">{{ f.l }}</button>
+          </div>
+          <button @click="openAdd" class="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-sm font-semibold text-accentfg hover:opacity-90">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Add member
+          </button>
+        </template>
 
-      <!-- roster -->
-      <div class="overflow-hidden rounded-xl border border-line bg-surface">
-        <table class="w-full text-sm">
-          <thead><tr class="border-b border-line text-left text-[11px] uppercase tracking-wider text-faint">
-            <th class="px-4 py-3 font-medium">Member</th>
-            <th class="px-4 py-3 font-medium">System role</th>
-            <th class="px-4 py-3 font-medium">Namespace access</th>
-            <th class="px-4 py-3"></th>
-          </tr></thead>
-          <tbody>
-            <tr v-if="loading"><td colspan="4"><PageLoader min-height="40vh" /></td></tr>
-            <tr v-else-if="!shown.length"><td colspan="4" class="px-4 py-10 text-center text-muted">{{ q || filter !== 'all' ? 'No members match.' : 'No members yet.' }}</td></tr>
-            <tr v-for="u in shown" :key="u.id" class="border-b border-line/60 last:border-0 hover:bg-surface2/50">
-              <!-- member -->
-              <td class="px-4 py-3">
-                <div class="flex items-center gap-3">
-                  <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border text-xs font-semibold"
-                    :class="(u.is_admin || u.read_all) ? 'border-accent/25 bg-accent/12 text-accent' : 'border-line bg-surface2 text-muted'">{{ initials(u.email) }}</span>
-                  <span class="text-fg">{{ u.email }}<span v-if="u.id === auth.user?.id" class="ml-2 rounded border border-accent/40 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-accent">you</span></span>
-                </div>
-              </td>
-              <!-- system role pill -->
-              <td class="px-4 py-3">
-                <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                  :class="u.is_admin ? 'bg-accent/12 text-accent' : u.read_all ? 'bg-amber-400/12 text-amber-400' : 'bg-surface2 text-muted'">
-                  <span class="h-1.5 w-1.5 rounded-full" :class="u.is_admin ? 'bg-accent' : u.read_all ? 'bg-amber-400' : 'bg-muted'"></span>{{ sysLabel(u) }}
-                </span>
-              </td>
-              <!-- namespace access -->
-              <td class="px-4 py-3">
-                <span v-if="u.access === 'all'" class="inline-flex rounded-md border border-accent/30 bg-accent/8 px-2 py-0.5 text-xs text-accent">All namespaces</span>
-                <span v-else-if="!u.access || !u.access.length" class="inline-flex rounded-md border border-dashed border-line px-2 py-0.5 text-xs text-faint">No namespaces yet</span>
-                <div v-else class="flex flex-wrap gap-1.5">
-                  <span v-for="m in u.access" :key="m.namespace_id" class="inline-flex items-center gap-1 rounded-md border border-line bg-surface2 px-2 py-0.5 text-xs text-fg">
-                    {{ nameOf(m.namespace_id) }}<span class="text-faint" :class="{ 'text-accent': m.role === 'owner', 'text-amber-400': m.role === 'editor' }">· {{ nsRoleLabel(m.role) }}</span>
-                  </span>
-                </div>
-              </td>
-              <!-- actions -->
-              <td class="px-4 py-3">
-                <div class="flex items-center justify-end gap-1">
-                  <button @click="openEdit(u)" class="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-fg" title="Edit">
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
-                  </button>
-                  <button v-if="u.id !== auth.user?.id" @click="removeUser(u)" class="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-rose-400" title="Remove">
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-                  </button>
-                  <span v-else class="h-8 w-8"></span>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+        <template #cell-email="{ row }">
+          <div class="flex items-center gap-3">
+            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg border text-[11px] font-semibold"
+              :class="(row.is_admin || row.read_all) ? 'border-accent/25 bg-accent/12 text-accent' : 'border-line bg-surface2 text-muted'">{{ initials(row.email) }}</span>
+            <span class="font-medium text-fg">{{ row.email }}<span v-if="row.id === auth.user?.id" class="ml-2 rounded border border-accent/40 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-accent">you</span></span>
+          </div>
+        </template>
+        <template #cell-sysrole="{ row }">
+          <StatePill :tone="row.is_admin ? 'info' : row.read_all ? 'warn' : 'muted'" :label="sysLabel(row)" />
+        </template>
+        <template #cell-access="{ row }">
+          <span v-if="row.access === 'all'" class="inline-flex rounded-md border border-accent/30 bg-accent/8 px-2 py-0.5 text-xs text-accent">All namespaces</span>
+          <span v-else-if="!row.access || !row.access.length" class="inline-flex rounded-md border border-dashed border-line px-2 py-0.5 text-xs text-faint">No namespaces yet</span>
+          <div v-else class="flex flex-wrap gap-1.5">
+            <span v-for="m in row.access" :key="m.namespace_id" class="inline-flex items-center gap-1 rounded-md border border-line bg-surface2 px-2 py-0.5 text-xs text-fg">
+              {{ nameOf(m.namespace_id) }}<span class="text-faint" :class="{ 'text-accent': m.role === 'owner', 'text-amber-400': m.role === 'editor' }">· {{ nsRoleLabel(m.role) }}</span>
+            </span>
+          </div>
+        </template>
+        <template #cell-actions="{ row }">
+          <div class="flex items-center justify-end gap-1">
+            <button @click.stop="openEdit(row)" class="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-fg" v-tip="`Edit`">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+            </button>
+            <button v-if="row.id !== auth.user?.id" @click.stop="removeUser(row)" class="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-rose-500" v-tip="`Remove`">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+            </button>
+            <span v-else class="h-8 w-8"></span>
+          </div>
+        </template>
+      </DataTable>
 
       <!-- role legend -->
       <div class="grid max-w-3xl gap-4 sm:grid-cols-2">
@@ -313,9 +297,7 @@ onMounted(async () => {
           <!-- system role -->
           <div>
             <div class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-faint">System role</div>
-            <select v-model="editRole" @change="saveSysRole" class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none">
-              <option v-for="r in SYS" :key="r.v" :value="r.v">{{ r.label }}</option>
-            </select>
+            <UiSelect v-model="editRole" block @update:model-value="saveSysRole" :options="SYS.map((r) => ({ value: r.v, label: r.label }))" />
             <p class="mt-1.5 text-xs text-faint">{{ SYS.find((r) => r.v === editRole)?.desc }}</p>
           </div>
 
@@ -327,10 +309,8 @@ onMounted(async () => {
             <div v-else class="divide-y divide-line/60">
               <div v-for="n in namespaces" :key="n.id" class="flex items-center gap-3 py-2.5">
                 <span class="flex-1 truncate text-sm" :class="editNs[n.id] ? 'text-fg' : 'text-faint'">{{ n.name }}</span>
-                <select :value="editNs[n.id]" @change="setNsRole(n, $event.target.value)" class="shrink-0 rounded-md border border-line bg-surface2 px-2.5 py-1.5 text-xs text-fg focus:border-accent/60 focus:outline-none">
-                  <option value="">— no access</option>
-                  <option v-for="r in NS_ROLES" :key="r.v" :value="r.v">{{ r.label }}</option>
-                </select>
+                <UiSelect :model-value="editNs[n.id]" @update:model-value="(v) => setNsRole(n, v)" class="shrink-0"
+                  :options="[{ value: '', label: '— no access' }, ...NS_ROLES.map((r) => ({ value: r.v, label: r.label }))]" />
               </div>
             </div>
           </div>

@@ -242,7 +242,7 @@ watch([hoverIdx, cursorTime], () => emit('cursor-time', hoverIdx.value != null ?
     <!-- flex-wrap so few series sit on one row; the value slot has a reserved
          min-width so values appearing on hover don't reflow the row -->
     <div v-if="showLegend" @mouseleave="emit('legend-hover', null)" class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-      <button v-for="s in legend" :key="s.name" type="button" :title="s.name"
+      <button v-for="s in legend" :key="s.name" type="button" v-tip="s.name"
         @mouseenter="emit('legend-hover', s.name)"
         @click="emit('legend-toggle', s.name)"
         class="flex items-center gap-1.5 rounded transition-opacity"

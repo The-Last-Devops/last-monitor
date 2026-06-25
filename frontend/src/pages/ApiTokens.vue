@@ -84,7 +84,7 @@ onMounted(load)
               <td class="px-4 py-3 tabular-nums text-muted">{{ t.last_used ? fmt(t.last_used) : 'never' }}</td>
               <td class="px-4 py-3 tabular-nums" :class="expired(t) ? 'text-rose-400' : 'text-muted'">{{ t.expires_at ? fmt(t.expires_at) + (expired(t) ? ' (expired)' : '') : 'never' }}</td>
               <td class="px-4 py-3 text-right">
-                <button @click="revoke(t)" class="rounded-lg p-1.5 text-muted hover:bg-surface2 hover:text-rose-400" title="Revoke">
+                <button @click="revoke(t)" class="rounded-lg p-1.5 text-muted hover:bg-surface2 hover:text-rose-400" v-tip="`Revoke`">
                   <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
                 </button>
               </td>
@@ -109,9 +109,7 @@ onMounted(load)
           </label>
           <label class="block">
             <span class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-faint">Expires</span>
-            <select v-model="form.expires" class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none">
-              <option v-for="[v, l] in EXPIRES" :key="v" :value="v">{{ l }}</option>
-            </select>
+            <UiSelect v-model="form.expires" block :options="EXPIRES" />
           </label>
           <p v-if="err" class="text-xs text-rose-400">{{ err }}</p>
           <div class="flex justify-end gap-2.5 pt-1">

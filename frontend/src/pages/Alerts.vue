@@ -1,16 +1,15 @@
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppShell from '../components/AppShell.vue'
 import PageLoader from '../components/PageLoader.vue'
 import { minLoad } from '../lib/minLoad'
 import { api } from '../lib/api'
 
 const route = useRoute()
-const highlightId = computed(() => route.query.rule || null)
+const router = useRouter()
 
 const namespaces = ref([])
-// Namespaces in scope: the sidebar selection (?ns=a,b), or all when none chosen.
 const selectedNsNames = computed(() => (route.query.ns || '').split(',').filter(Boolean))
 const activeNs = computed(() =>
   selectedNsNames.value.length
@@ -19,10 +18,8 @@ const activeNs = computed(() =>
 )
 const alerts = ref([])
 const channels = ref([])
-const monitors = ref([])
-const systems = ref([])
-const types = ref([]) // channel-type manifest, for channel badge colors/icons
-const loaded = ref(false) // true after the first load, so polling never re-flashes the loader
+const types = ref([])
+const loaded = ref(false)
 let timer = null
 
 // ---- channel badge helpers (kind → color/icon) ----
@@ -47,11 +44,12 @@ const chanColor = (kind) => typeByKind(kind)?.color || 'rgb(var(--surface2))'
 const chanFg = (kind) => typeByKind(kind)?.fg || 'rgb(var(--fg))'
 const chanIcon = (kind) => typeByKind(kind)?.icon || 'chat'
 
-// ---- condition rendering ----
+// ---- derived row fields ----
 const METRIC_LABEL = { cpu_percent: 'CPU %', mem_percent: 'Memory %', load1: 'Load 1m' }
+const isSvc = (a) => a.target_kind === 'monitor' || a.target_kind === 'all_services'
 function condText(a) {
   const c = a.condition || {}
-  if (a.target_kind === 'monitor') return 'is DOWN'
+  if (isSvc(a)) return 'is DOWN'
   if (c.offline_secs) return `offline > ${c.offline_secs}s`
   if (c.metric) return `${METRIC_LABEL[c.metric] || c.metric} ${c.op} ${c.value}`
   return '—'
@@ -62,32 +60,24 @@ function stateOf(a) {
   if (a.firing === false) return 'ok'
   return 'pending'
 }
-const STATE = {
-  firing: { label: 'Firing', cls: 'text-red-400 bg-red-500/12', dot: 'bg-red-500' },
-  ok: { label: 'OK', cls: 'text-accent bg-accent/12', dot: 'bg-accent' },
-  disabled: { label: 'Disabled', cls: 'text-faint bg-surface2', dot: 'bg-faint' },
-  pending: { label: 'Pending', cls: 'text-amber-400 bg-amber-400/12', dot: 'bg-amber-400' },
-}
-const firing = computed(() => alerts.value.filter((a) => stateOf(a) === 'firing'))
-const others = computed(() => alerts.value.filter((a) => stateOf(a) !== 'firing'))
-const sections = computed(() => {
-  const s = []
-  if (firing.value.length) s.push({ key: 'firing', label: 'Firing', items: firing.value })
-  if (others.value.length) s.push({ key: 'idle', label: 'Healthy & idle', items: others.value })
-  return s
-})
-const renotifyText = (a) => (a.renotify_secs ? `re-notify every ${Math.round(a.renotify_secs / 60)}m` : 'notify once')
-function ago(iso) {
-  if (!iso) return ''
-  let s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000)
-  const d = Math.floor(s / 86400); s -= d * 86400
-  const h = Math.floor(s / 3600); s -= h * 3600
-  const m = Math.floor(s / 60)
-  if (d) return `${d}d ${h}h`
-  if (h) return `${h}h ${m}m`
-  if (m) return `${m}m`
-  return `${Math.floor(s)}s`
-}
+const TONE = { firing: 'down', ok: 'ok', pending: 'warn', disabled: 'muted' }
+const STATE_LABEL = { firing: 'Firing', ok: 'OK', pending: 'Pending', disabled: 'Disabled' }
+const renotifyText = (a) => (a.renotify_secs ? `every ${Math.round(a.renotify_secs / 60)}m` : 'once')
+
+const tableRows = computed(() =>
+  alerts.value.map((a) => ({ ...a, state: STATE_LABEL[stateOf(a)], cond: condText(a) })),
+)
+const firingCount = computed(() => alerts.value.filter((a) => stateOf(a) === 'firing').length)
+const columns = [
+  { key: 'state', label: 'State', sortable: true, width: '116px' },
+  { key: 'target_name', label: 'Source', sortable: true, nowrap: false },
+  { key: 'cond', label: 'Condition', sortable: true },
+  { key: 'channels', label: 'Channels' },
+  { key: 'namespace', label: 'Namespace', sortable: true },
+  { key: 'renotify_secs', label: 'Re-notify', sortable: true },
+  { key: 'enabled', label: 'On', align: 'center', width: '70px' },
+  { key: 'actions', label: '', align: 'right', width: '116px' },
+]
 
 async function load() {
   const nss = activeNs.value
@@ -95,8 +85,6 @@ async function load() {
   const first = !loaded.value
   try {
     const work = (async () => {
-      // Rules are merged across the namespaces in scope; channels are a shared
-      // global resource (any rule may use any channel), fetched once.
       const [aLists, allChannels] = await Promise.all([
         Promise.all(nss.map((n) =>
           api.get(`/api/namespaces/${n.id}/alerts`)
@@ -105,8 +93,6 @@ async function load() {
         )),
         api.get('/api/channels').catch(() => []),
       ])
-      // Stable order (namespace → target → id), independent of enabled/firing, so
-      // toggling a rule never reorders the list. Dedupe defensively by id.
       const seen = new Set()
       alerts.value = aLists
         .flat()
@@ -123,16 +109,9 @@ async function load() {
   finally { loaded.value = true }
 }
 watch(() => route.query.ns, load)
-watch([alerts, highlightId], async () => {
-  if (!highlightId.value) return
-  await nextTick()
-  document.getElementById(`rule-${highlightId.value}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-})
 
-// ---- list actions ----
+// ---- row actions ----
 async function toggle(a) {
-  // Optimistic: flip in the UI now, revert if the server rejects it. No reload, so
-  // the row doesn't jump.
   const prev = a.enabled
   a.enabled = !a.enabled
   try { await api.patch(`/api/alerts/${a.id}`, { enabled: a.enabled }) }
@@ -150,120 +129,28 @@ async function testAlert(a) {
   setTimeout(() => { testState.value = { ...testState.value, [a.id]: undefined } }, 3000)
 }
 
-// ---- editor modal ----
-const modalOpen = ref(false)
-const editId = ref(null)
-const err = ref('')
-const ed = ref({ srcType: 'monitor', targetId: '', scopeNs: '', condType: 'metric', metric: 'cpu_percent', op: '>', value: 90, offlineSecs: 120, channels: new Set(), renotify: '' })
-// srcType: monitor | host (one target) | all_services | all_hosts (whole namespace).
-const isScope = computed(() => ed.value.srcType === 'all_services' || ed.value.srcType === 'all_hosts')
-const isServiceLike = computed(() => ed.value.srcType === 'monitor' || ed.value.srcType === 'all_services')
-// Candidate sources = those in the active namespace(s).
-const activeNsNames = computed(() => new Set(activeNs.value.map((n) => n.name)))
-const monsInNs = computed(() => monitors.value.filter((m) => activeNsNames.value.has(m.namespace)))
-const sysInNs = computed(() => systems.value.filter((s) => activeNsNames.value.has(s.namespace)))
-// Where the rule is created (auth = editor there): the picked target's namespace,
-// or the chosen scope namespace for a namespace-wide rule.
-const targetNs = computed(() => {
-  const list = ed.value.srcType === 'monitor' ? monitors.value : systems.value
-  const name = list.find((x) => x.id === ed.value.targetId)?.namespace
-  return namespaces.value.find((n) => n.name === name) || null
-})
-const saveNs = computed(() =>
-  isScope.value ? namespaces.value.find((n) => n.id === ed.value.scopeNs) || null : targetNs.value,
-)
-// Channels are global — any rule may notify any channel.
-const editChannels = computed(() => channels.value)
-const RENOTIFY = [['', 'Off — notify once'], ['900', 'every 15 min'], ['1800', 'every 30 min'], ['3600', 'every hour']]
-
-function openNew() {
-  editId.value = null; err.value = ''
-  ed.value = { srcType: 'monitor', targetId: '', scopeNs: activeNs.value[0]?.id || namespaces.value[0]?.id || '', condType: 'metric', metric: 'cpu_percent', op: '>', value: 90, offlineSecs: 120, channels: new Set(), renotify: '' }
-  modalOpen.value = true
+// ---- bulk actions ----
+const selectedIds = ref([])
+async function bulkEnable(rows, val) {
+  await Promise.all(rows.map((a) => api.patch(`/api/alerts/${a.id}`, { enabled: val }).catch(() => {})))
+  selectedIds.value = []
+  await load()
 }
-function openEdit(a) {
-  editId.value = a.id; err.value = ''
-  const c = a.condition || {}
-  const scope = a.scope_kind // 'all_services' | 'all_hosts' | undefined
-  const serviceLike = scope === 'all_services' || a.target_kind === 'monitor'
-  ed.value = {
-    srcType: scope || (a.target_kind === 'monitor' ? 'monitor' : 'host'),
-    targetId: a.monitor_id || a.system_id || '',
-    scopeNs: scope ? namespaces.value.find((n) => n.name === a.namespace)?.id || '' : '',
-    condType: serviceLike ? 'down' : c.offline_secs ? 'offline' : 'metric',
-    metric: c.metric || 'cpu_percent',
-    op: c.op || '>',
-    value: c.value ?? 90,
-    offlineSecs: c.offline_secs ?? 120,
-    channels: new Set((a.channels || []).map((ch) => ch.id)),
-    renotify: a.renotify_secs ? String(a.renotify_secs) : '',
-  }
-  modalOpen.value = true
-}
-function setSrcType(t) {
-  ed.value.srcType = t
-  ed.value.targetId = ''
-  ed.value.condType = t === 'monitor' || t === 'all_services' ? 'down' : 'metric'
-}
-function toggleChan(id) {
-  const s = ed.value.channels
-  s.has(id) ? s.delete(id) : s.add(id)
-  ed.value.channels = new Set(s)
+async function bulkDelete(rows) {
+  if (!confirm(`Delete ${rows.length} alert rule(s)? This cannot be undone.`)) return
+  await Promise.all(rows.map((a) => api.del(`/api/alerts/${a.id}`).catch(() => {})))
+  selectedIds.value = []
+  await load()
 }
 
-const targetName = computed(() => {
-  if (ed.value.srcType === 'all_services') return 'any service'
-  if (ed.value.srcType === 'all_hosts') return 'any host'
-  const list = ed.value.srcType === 'monitor' ? monitors.value : sysInNs.value
-  return list.find((x) => x.id === ed.value.targetId)?.name || ''
-})
-const summary = computed(() => {
-  const nsName = saveNs.value?.name
-  const t = (targetName.value || '<source>') + (isScope.value && nsName ? ` in ${nsName}` : '')
-  let cond
-  if (isServiceLike.value) cond = 'is down'
-  else if (ed.value.condType === 'offline') cond = `is offline for ${ed.value.offlineSecs}s`
-  else cond = `${METRIC_LABEL[ed.value.metric]} ${ed.value.op} ${ed.value.value}`
-  const names = [...ed.value.channels].map((id) => channels.value.find((c) => c.id === id)?.name).filter(Boolean)
-  return { t, cond, names }
-})
-
-function buildCondition() {
-  if (isServiceLike.value) return {}
-  if (ed.value.condType === 'offline') return { offline_secs: Number(ed.value.offlineSecs) || 120 }
-  return { metric: ed.value.metric, op: ed.value.op, value: Number(ed.value.value) }
-}
-async function save() {
-  err.value = ''
-  if (!editId.value && !isScope.value && !ed.value.targetId) { err.value = `Pick a ${ed.value.srcType === 'monitor' ? 'service' : 'host'}.`; return }
-  if (!ed.value.channels.size) { err.value = 'Pick at least one channel.'; return }
-  const channel_ids = [...ed.value.channels]
-  const renotify_secs = ed.value.renotify ? Number(ed.value.renotify) : null
-  try {
-    if (editId.value) {
-      await api.patch(`/api/alerts/${editId.value}`, { channel_ids, renotify_secs, condition: buildCondition() })
-    } else {
-      if (!saveNs.value) { err.value = 'Pick a source first.'; return }
-      const body = { channel_ids, renotify_secs, condition: buildCondition() }
-      if (isScope.value) body.scope_kind = ed.value.srcType
-      else if (ed.value.srcType === 'monitor') body.monitor_id = ed.value.targetId
-      else body.system_id = ed.value.targetId
-      await api.post(`/api/namespaces/${saveNs.value.id}/alerts`, body)
-    }
-    modalOpen.value = false
-    await load()
-  } catch (e) { err.value = e.status === 403 ? 'You need editor access.' : `Failed (${e.status}).` }
-}
-async function modalTest() {
-  if (!editId.value) { err.value = 'Save the rule first, then test.'; return }
-  try { await api.post(`/api/alerts/${editId.value}/test`); err.value = '' } catch (e) { err.value = `Test failed (${e.status}).` }
-}
+// ---- navigation ----
+const nsq = computed(() => (route.query.ns ? { ns: route.query.ns } : {}))
+const openNew = () => router.push({ name: 'alert-new', query: nsq.value })
+const openEdit = (a) => router.push({ name: 'alert-edit', params: { id: a.id }, query: nsq.value })
 
 onMounted(async () => {
   try { types.value = await api.get('/api/channel-types') } catch {}
   try { namespaces.value = await api.get('/api/namespaces') } catch {}
-  try { monitors.value = await api.get('/api/monitors') } catch {}
-  try { systems.value = await api.get('/api/systems') } catch {}
   await load()
   timer = setInterval(load, 15000)
 })
@@ -272,170 +159,74 @@ onUnmounted(() => clearInterval(timer))
 
 <template>
   <AppShell title="Alert rules">
-    <div class="space-y-5">
-      <div class="flex items-start gap-3">
-        <p class="text-xs text-faint">The wiring: a <b>source</b> (a host from Infrastructure or a service from Services) → a <b>condition</b> → the <b>channels</b> that fire. Incidents then land in <b>Alert › Events</b>.</p>
+    <div class="space-y-4">
+      <div class="flex flex-wrap items-center gap-3">
+        <h1 class="text-xl font-bold text-fg">Alert rules</h1>
+        <span class="text-sm text-faint">{{ alerts.length }} rules<span v-if="firingCount" class="text-rose-500"> · {{ firingCount }} firing</span></span>
         <button @click="openNew" class="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-accentfg hover:opacity-90">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> New rule
         </button>
       </div>
 
       <PageLoader v-if="!loaded" />
-      <template v-else>
-      <p v-if="!alerts.length" class="rounded-2xl border border-line bg-surface/50 p-10 text-center text-sm text-muted">No alert rules yet. Click <b class="text-fg">New rule</b> to wire one up.</p>
+      <DataTable v-else v-model:selected="selectedIds" :columns="columns" :rows="tableRows" :row-key="(r) => r.id"
+        selectable clickable @row-click="openEdit"
+        :filter-keys="['target_name', 'namespace', 'cond', 'state']" filter-placeholder="Filter rules…"
+        empty="No alert rules yet. Click New rule to wire one up.">
+        <template #bulk="{ selected, disabled }">
+          <button :disabled="disabled" @click="bulkEnable(selected, true)" class="rounded-lg border border-line bg-surface2 px-2.5 py-1.5 text-xs font-medium text-fg hover:border-accent/50 disabled:cursor-not-allowed disabled:opacity-40">Enable</button>
+          <button :disabled="disabled" @click="bulkEnable(selected, false)" class="rounded-lg border border-line bg-surface2 px-2.5 py-1.5 text-xs font-medium text-fg hover:border-accent/50 disabled:cursor-not-allowed disabled:opacity-40">Disable</button>
+          <button :disabled="disabled" @click="bulkDelete(selected)" class="rounded-lg border border-rose-500/35 px-2.5 py-1.5 text-xs font-medium text-rose-500 hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40">Delete</button>
+        </template>
 
-      <section v-for="g in sections" :key="g.key" class="space-y-2.5">
-        <div class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-faint">
-          <span v-if="g.key === 'firing'" class="inline-flex items-center gap-1.5 rounded-full bg-red-500/12 px-2 py-0.5 text-red-400"><span class="h-1.5 w-1.5 rounded-full bg-red-500"></span>Firing</span>
-          <span v-else>{{ g.label }}</span>
-          <span class="rounded-full bg-surface2 px-2 py-0.5 text-[10px]">{{ g.items.length }}</span>
-        </div>
+        <template #cell-state="{ row }">
+          <StatePill :tone="TONE[stateOf(row)]" :label="row.state" />
+        </template>
 
-        <div v-for="a in g.items" :key="a.id" :id="`rule-${a.id}`" @click="openEdit(a)"
-          class="cursor-pointer rounded-2xl border bg-surface p-4 transition-colors hover:border-accent/40"
-          :class="[stateOf(a) === 'firing' ? 'border-red-500/45' : 'border-line', String(a.id) === String(highlightId) ? 'ring-2 ring-accent/60' : '', !a.enabled ? 'opacity-60' : '']">
-          <div class="mb-3 flex items-center gap-2.5">
-            <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="STATE[stateOf(a)].cls"><span class="h-1.5 w-1.5 rounded-full" :class="STATE[stateOf(a)].dot"></span>{{ STATE[stateOf(a)].label }}</span>
-            <span v-if="a.since && stateOf(a) !== 'disabled'" class="text-xs text-faint">{{ stateOf(a) === 'firing' ? 'firing' : 'ok' }} for {{ ago(a.since) }}</span>
-            <span class="ml-auto"></span>
-            <span class="inline-flex items-center gap-1 rounded-md bg-surface2 px-2 py-0.5 text-[11px] text-faint" title="Namespace">
-              <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/></svg>{{ a.namespace }}
-            </span>
-            <button @click.stop="toggle(a)" :title="a.enabled ? 'Disable' : 'Enable'" class="relative h-[22px] w-10 shrink-0 rounded-full transition-colors" :class="a.enabled ? 'bg-accent' : 'bg-line'">
-              <span class="absolute top-0.5 h-[18px] w-[18px] rounded-full transition-all" :class="a.enabled ? 'left-[20px] bg-accentfg' : 'left-0.5 bg-fg'"></span>
-            </button>
+        <template #cell-target_name="{ row }">
+          <div class="flex items-center gap-2">
+            <svg v-if="isSvc(row)" class="h-[15px] w-[15px] shrink-0 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            <svg v-else class="h-[15px] w-[15px] shrink-0 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <span class="font-medium text-fg">{{ row.target_name || '—' }}</span>
+            <span class="text-xs text-faint">{{ isSvc(row) ? 'Service' : 'Host' }}</span>
           </div>
-          <div class="flex flex-wrap items-center gap-2.5">
-            <span class="inline-flex items-center gap-2 rounded-lg border border-line bg-bg px-3 py-1.5 text-[13px]">
-              <svg v-if="a.target_kind === 'monitor'" class="h-[15px] w-[15px] text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-              <svg v-else class="h-[15px] w-[15px] text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-              {{ a.target_name || '—' }}<span class="text-[11px] text-faint"> · {{ a.target_kind === 'monitor' ? 'Service' : 'Host' }}</span>
-            </span>
-            <span class="inline-flex items-center gap-1 text-[11px] text-faint">when <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></span>
-            <span class="inline-flex items-center rounded-lg border border-amber-400/40 bg-amber-400/8 px-3 py-1.5 font-mono text-[13px] text-amber-300">{{ condText(a) }}</span>
-            <span class="inline-flex items-center gap-1 text-[11px] text-faint">notify <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></span>
-            <span class="inline-flex flex-wrap items-center gap-1.5">
-              <span v-for="ch in a.channels" :key="ch.id" :title="ch.name" class="grid h-[26px] w-[26px] place-items-center rounded-lg" :style="{ background: chanColor(ch.kind), color: chanFg(ch.kind) }" v-html="iconSvg(chanIcon(ch.kind), 15)"></span>
-              <span v-if="!a.channels.length" class="text-xs text-rose-400">no channel</span>
-            </span>
-            <span class="text-[11px] text-faint" :title="a.renotify_secs ? 'Re-notifies while still firing' : 'Notifies once per incident'">· {{ renotifyText(a) }}</span>
-          </div>
-          <div class="mt-3 flex items-center gap-2 border-t border-line/70 pt-3">
-            <span class="mr-auto"></span>
-            <span v-if="testState[a.id] === 'ok'" class="text-xs text-accent">✓ sent</span>
-            <span v-else-if="testState[a.id] === 'fail'" class="text-xs text-rose-400">✗ failed</span>
-            <button @click.stop="testAlert(a)" :disabled="testState[a.id] === 'testing'" class="rounded-lg border border-line bg-surface2 px-2.5 py-1 text-xs text-fg hover:border-accent/50 disabled:opacity-50">{{ testState[a.id] === 'testing' ? 'Testing…' : 'Test' }}</button>
-            <button @click.stop="openEdit(a)" class="rounded-lg p-1.5 text-muted hover:bg-surface2 hover:text-fg" title="Edit"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg></button>
-            <button @click.stop="removeAlert(a)" class="rounded-lg p-1.5 text-muted hover:bg-surface2 hover:text-rose-400" title="Delete"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
-          </div>
-        </div>
-      </section>
-      </template>
-    </div>
+        </template>
 
-    <!-- editor modal -->
-    <div v-if="modalOpen" class="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black/65 p-4 backdrop-blur-sm sm:p-8" @click.self="modalOpen = false">
-      <div class="w-full max-w-2xl overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl">
-        <div class="flex items-center gap-3 border-b border-line px-5 py-4">
-          <span class="grid h-9 w-9 place-items-center rounded-xl bg-accent/12 text-accent"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
-          <h3 class="text-base font-semibold text-fg">{{ editId ? 'Edit alert rule' : 'New alert rule' }}</h3>
-          <button @click="modalOpen = false" class="ml-auto rounded-lg p-1.5 text-muted hover:bg-surface2 hover:text-fg" aria-label="Close"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-        </div>
+        <template #cell-cond="{ row }">
+          <span class="font-mono text-[13px] text-[rgb(var(--warn))]">{{ row.cond }}</span>
+        </template>
 
-        <div class="max-h-[62vh] space-y-6 overflow-auto p-5">
-          <!-- 1. source -->
-          <div>
-            <div class="mb-2.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-faint"><span class="grid h-[18px] w-[18px] place-items-center rounded bg-surface2 text-accent">1</span>What to watch</div>
-            <div v-if="!editId" class="mb-2.5 flex flex-wrap overflow-hidden rounded-lg border border-line">
-              <button v-for="o in [['monitor','Service'],['all_services','All services'],['host','Host'],['all_hosts','All hosts']]" :key="o[0]"
-                @click="setSrcType(o[0])" class="px-3.5 py-2 text-sm" :class="ed.srcType === o[0] ? 'bg-surface2 text-fg' : 'text-muted hover:text-fg'">{{ o[1] }}</button>
-            </div>
-            <!-- one specific target -->
-            <select v-if="!editId && !isScope" v-model="ed.targetId" class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none">
-              <option value="">— pick a {{ ed.srcType === 'monitor' ? 'service' : 'host' }} —</option>
-              <option v-for="m in (ed.srcType === 'monitor' ? monsInNs : sysInNs)" :key="m.id" :value="m.id">{{ m.name }}</option>
-            </select>
-            <!-- whole namespace -->
-            <div v-else-if="!editId">
-              <select v-model="ed.scopeNs" class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none">
-                <option value="">— pick a namespace —</option>
-                <option v-for="n in namespaces" :key="n.id" :value="n.id">{{ n.name }}</option>
-              </select>
-              <p class="mt-1.5 text-xs text-faint">Covers every {{ ed.srcType === 'all_services' ? 'service' : 'host' }} in this namespace — new ones are included automatically.</p>
-            </div>
-            <div v-else class="rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-muted">Source can't be changed — delete and recreate to retarget.</div>
-          </div>
+        <template #cell-channels="{ row }">
+          <span class="flex flex-wrap items-center gap-1">
+            <span v-for="ch in row.channels" :key="ch.id" v-tip="ch.name" class="grid h-[22px] w-[22px] place-items-center rounded-md" :style="{ background: chanColor(ch.kind), color: chanFg(ch.kind) }" v-html="iconSvg(chanIcon(ch.kind), 13)"></span>
+            <span v-if="!row.channels.length" class="text-xs text-rose-500">none</span>
+          </span>
+        </template>
 
-          <!-- 2. condition -->
-          <div>
-            <div class="mb-2.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-faint"><span class="grid h-[18px] w-[18px] place-items-center rounded bg-surface2 text-accent">2</span>When it fires</div>
-            <div v-if="isServiceLike" class="flex items-center gap-2 text-sm text-muted">
-              Fires when {{ ed.srcType === 'all_services' ? 'any service' : 'the service' }} is <span class="rounded-md border border-amber-400/40 bg-amber-400/10 px-2 py-1 font-semibold text-amber-400">DOWN</span>
-            </div>
-            <div v-else class="flex flex-wrap items-center gap-2.5">
-              <span class="text-sm text-muted">Fires when</span>
-              <select v-model="ed.condType" class="rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none">
-                <option value="metric">a metric</option><option value="offline">it goes offline</option>
-              </select>
-              <template v-if="ed.condType === 'metric'">
-                <select v-model="ed.metric" class="rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none"><option value="cpu_percent">CPU %</option><option value="mem_percent">Memory %</option><option value="load1">Load 1m</option></select>
-                <select v-model="ed.op" class="rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none"><option>&gt;</option><option>&gt;=</option><option>&lt;</option><option>&lt;=</option></select>
-                <input v-model.number="ed.value" type="number" class="w-24 rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none" />
-              </template>
-              <template v-else>
-                <span class="text-sm text-muted">no sample for</span>
-                <input v-model.number="ed.offlineSecs" type="number" class="w-24 rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none" />
-                <span class="text-sm text-muted">seconds</span>
-              </template>
-            </div>
-          </div>
+        <template #cell-namespace="{ row }">
+          <span class="text-muted">{{ row.namespace }}</span>
+        </template>
 
-          <!-- 3. channels -->
-          <div>
-            <div class="mb-2.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-faint"><span class="grid h-[18px] w-[18px] place-items-center rounded bg-surface2 text-accent">3</span>Notify these channels</div>
-            <p v-if="!editChannels.length" class="text-xs text-faint">No channels yet — create one under <b>Alert › Notify channel</b>.</p>
-            <div v-else class="flex flex-wrap gap-2">
-              <button v-for="c in editChannels" :key="c.id" @click="toggleChan(c.id)"
-                class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
-                :class="ed.channels.has(c.id) ? 'border-accent/60 bg-accent/8 text-fg' : 'border-line bg-surface2 text-muted hover:text-fg'">
-                <span class="grid h-[22px] w-[22px] place-items-center rounded-md" :style="{ background: chanColor(c.kind), color: chanFg(c.kind) }" v-html="iconSvg(chanIcon(c.kind), 13)"></span>
-                {{ c.name }}
-                <svg v-if="ed.channels.has(c.id)" class="h-4 w-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>
-              </button>
-            </div>
-          </div>
+        <template #cell-renotify_secs="{ row }">
+          <span class="text-muted" v-tip="row.renotify_secs ? 'Re-notifies while still firing' : 'Notifies once per incident'">{{ renotifyText(row) }}</span>
+        </template>
 
-          <!-- 4. delivery -->
-          <div>
-            <div class="mb-2.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-faint"><span class="grid h-[18px] w-[18px] place-items-center rounded bg-surface2 text-accent">4</span>Delivery</div>
-            <label class="block max-w-xs">
-              <span class="mb-1.5 block text-xs text-faint">Re-notify while still firing</span>
-              <select v-model="ed.renotify" class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none">
-                <option v-for="[v, l] in RENOTIFY" :key="v" :value="v">{{ l }}</option>
-              </select>
-            </label>
-          </div>
-
-          <!-- summary -->
-          <div class="flex items-start gap-2.5 rounded-xl border border-accent/30 bg-accent/7 px-3.5 py-3 text-[13px] leading-relaxed">
-            <svg class="mt-0.5 h-4 w-4 shrink-0 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 21 9-9M15 4V2M20 9h2M17.8 6.2 19 5"/><path d="M9.5 8.5 3 21l12.5-6.5L22 8 16 2z"/></svg>
-            <span class="text-muted">When <b class="text-fg">{{ summary.t }}</b> <b class="text-fg">{{ summary.cond }}</b>, notify
-              <template v-if="summary.names.length"><b v-for="(n, i) in summary.names" :key="n" class="text-fg">{{ n }}{{ i < summary.names.length - 1 ? ', ' : '' }}</b></template>
-              <b v-else class="text-rose-400">no channel yet</b>.
-            </span>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2.5 border-t border-line bg-surface/60 px-5 py-3.5">
-          <button v-if="editId" @click="modalTest" class="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface2 px-3 py-2 text-xs font-medium text-fg hover:border-accent/50">
-            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>Send test
+        <template #cell-enabled="{ row }">
+          <button @click.stop="toggle(row)" v-tip="row.enabled ? 'Disable' : 'Enable'" class="relative inline-block h-[22px] w-10 shrink-0 rounded-full align-middle transition-colors" :class="row.enabled ? 'bg-accent' : 'bg-line'">
+            <span class="absolute top-0.5 h-[18px] w-[18px] rounded-full transition-all" :class="row.enabled ? 'left-[20px] bg-accentfg' : 'left-0.5 bg-fg'"></span>
           </button>
-          <span v-if="err" class="text-xs text-rose-400">{{ err }}</span>
-          <span class="ml-auto"></span>
-          <button @click="modalOpen = false" class="rounded-lg px-3 py-2 text-sm text-muted hover:text-fg">Cancel</button>
-          <button @click="save" class="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accentfg hover:opacity-90">{{ editId ? 'Save changes' : 'Create rule' }}</button>
-        </div>
-      </div>
+        </template>
+
+        <template #cell-actions="{ row }">
+          <div class="flex items-center justify-end gap-1">
+            <span v-if="testState[row.id] === 'ok'" class="text-xs text-accent">✓</span>
+            <span v-else-if="testState[row.id] === 'fail'" class="text-xs text-rose-500">✗</span>
+            <button @click.stop="testAlert(row)" :disabled="testState[row.id] === 'testing'" class="rounded-lg border border-line bg-surface2 px-2 py-1 text-xs text-fg hover:border-accent/50 disabled:opacity-50" v-tip="`Send test`">Test</button>
+            <button @click.stop="openEdit(row)" class="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-fg" v-tip="`Edit`"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg></button>
+            <button @click.stop="removeAlert(row)" class="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-rose-500" v-tip="`Delete`"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+          </div>
+        </template>
+      </DataTable>
     </div>
   </AppShell>
 </template>

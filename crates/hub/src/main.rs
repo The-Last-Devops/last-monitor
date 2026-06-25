@@ -106,6 +106,10 @@ async fn main() -> Result<()> {
             get(backup::schedule_get).put(backup::schedule_put),
         )
         .route("/api/audit", get(audit::list))
+        .route(
+            "/api/admin/audit/retention",
+            axum::routing::put(audit::set_retention),
+        )
         .route("/api/about", get(api::about))
         // management (session + RBAC)
         .route(
@@ -138,6 +142,10 @@ async fn main() -> Result<()> {
         .route(
             "/api/namespaces/{id}/channels",
             get(api::list_channels).post(api::create_channel),
+        )
+        .route(
+            "/api/namespaces/{id}/channels/test",
+            post(api::test_channel_config),
         )
         .route(
             "/api/namespaces/{id}/alerts",
@@ -173,7 +181,9 @@ async fn main() -> Result<()> {
         .route("/api/channels/{id}/test", post(api::test_channel))
         .route(
             "/api/alerts/{id}",
-            patch(api::patch_alert).delete(api::delete_alert),
+            get(api::get_alert)
+                .patch(api::patch_alert)
+                .delete(api::delete_alert),
         )
         .route("/api/alerts/{id}/test", post(api::test_alert))
         .route("/api/status-pages/{id}", delete(api::delete_status_page))

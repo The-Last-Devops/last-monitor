@@ -150,21 +150,16 @@ onUnmounted(() => clearInterval(timer))
             Active now <span class="rounded-full bg-surface2 px-2 py-0.5 text-[10px]">{{ active.length }}</span>
           </div>
           <RouterLink v-for="a in active" :key="a.id" :to="ruleLink(a.id)"
-            class="flex items-start gap-3.5 rounded-2xl border border-red-500/40 bg-red-500/5 px-4 py-3.5 transition-colors hover:border-red-500/70">
-            <span class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-red-500"></span>
-            <div class="min-w-0 flex-1">
-              <div class="flex flex-wrap items-center gap-2.5 text-sm font-semibold text-fg">
-                {{ a.target_name || '—' }} is DOWN
-                <span class="rounded-md bg-red-500/15 px-1.5 py-0.5 font-mono text-[11px] font-bold text-red-400">{{ since(a.since) }}</span>
-              </div>
-              <div class="mt-1 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-faint">
-                <span class="uppercase">{{ a.target_kind }}</span>
-                <span class="inline-flex items-center gap-1"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/></svg>{{ a.namespace }}</span>
-                <span v-if="a.since">since {{ evTime(a.since) }}</span>
-                <span v-if="a.channels?.length">notified via {{ a.channels.map((c) => c.name).join(', ') }}</span>
-              </div>
-            </div>
-            <svg class="mt-0.5 h-4 w-4 shrink-0 text-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+            class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-red-500/40 bg-red-500/5 px-4 py-2.5 transition-colors hover:border-red-500/70">
+            <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500"></span>
+            <span class="text-sm font-semibold text-fg">{{ a.target_name || '—' }} is DOWN</span>
+            <span class="rounded-md bg-red-500/15 px-1.5 py-0.5 font-mono text-[11px] font-bold text-red-400">{{ since(a.since) }}</span>
+            <span class="text-[11px] uppercase text-faint">{{ a.target_kind }}</span>
+            <span class="inline-flex items-center gap-1 text-xs text-faint"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/></svg>{{ a.namespace }}</span>
+            <span v-if="a.since" class="text-xs text-faint">since {{ evTime(a.since) }}</span>
+            <span v-if="a.channels?.length" class="truncate text-xs text-faint">via {{ a.channels.map((c) => c.name).join(', ') }}</span>
+            <span class="flex-1"></span>
+            <svg class="h-4 w-4 shrink-0 text-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
           </RouterLink>
         </section>
 

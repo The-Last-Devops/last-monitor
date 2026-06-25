@@ -10,12 +10,16 @@ import Login from '../pages/Login.vue'
 import Systems from '../pages/Systems.vue'
 import SystemDetail from '../pages/SystemDetail.vue'
 import Namespaces from '../pages/Namespaces.vue'
+import NamespaceDetail from '../pages/NamespaceDetail.vue'
 import Members from '../pages/Members.vue'
 import Monitors from '../pages/Monitors.vue'
 import MonitorDetail from '../pages/MonitorDetail.vue'
+import MonitorEdit from '../pages/MonitorEdit.vue'
 import Notifications from '../pages/Notifications.vue'
+import ChannelDetail from '../pages/ChannelDetail.vue'
 import Events from '../pages/Events.vue'
 import Alerts from '../pages/Alerts.vue'
+import AlertEdit from '../pages/AlertEdit.vue'
 import DataRetention from '../pages/DataRetention.vue'
 import Backup from '../pages/Backup.vue'
 import Audit from '../pages/Audit.vue'
@@ -28,12 +32,18 @@ const routes = [
   { path: '/attention', name: 'attention', component: Systems },
   { path: '/system/:id', name: 'system', component: SystemDetail },
   { path: '/namespaces', name: 'namespaces', component: Namespaces },
+  { path: '/namespace/:id', name: 'namespace', component: NamespaceDetail },
   { path: '/members', name: 'members', component: Members },
   { path: '/monitors', name: 'monitors', component: Monitors },
+  { path: '/monitor/new', name: 'monitor-new', component: MonitorEdit },
+  { path: '/monitor/:id/edit', name: 'monitor-edit', component: MonitorEdit },
   { path: '/monitor/:id', name: 'monitor', component: MonitorDetail },
   { path: '/notifications', name: 'notifications', component: Notifications },
+  { path: '/channel/:id', name: 'channel', component: ChannelDetail },
   { path: '/events', name: 'events', component: Events },
   { path: '/alerts', name: 'alerts', component: Alerts },
+  { path: '/alerts/new', name: 'alert-new', component: AlertEdit },
+  { path: '/alerts/:id/edit', name: 'alert-edit', component: AlertEdit },
   { path: '/data', name: 'data', component: DataRetention },
   { path: '/backup', name: 'backup', component: Backup },
   { path: '/audit', name: 'audit', component: Audit },

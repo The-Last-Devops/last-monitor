@@ -89,9 +89,10 @@ writes require `editor`+ in the target's namespace.
 | GET | `/api/channels` | every channel + `namespace`, `can_edit` (secrets masked unless you can edit) |
 | GET | `/api/channel-types` | provider manifest (form schema) |
 | POST | `/api/namespaces/{id}/channels` | create in a namespace (editor+) |
+| POST | `/api/namespaces/{id}/channels/test` | test an unsaved `{kind, config}` before creating/saving (editor+) |
 | PATCH/DELETE | `/api/channels/{id}` | edit / delete (editor of the channel's namespace) |
 | POST | `/api/channels/{id}/test` | send a test notification |
-| GET | `/api/channels/{id}/alerts` | rules that use this channel |
+| GET | `/api/channels/{id}/alerts` | rules that use this channel (`target`, `kind`, `firing`) |
 
 ### Namespaces, members, users (admin)
 | Method | Path | Notes |
@@ -100,7 +101,8 @@ writes require `editor`+ in the target's namespace.
 | GET/POST/DELETE | `/api/namespaces/{id}/members` | membership + role |
 | GET/POST | `/api/users` · PATCH/DELETE `/api/users/{id}` | accounts (admin) |
 | GET | `/api/users/{id}/memberships` | a user's per-namespace roles |
-| GET | `/api/audit` | action log (admin) |
+| GET | `/api/audit` | action log (admin); filters `?q=&method=&status=ok\|client\|server&limit=&offset=`, returns `{rows, total, retention_days}` |
+| PUT | `/api/admin/audit/retention` | `{days}` — keep window for the audit log; `null`/0 = forever (admin) |
 
 ### Admin: backup & retention
 | Method | Path | Notes |

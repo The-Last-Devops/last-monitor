@@ -139,7 +139,7 @@ onUnmounted(() => timer && clearInterval(timer))
         <div class="text-sm text-muted"><span class="text-faint">Namespace</span> {{ m.namespace }}</div>
         <div class="text-sm text-muted"><span class="text-faint">Interval</span> {{ m.interval_secs }}s</div>
         <div v-if="m.latency_ms != null" class="text-sm text-muted"><span class="text-faint">Latency</span> {{ m.latency_ms }} ms</div>
-        <div class="min-w-0 flex-1 truncate text-right font-mono text-xs text-muted" :title="m.kind === 'push' ? pushUrl : m.target">
+        <div class="min-w-0 flex-1 truncate text-right font-mono text-xs text-muted" v-tip="m.kind === 'push' ? pushUrl : m.target">
           {{ m.kind === 'push' ? pushUrl : m.target }}
         </div>
       </div>
@@ -184,7 +184,7 @@ onUnmounted(() => timer && clearInterval(timer))
         <div v-if="hb.up.length" class="flex h-7 gap-px overflow-hidden rounded">
           <div v-for="(u, i) in hb.up" :key="i" class="flex-1"
             :class="u == null ? 'bg-line' : u >= 1 ? 'bg-accent' : 'bg-red-500'"
-            :title="u == null ? 'no data' : u >= 1 ? 'up' : 'down'"></div>
+            v-tip="u == null ? 'no data' : u >= 1 ? 'up' : 'down'"></div>
         </div>
         <p v-else class="text-xs text-faint">No heartbeats in this range yet.</p>
       </div>
@@ -209,7 +209,7 @@ onUnmounted(() => timer && clearInterval(timer))
             <span class="tabular-nums text-muted">{{ evTime(it.at) }}</span>
             <span class="text-faint">·</span>
             <span class="tabular-nums text-fg">{{ it.ongoing ? durTxt(Date.now() - it.start) + ' (ongoing)' : durTxt(it.end - it.start) }}</span>
-            <span class="min-w-0 flex-1 truncate text-muted" :title="it.reason">{{ it.reason }}</span>
+            <span class="min-w-0 flex-1 truncate text-muted" v-tip="it.reason">{{ it.reason }}</span>
           </li>
         </ul>
       </div>

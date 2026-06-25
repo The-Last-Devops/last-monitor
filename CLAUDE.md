@@ -154,6 +154,13 @@ docker compose up -d
 - **Clickable cards: the whole card opens the view; inner action buttons use `@click.stop`.**
   Don't make only a sub-region clickable — put `@click` on the card and `.stop` on every
   button/toggle inside it.
+- **No native `title=` tooltips or `<select>` — use the themed primitives.** Both are
+  registered globally in `main.js`. For a hover hint use the `v-tip` directive
+  (`v-tip="'Edit'"` or `v-tip="expr"`, `frontend/src/lib/tooltip.js`) — it's faster and themed,
+  unlike the slow/unstyled browser `title`. For a dropdown use `<UiSelect v-model=… :options=…/>`
+  (`components/UiSelect.vue`); `:options` accepts strings, `[value,label]` pairs, or
+  `{value,label}` objects, plus `block` (full-width) and `placeholder`. Don't pass a `title`
+  attribute to DOM elements (the `title` prop on `<AppShell>` is the page heading, not a tooltip).
 - **Dev loop: stop the running hub before `cargo build`/`cargo run -p hub`** — a running binary
   holds `target/debug/last-hub` and the link fails (looks like an obscure linker error). Free
   `:8080` first. Watch disk too: a full disk surfaces as `ld: No space left on device`.

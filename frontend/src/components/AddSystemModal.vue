@@ -116,9 +116,7 @@ function copy(ev) {
               <input v-model="state.cluster" placeholder="e.g. prod-cluster" class="mt-1.5 w-full rounded-lg border border-line bg-surface2 px-3 py-2 text-fg outline-none focus:border-accent/50" />
             </label>
             <label class="block text-sm"><span class="text-muted">Namespace</span>
-              <select v-model="state.nsId" class="mt-1.5 w-full rounded-lg border border-line bg-surface2 px-3 py-2 text-fg outline-none focus:border-accent/50">
-                <option v-for="n in namespaces" :key="n.id" :value="n.id">{{ n.name }}</option>
-              </select>
+              <UiSelect v-model="state.nsId" block class="mt-1.5" :options="namespaces.map((n) => ({ value: n.id, label: n.name }))" />
             </label>
           </div>
 

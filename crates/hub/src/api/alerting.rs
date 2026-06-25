@@ -119,10 +119,14 @@ pub async fn channel_types(_user: CurrentUser) -> Json<Vec<crate::notify::Provid
 #[derive(Serialize)]
 pub struct ChannelAlertRow {
     pub id: Uuid,
-    /// The rule's target (monitor or host name).
+    /// The rule's target: a monitor/host name, or "All services"/"All hosts" for
+    /// a namespace-wide rule.
     pub target: String,
+    /// "service" | "host" — what the rule watches, so the UI can group its reach.
+    pub kind: String,
     pub namespace: String,
     pub enabled: bool,
+    pub firing: Option<bool>,
 }
 
 /// GET /api/channels/:id/alerts — the alert rules that notify through this channel
@@ -132,13 +136,23 @@ pub async fn channel_alerts(
     _user: CurrentUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<ChannelAlertRow>>, StatusCode> {
-    let rows: Vec<(Uuid, Option<String>, Option<String>, Option<String>, bool)> = sqlx::query_as(
-        "SELECT r.id, m.name, s.name, n.name, r.enabled \
+    let rows: Vec<(
+        Uuid,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        bool,
+        Option<bool>,
+    )> = sqlx::query_as(
+        "SELECT r.id, m.name, s.name, r.scope_kind, COALESCE(nt.name, nsc.name), r.enabled, st.firing \
          FROM alert_channels ac JOIN alerts r ON r.id = ac.alert_id \
          LEFT JOIN monitors m ON m.id = r.monitor_id \
          LEFT JOIN systems s ON s.id = r.system_id \
-         LEFT JOIN namespaces n ON n.id = COALESCE(m.namespace_id, s.namespace_id) \
-         WHERE ac.channel_id = $1 ORDER BY r.enabled DESC, n.name",
+         LEFT JOIN namespaces nt ON nt.id = COALESCE(m.namespace_id, s.namespace_id) \
+         LEFT JOIN namespaces nsc ON nsc.id = r.scope_namespace_id \
+         LEFT JOIN alert_state st ON st.alert_id = r.id \
+         WHERE ac.channel_id = $1 ORDER BY r.enabled DESC, nt.name",
     )
     .bind(id)
     .fetch_all(&state.config)
@@ -146,14 +160,60 @@ pub async fn channel_alerts(
     .map_err(internal)?;
     Ok(Json(
         rows.into_iter()
-            .map(|(id, m, s, ns, enabled)| ChannelAlertRow {
-                id,
-                target: m.or(s).unwrap_or_default(),
-                namespace: ns.unwrap_or_default(),
-                enabled,
+            .map(|(id, m, s, scope, ns, enabled, firing)| {
+                let (target, kind) = match scope.as_deref() {
+                    Some("all_services") => ("All services".to_string(), "service"),
+                    Some("all_hosts") => ("All hosts".to_string(), "host"),
+                    _ if m.is_some() => (m.unwrap(), "service"),
+                    _ => (s.unwrap_or_default(), "host"),
+                };
+                ChannelAlertRow {
+                    id,
+                    target,
+                    kind: kind.to_string(),
+                    namespace: ns.unwrap_or_default(),
+                    enabled,
+                    firing,
+                }
             })
             .collect(),
     ))
+}
+
+#[derive(Deserialize)]
+pub struct TestChannelConfig {
+    pub kind: String,
+    pub config: Value,
+}
+
+/// POST /api/namespaces/:id/channels/test — send a test through an unsaved config,
+/// so a channel can be verified BEFORE it is created or its edits are saved.
+/// Scoped to the namespace (editor+) to avoid an open SSRF relay for any signed-in user.
+pub async fn test_channel_config(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Path(ns): Path<Uuid>,
+    Json(req): Json<TestChannelConfig>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    rbac::require_role(&state, &user, ns, Role::Editor)
+        .await
+        .map_err(|s| (s, "forbidden".into()))?;
+    if !crate::notify::is_valid_kind(&req.kind) {
+        return Err((StatusCode::BAD_REQUEST, "unknown channel kind".into()));
+    }
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    crate::notify::dispatch(
+        &client,
+        &req.kind,
+        &req.config,
+        "✅ Test notification from Last Monitor — this channel works.",
+    )
+    .await
+    .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Serialize)]
@@ -225,6 +285,98 @@ pub async fn system_alerts(
     Ok(Json(
         attached_rules(&state, ns, "system_id", id, "all_hosts").await?,
     ))
+}
+
+#[derive(Serialize)]
+pub struct AlertDetail {
+    pub id: Uuid,
+    pub monitor_id: Option<Uuid>,
+    pub system_id: Option<Uuid>,
+    pub scope_kind: Option<String>,
+    pub scope_namespace_id: Option<Uuid>,
+    pub namespace: Option<String>,
+    pub target_name: String,
+    pub condition: Value,
+    pub renotify_secs: Option<i32>,
+    pub channels: Vec<ChannelRef>,
+}
+
+/// GET /api/alerts/:id — one rule with everything the editor needs to populate.
+pub async fn get_alert(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<AlertDetail>, StatusCode> {
+    #[allow(clippy::type_complexity)]
+    let row: Option<(
+        Option<Uuid>,
+        Option<Uuid>,
+        Option<String>,
+        Option<Uuid>,
+        Uuid,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        sqlx::types::Json<Value>,
+        Option<i32>,
+    )> = sqlx::query_as(
+        "SELECT r.monitor_id, r.system_id, r.scope_kind, r.scope_namespace_id, \
+                COALESCE(m.namespace_id, s.namespace_id, r.scope_namespace_id) AS ns_id, \
+                n.name AS namespace, m.name AS monitor_name, s.name AS system_name, \
+                r.condition, r.renotify_secs \
+         FROM alerts r \
+         LEFT JOIN monitors m ON m.id = r.monitor_id \
+         LEFT JOIN systems s ON s.id = r.system_id \
+         LEFT JOIN namespaces n ON n.id = COALESCE(m.namespace_id, s.namespace_id, r.scope_namespace_id) \
+         WHERE r.id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.config)
+    .await
+    .map_err(internal)?;
+    let (
+        monitor_id,
+        system_id,
+        scope_kind,
+        scope_ns,
+        ns_id,
+        namespace,
+        mname,
+        sname,
+        cond,
+        renotify,
+    ) = row.ok_or(StatusCode::NOT_FOUND)?;
+    rbac::require_role(&state, &user, ns_id, Role::Viewer).await?;
+
+    let chans: Vec<(Uuid, String, String)> = sqlx::query_as(
+        "SELECT c.id, c.name, c.kind FROM alert_channels ac \
+         JOIN channels c ON c.id = ac.channel_id WHERE ac.alert_id = $1 ORDER BY c.name",
+    )
+    .bind(id)
+    .fetch_all(&state.config)
+    .await
+    .map_err(internal)?;
+
+    let target_name = match scope_kind.as_deref() {
+        Some("all_services") => "All services".into(),
+        Some("all_hosts") => "All hosts".into(),
+        _ => mname.or(sname).unwrap_or_default(),
+    };
+    Ok(Json(AlertDetail {
+        id,
+        monitor_id,
+        system_id,
+        scope_kind,
+        scope_namespace_id: scope_ns,
+        namespace,
+        target_name,
+        condition: cond.0,
+        renotify_secs: renotify,
+        channels: chans
+            .into_iter()
+            .map(|(id, name, kind)| ChannelRef { id, name, kind })
+            .collect(),
+    }))
 }
 
 #[derive(Deserialize)]

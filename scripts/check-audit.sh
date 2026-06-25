@@ -30,7 +30,7 @@ say "deleted channel"; echo "$CH"
 say "audit shows object name"
 curl -s -b "$JAR" "$BASE/api/audit" | py "
 import sys,json
-rows=json.load(sys.stdin)
+rows=json.load(sys.stdin)['rows']
 hit=[r for r in rows if r['method']=='DELETE' and '$CH' in r['path']]
 ok = hit and hit[0].get('object_name')=='$NAME'
 print('OK ('+hit[0].get('object_name','?')+')' if ok else 'FAIL: '+json.dumps(hit[:1]))

@@ -8,22 +8,30 @@
   --surface: 16 21 31;   /* #10151F */
   --surface2: 20 26 38;  /* #141A26 */
   --line: 30 38 50;      /* #1E2632 */
+  --line-strong: 40 50 66; /* #283242 — header underline / table outline */
+  --hover: 22 29 43;     /* #161D2B — row hover */
+  --headbg: 14 19 28;    /* #0E131C — table header strip */
   --fg: 226 232 240;     /* slate-200 */
-  --muted: 148 163 184;  /* slate-400 — readable secondary text on dark (≥4.5:1) */
-  --faint: 100 116 139;  /* slate-500 — was slate-600, too low-contrast on dark */
+  --muted: 169 182 200;  /* slightly brighter than slate-400 for table density */
+  --faint: 124 138 156;  /* readable tertiary on dark */
   --accent: 52 225 196;  /* #34E1C4 teal */
   --accentfg: 6 35 31;
+  --ok: 52 211 153; --warn: 251 191 36; --down: 248 113 113; /* state text (dark) */
 }
 .light {
-  --bg: 241 245 249;     /* slate-100 */
+  --bg: 246 247 249;     /* #F6F7F9 — clean cool gray page */
   --surface: 255 255 255;
-  --surface2: 238 242 247;
-  --line: 203 213 225;   /* slate-300 — a touch stronger so cards/inputs read */
-  --fg: 15 23 42;        /* slate-900 */
-  --muted: 71 85 105;    /* slate-600 — darker for readable secondary text */
-  --faint: 100 116 139;  /* slate-500 — was too light (slate-400) on white */
+  --surface2: 241 243 246;
+  --line: 228 231 236;   /* #E4E7EC — soft row separators */
+  --line-strong: 209 214 221; /* #D1D6DD — header underline / outline */
+  --hover: 243 246 248;  /* #F3F6F8 — row hover */
+  --headbg: 250 251 252; /* #FAFBFC — table header strip */
+  --fg: 14 23 38;        /* #0E1726 — near-black, high contrast */
+  --muted: 70 86 107;    /* #46566B — strong secondary text */
+  --faint: 100 115 134;  /* #647386 — tertiary/labels */
   --accent: 13 148 136;  /* teal-600 */
   --accentfg: 255 255 255;
+  --ok: 21 163 74; --warn: 194 137 11; --down: 220 38 38; /* state text (light, darker for contrast) */
 }
 
 @layer base {
@@ -38,3 +46,41 @@
 .lm-row:hover { background: rgb(var(--fg) / 0.05); }
 .light .lm-row:hover { background: rgb(var(--accent) / 0.10); }
 .lm-row.sel { background: rgb(var(--accent) / 0.14); box-shadow: inset 3px 0 0 rgb(var(--accent)); }
+
+/* Tooltip (v-tip directive). One body-level element; themed, fast, with a flipping
+   arrow. Bigger/clearer than the native title box. */
+.lm-tip {
+  position: fixed; z-index: 90; pointer-events: none;
+  background: rgb(12 17 27); color: rgb(var(--fg));
+  border: 1px solid rgb(var(--accent) / 0.22); border-radius: 10px;
+  padding: 8px 13px; font-size: 13.5px; font-weight: 500; line-height: 1.35;
+  max-width: 320px; box-shadow: 0 12px 30px -8px rgb(0 0 0 / 0.75);
+  opacity: 0; transform: translateY(4px);
+  transition: opacity 0.1s ease, transform 0.1s ease; white-space: nowrap;
+}
+.light .lm-tip { background: rgb(var(--fg)); color: rgb(var(--surface)); border-color: rgb(var(--fg)); }
+.lm-tip.show { opacity: 1; transform: translateY(0); }
+.lm-tip::after {
+  content: ""; position: absolute; left: var(--ax, 50%); margin-left: -6px;
+  width: 0; height: 0; border: 6px solid transparent;
+}
+.lm-tip:not([data-below])::after { top: 100%; border-top-color: rgb(var(--accent) / 0.22); }
+.lm-tip[data-below]::after { bottom: 100%; border-bottom-color: rgb(var(--accent) / 0.22); }
+.light .lm-tip:not([data-below])::after { border-top-color: rgb(var(--fg)); }
+.light .lm-tip[data-below]::after { border-bottom-color: rgb(var(--fg)); }
+@media (prefers-reduced-motion: reduce) { .lm-tip { transition: none; } }
+
+/* Status pill (StatePill.vue). State color flips with the theme via --ok/--warn/--down. */
+.lm-pill { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  border-radius: 999px; border: 1px solid transparent; padding: 2px 10px; font-size: 12px; font-weight: 600; }
+.lm-pill .d { width: 7px; height: 7px; border-radius: 50%; }
+.lm-pill-ok   { color: rgb(var(--ok));   background: rgb(var(--ok) / 0.12);   border-color: rgb(var(--ok) / 0.30); }
+.lm-pill-ok   .d { background: rgb(var(--ok)); }
+.lm-pill-warn { color: rgb(var(--warn)); background: rgb(var(--warn) / 0.13); border-color: rgb(var(--warn) / 0.30); }
+.lm-pill-warn .d { background: rgb(var(--warn)); }
+.lm-pill-down { color: rgb(var(--down)); background: rgb(var(--down) / 0.12); border-color: rgb(var(--down) / 0.30); }
+.lm-pill-down .d { background: rgb(var(--down)); }
+.lm-pill-info { color: rgb(var(--accent)); background: rgb(var(--accent) / 0.12); border-color: rgb(var(--accent) / 0.30); }
+.lm-pill-info .d { background: rgb(var(--accent)); }
+.lm-pill-muted { color: rgb(var(--faint)); background: rgb(var(--surface2)); border-color: rgb(var(--line)); }
+.lm-pill-muted .d { background: rgb(var(--faint)); }

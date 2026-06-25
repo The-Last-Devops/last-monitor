@@ -9,6 +9,33 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-06-26
+
+### Added
+- **Namespace-wide alert rules.** One rule can watch **all services** or **all hosts** in a
+  namespace (new hosts/services are covered automatically) — no more editing a rule per target.
+- **Cross-linking everywhere.** A service or host detail page lists the **alert rules** covering
+  it; a notify channel's page shows the **rules that use it** and the **services/hosts it reaches**.
+- **Test a channel before saving it** — send a test from the unsaved config while creating or
+  editing, instead of having to save first.
+- **Audit log filters, pagination, and retention.** Filter by user/endpoint/object, HTTP method,
+  and result (success / client / server); page through history; and set how long the log is kept
+  (admin), with old rows pruned automatically.
+
+### Changed
+- **Rancher-style clarity pass.** Higher-contrast light theme, and the list pages
+  (**Services, Alert rules, Notify channels, Members**) are now sortable, filterable tables with
+  status pills and bulk actions (select rows → enable/disable/delete). Bulk buttons stay visible
+  (disabled until you select) so the actions are discoverable.
+- **Namespaces redesigned** into a card grid; each namespace has a detail page to manage its
+  **members**, see its **attached alert rules**, and tuck the "Needs attention" thresholds away.
+- **Alert rules, channels, and services now edit on a full page** (no more modal); a service's
+  create/edit form moved out of the list into its own page.
+- **Themed tooltips and dropdowns** replace the slow native `title` hover and the unstyled
+  `<select>`, matching the app in both themes.
+- The page **breadcrumb moved into the header bar** (saves a row), and the sidebar now highlights
+  the correct item when you're on a detail/editor page.
+
 ## [1.6.0] — 2026-06-25
 
 ### Added
@@ -196,7 +223,8 @@ Each released version's section is used verbatim as the GitHub Release notes
   agent, Uptime-Kuma-style service checks, and alerting, with multi-user namespace-scoped
   RBAC and public status pages.
 
-[Unreleased]: https://github.com/The-Last-Devops/last-monitor/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/The-Last-Devops/last-monitor/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/The-Last-Devops/last-monitor/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.5...v1.6.0
 [1.5.5]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.4...v1.5.5
 [1.5.4]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.3...v1.5.4
