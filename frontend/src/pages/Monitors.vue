@@ -220,9 +220,9 @@ onUnmounted(() => clearInterval(timer))
 <template>
   <AppShell :title="downOnly ? 'Services — Down' : 'Services'">
     <PageLoader v-if="loading" />
-    <div v-else class="flex gap-4">
-      <!-- LEFT: monitor list (Uptime-Kuma style) -->
-      <aside class="flex w-[330px] shrink-0 flex-col gap-3">
+    <div v-else class="flex flex-col gap-4 md:flex-row">
+      <!-- LEFT: monitor list (Uptime-Kuma style) — full width on mobile, fixed column on desktop -->
+      <aside class="flex w-full shrink-0 flex-col gap-3 md:w-[330px]">
         <button @click="formOpen ? (formOpen = false) : openCreate()" class="flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-accentfg hover:opacity-90">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> Add service
         </button>
@@ -238,6 +238,7 @@ onUnmounted(() => clearInterval(timer))
                   {{ !m.enabled ? 'OFF' : upPct(m) == null ? 'N/A' : upPct(m) + '%' }}
                 </span>
                 <span class="min-w-0 flex-1 truncate text-sm font-medium text-fg group-hover:text-accent" :title="m.name">{{ m.name }}</span>
+                <span class="shrink-0 text-[10px] text-faint" :title="`Namespace: ${m.namespace}`">{{ m.namespace }}</span>
               </div>
               <div class="mt-1.5 flex items-end gap-px" :title="`last ${m.recent ? m.recent.length : 0} checks`">
                 <span v-for="(u, i) in (m.recent || [])" :key="i" class="h-3.5 min-w-0 flex-1 rounded-sm" :class="u ? 'bg-accent' : 'bg-red-500'"></span>
@@ -331,7 +332,7 @@ onUnmounted(() => clearInterval(timer))
       <!-- overview: quick stats + recent events (shown when not adding/editing) -->
       <template v-else>
         <!-- quick stats -->
-        <div v-if="!downOnly" class="grid grid-cols-4 gap-3">
+        <div v-if="!downOnly" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div class="rounded-xl border border-line bg-surface px-4 py-3">
             <div class="text-[11px] uppercase tracking-wider text-faint">Up</div>
             <div class="text-2xl font-semibold tabular-nums text-accent">{{ stats.up }}</div>

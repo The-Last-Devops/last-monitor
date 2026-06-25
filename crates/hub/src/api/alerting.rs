@@ -116,6 +116,46 @@ pub async fn channel_types(_user: CurrentUser) -> Json<Vec<crate::notify::Provid
     Json(crate::notify::manifest())
 }
 
+#[derive(Serialize)]
+pub struct ChannelAlertRow {
+    pub id: Uuid,
+    /// The rule's target (monitor or host name).
+    pub target: String,
+    pub namespace: String,
+    pub enabled: bool,
+}
+
+/// GET /api/channels/:id/alerts — the alert rules that notify through this channel
+/// (across all namespaces, since channels are shared). Read-only, any signed-in user.
+pub async fn channel_alerts(
+    State(state): State<AppState>,
+    _user: CurrentUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<ChannelAlertRow>>, StatusCode> {
+    let rows: Vec<(Uuid, Option<String>, Option<String>, Option<String>, bool)> = sqlx::query_as(
+        "SELECT r.id, m.name, s.name, n.name, r.enabled \
+         FROM alert_channels ac JOIN alerts r ON r.id = ac.alert_id \
+         LEFT JOIN monitors m ON m.id = r.monitor_id \
+         LEFT JOIN systems s ON s.id = r.system_id \
+         LEFT JOIN namespaces n ON n.id = COALESCE(m.namespace_id, s.namespace_id) \
+         WHERE ac.channel_id = $1 ORDER BY r.enabled DESC, n.name",
+    )
+    .bind(id)
+    .fetch_all(&state.config)
+    .await
+    .map_err(internal)?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|(id, m, s, ns, enabled)| ChannelAlertRow {
+                id,
+                target: m.or(s).unwrap_or_default(),
+                namespace: ns.unwrap_or_default(),
+                enabled,
+            })
+            .collect(),
+    ))
+}
+
 #[derive(Deserialize)]
 pub struct CreateChannel {
     pub name: String,

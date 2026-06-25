@@ -98,10 +98,24 @@ async function load() {
       // Rules are merged across the namespaces in scope; channels are a shared
       // global resource (any rule may use any channel), fetched once.
       const [aLists, allChannels] = await Promise.all([
-        Promise.all(nss.map((n) => api.get(`/api/namespaces/${n.id}/alerts`).catch(() => []))),
+        Promise.all(nss.map((n) =>
+          api.get(`/api/namespaces/${n.id}/alerts`)
+            .then((rows) => rows.map((r) => ({ ...r, namespace: n.name })))
+            .catch(() => []),
+        )),
         api.get('/api/channels').catch(() => []),
       ])
-      alerts.value = aLists.flat()
+      // Stable order (namespace → target → id), independent of enabled/firing, so
+      // toggling a rule never reorders the list. Dedupe defensively by id.
+      const seen = new Set()
+      alerts.value = aLists
+        .flat()
+        .filter((a) => !seen.has(a.id) && seen.add(a.id))
+        .sort((a, b) =>
+          (a.namespace || '').localeCompare(b.namespace || '') ||
+          String(a.target_name).localeCompare(String(b.target_name)) ||
+          String(a.id).localeCompare(String(b.id)),
+        )
       channels.value = allChannels
     })()
     await (first ? minLoad(work) : work)
@@ -248,7 +262,8 @@ onUnmounted(() => clearInterval(timer))
       </div>
 
       <PageLoader v-if="!loaded" />
-      <p v-else-if="!alerts.length" class="rounded-2xl border border-line bg-surface/50 p-10 text-center text-sm text-muted">No alert rules yet. Click <b class="text-fg">New rule</b> to wire one up.</p>
+      <template v-else>
+      <p v-if="!alerts.length" class="rounded-2xl border border-line bg-surface/50 p-10 text-center text-sm text-muted">No alert rules yet. Click <b class="text-fg">New rule</b> to wire one up.</p>
 
       <section v-for="g in sections" :key="g.key" class="space-y-2.5">
         <div class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-faint">
@@ -264,6 +279,9 @@ onUnmounted(() => clearInterval(timer))
             <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="STATE[stateOf(a)].cls"><span class="h-1.5 w-1.5 rounded-full" :class="STATE[stateOf(a)].dot"></span>{{ STATE[stateOf(a)].label }}</span>
             <span v-if="a.since && stateOf(a) !== 'disabled'" class="text-xs text-faint">{{ stateOf(a) === 'firing' ? 'firing' : 'ok' }} for {{ ago(a.since) }}</span>
             <span class="ml-auto"></span>
+            <span class="inline-flex items-center gap-1 rounded-md bg-surface2 px-2 py-0.5 text-[11px] text-faint" title="Namespace">
+              <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/></svg>{{ a.namespace }}
+            </span>
             <button @click.stop="toggle(a)" :title="a.enabled ? 'Disable' : 'Enable'" class="relative h-[22px] w-10 shrink-0 rounded-full transition-colors" :class="a.enabled ? 'bg-accent' : 'bg-line'">
               <span class="absolute top-0.5 h-[18px] w-[18px] rounded-full transition-all" :class="a.enabled ? 'left-[20px] bg-accentfg' : 'left-0.5 bg-fg'"></span>
             </button>
@@ -292,6 +310,7 @@ onUnmounted(() => clearInterval(timer))
           </div>
         </div>
       </section>
+      </template>
     </div>
 
     <!-- editor modal -->

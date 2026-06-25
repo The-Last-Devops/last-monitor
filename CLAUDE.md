@@ -114,3 +114,39 @@ docker compose up -d
     can't spin forever. Polling reloads must NOT re-flash the loader (gate the loader on the
     first-load flag, not on every fetch). Show the empty-state only *after* loading completes
     (`v-if="loading" … v-else-if="!items.length"`).
+  - **Gate the whole content area behind the loaded flag**, not just an empty-state. If a page
+    sets its data *before* `minLoad`'s minimum time elapses, an ungated list renders *under* the
+    spinner and then jumps when the loader hides. Wrap the list/empty-state in `<template v-else>`
+    of the `v-if="!loaded"` loader so they never show together.
+- **Namespace-scoped data: aggregate across the selection AND show the namespace.** The sidebar
+  selector is a multi-select in the URL (`?ns=a,b`; empty = all). A page listing namespaced data
+  (alerts, events, channels-in-use, services, hosts) must show the union of **all** selected
+  namespaces — never collapse to one. The bug pattern to avoid: `selectedNsName()` returning a
+  name only when exactly one is picked and falling back to `namespaces[0]`; instead derive an
+  `activeNs` set and fetch/merge per namespace (or filter a global list client-side, like
+  Systems). Every row of merged data must be **labelled with its namespace** so it's clear which
+  one it belongs to. The create/edit flow derives the target namespace from the chosen object,
+  not from a single global selection.
+- **List order must be stable across reloads — a mutation must never reorder rows.** Toggling a
+  rule's `enabled` once looked like it toggled a *different* rule because the backend sorted
+  `enabled DESC`, so the row jumped on reload. Sort lists client-side by a key independent of the
+  mutated field (e.g. namespace → name → id), and dedupe by id defensively after a multi-source merge.
+- **Secrets are shown only to those who can edit the owning resource.** Channel configs (tokens,
+  passwords, webhook URLs), push-monitor tokens, and user-supplied request headers are credentials.
+  List/detail endpoints must redact them (`notify::redact_secrets`, strip `push_token`, mask
+  `Authorization`/`Cookie`/`x-api-key`) unless the caller is editor+ of the resource's namespace;
+  never log them. When adding a field that can hold a secret, redact it in every read path.
+- **Long-running binaries shut down gracefully.** The hub serves with
+  `axum::serve(...).with_graceful_shutdown(shutdown_signal())` and the agent's loop `select!`s the
+  interval against the same signal — both drain/stop on SIGTERM **and** Ctrl-C. Keep new
+  background loops cancellable the same way so Docker/k8s stop them cleanly.
+- **Mobile/responsive is not optional.** Use `h-[100dvh]` (not `h-screen`) for full-height
+  panels so mobile browser chrome doesn't hide the bottom (it hid the namespace selector + logout).
+  Multi-pane layouts stack on small screens (`flex-col md:flex-row`, `w-full md:w-[...]`); stat
+  grids get breakpoints (`grid-cols-2 sm:grid-cols-4`); wide tables get an `overflow-x-auto` wrapper.
+- **Clickable cards: the whole card opens the view; inner action buttons use `@click.stop`.**
+  Don't make only a sub-region clickable — put `@click` on the card and `.stop` on every
+  button/toggle inside it.
+- **Dev loop: stop the running hub before `cargo build`/`cargo run -p hub`** — a running binary
+  holds `target/debug/last-hub` and the link fails (looks like an obscure linker error). Free
+  `:8080` first. Watch disk too: a full disk surfaces as `ld: No space left on device`.

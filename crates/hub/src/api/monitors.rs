@@ -64,6 +64,11 @@ pub async fn create_monitor(
     .await
     .map_err(internal)?;
 
+    // Probe it once right away so its status (and any alert on it) doesn't wait
+    // for the next scheduler cycle — the alert engine then notifies if it's down.
+    let st = state.clone();
+    tokio::spawn(async move { crate::probe::check_once(&st, id).await });
+
     Ok(Json(id))
 }
 

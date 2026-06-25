@@ -11,7 +11,7 @@ path = "src/main.rs"
 shared.workspace = true
 # Minimal tokio (not the workspace "full") — the agent only needs a single-thread
 # runtime, timers and a subprocess for nvidia-smi. Keeps threads + size down.
-tokio = { version = "1", default-features = false, features = ["rt", "macros", "time", "process", "net", "io-util"] }
+tokio = { version = "1", default-features = false, features = ["rt", "macros", "time", "process", "net", "io-util", "signal"] }
 # Own reqwest (not workspace) with webpki-roots: the CA bundle is compiled into
 # the binary, so the static musl build needs no cert files → runs on `scratch`.
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-webpki-roots"] }

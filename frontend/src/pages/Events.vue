@@ -31,8 +31,16 @@ async function load() {
   try {
     const work = (async () => {
       const [aLists, eLists] = await Promise.all([
-        Promise.all(nss.map((n) => api.get(`/api/namespaces/${n.id}/alerts`).catch(() => []))),
-        Promise.all(nss.map((n) => api.get(`/api/namespaces/${n.id}/alert-events`).catch(() => []))),
+        Promise.all(nss.map((n) =>
+          api.get(`/api/namespaces/${n.id}/alerts`)
+            .then((rows) => rows.map((r) => ({ ...r, namespace: n.name })))
+            .catch(() => []),
+        )),
+        Promise.all(nss.map((n) =>
+          api.get(`/api/namespaces/${n.id}/alert-events`)
+            .then((rows) => rows.map((r) => ({ ...r, namespace: n.name })))
+            .catch(() => []),
+        )),
       ])
       alerts.value = aLists.flat()
       // one global feed, newest first across all selected namespaces
@@ -151,6 +159,7 @@ onUnmounted(() => clearInterval(timer))
               </div>
               <div class="mt-1 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-faint">
                 <span class="uppercase">{{ a.target_kind }}</span>
+                <span class="inline-flex items-center gap-1"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/></svg>{{ a.namespace }}</span>
                 <span v-if="a.since">since {{ evTime(a.since) }}</span>
                 <span v-if="a.channels?.length">notified via {{ a.channels.map((c) => c.name).join(', ') }}</span>
               </div>
@@ -175,7 +184,10 @@ onUnmounted(() => clearInterval(timer))
                   {{ e.target_name || '—' }} {{ e.firing ? 'went DOWN' : 'recovered' }}
                   <span v-if="e.durMs != null" class="rounded-md bg-accent/12 px-1.5 py-0.5 font-mono text-[11px] text-accent">was down {{ dur(e.durMs) }}</span>
                 </div>
-                <div class="mt-0.5 truncate text-xs text-faint">{{ e.message || (e.target_kind === 'monitor' ? 'Service check' : 'Host condition') }}</div>
+                <div class="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-faint">
+                  <span class="inline-flex items-center gap-1"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/></svg>{{ e.namespace }}</span>
+                  <span class="truncate">{{ e.message || (e.target_kind === 'monitor' ? 'Service check' : 'Host condition') }}</span>
+                </div>
               </div>
               <span class="shrink-0 pl-2 text-xs tabular-nums text-faint">{{ evTime(e.at) }}</span>
             </RouterLink>

@@ -9,6 +9,28 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ## [Unreleased]
 
+## [1.5.5] — 2026-06-25
+
+### Added
+- A newly created service is **probed immediately**, so its status (and any alert on
+  it) shows at once instead of waiting for the next scheduler cycle.
+- Viewing a notify channel lists the **alert rules that use it** (with their namespace
+  and enabled state) — click one to jump to the rule.
+- Namespace-scoped data now **shows its namespace**: alert rules, the events feed, and
+  the services list are each labelled with the namespace they belong to.
+
+### Changed
+- **Graceful shutdown** — the hub drains in-flight requests and the agent stops cleanly
+  on SIGTERM / Ctrl-C (Docker/k8s can stop them within the grace period).
+- Click anywhere on a rule or channel card to open it (action buttons excepted).
+
+### Fixed
+- Toggling an alert rule no longer looked like it toggled a *different* rule — the list
+  now keeps a stable order instead of re-sorting on every change.
+- The Rules list no longer renders under the loader and jumps up when loading finishes.
+- **Mobile**: the Services two-pane layout no longer overflows the screen (it stacks),
+  and the sidebar's namespace selector + logout are no longer hidden by the browser bar.
+
 ## [1.5.4] — 2026-06-25
 
 ### Security
@@ -162,7 +184,8 @@ Each released version's section is used verbatim as the GitHub Release notes
   agent, Uptime-Kuma-style service checks, and alerting, with multi-user namespace-scoped
   RBAC and public status pages.
 
-[Unreleased]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.4...HEAD
+[Unreleased]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.5...HEAD
+[1.5.5]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.4...v1.5.5
 [1.5.4]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.1...v1.5.2

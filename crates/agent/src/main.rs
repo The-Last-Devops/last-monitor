@@ -485,6 +485,7 @@ async fn main() -> Result<()> {
     let mut prev_t = std::time::Instant::now();
     tracing::info!(hub = %cfg.hub_url, ?interval, "agent started");
 
+    let mut shutdown = Box::pin(shutdown_signal());
     loop {
         let mut report = collect(&mut sys, &mut nets, &mut components, &cfg.disk_path);
         report.kind = cfg.kind.clone();
@@ -544,6 +545,37 @@ async fn main() -> Result<()> {
             Ok(resp) => tracing::warn!(status = %resp.status(), "hub rejected report"),
             Err(e) => tracing::warn!(error = %e, "failed to reach hub"),
         }
-        tokio::time::sleep(interval).await;
+        // Wait out the interval, but wake immediately on a stop signal so the
+        // agent exits cleanly (no half-cycle left hanging) instead of being killed.
+        tokio::select! {
+            _ = tokio::time::sleep(interval) => {}
+            _ = &mut shutdown => {
+                tracing::info!("shutdown signal received — agent stopping");
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Resolves on the first Ctrl-C or SIGTERM.
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+    #[cfg(unix)]
+    let term = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut s) => {
+                s.recv().await;
+            }
+            Err(_) => std::future::pending::<()>().await,
+        }
+    };
+    #[cfg(not(unix))]
+    let term = std::future::pending::<()>();
+    tokio::select! {
+        _ = ctrl_c => {}
+        _ = term => {}
     }
 }

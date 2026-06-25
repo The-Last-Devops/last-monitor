@@ -189,6 +189,47 @@ pub fn spawn(state: AppState) {
     });
 }
 
+/// Probe a monitor once, immediately — called right after a monitor is created so
+/// its status (and any alert on it) doesn't wait for the next scheduler cycle.
+/// Records the raw result (no retry grace) so a service that's already down shows
+/// down at once. Push monitors have nothing to probe and are skipped.
+pub async fn check_once(state: &AppState, monitor_id: Uuid) {
+    let row: Option<(String, String, i32, Json<Value>)> = sqlx::query_as(
+        "SELECT kind::text, target, interval_secs, config FROM monitors \
+         WHERE id = $1 AND enabled = true",
+    )
+    .bind(monitor_id)
+    .fetch_optional(&state.config)
+    .await
+    .unwrap_or(None);
+    let Some((kind, target, interval_secs, config)) = row else { return };
+    if kind == "push" {
+        return;
+    }
+    let m = Monitor {
+        id: monitor_id,
+        kind,
+        target,
+        interval: Duration::from_secs(interval_secs.max(1) as u64),
+        config: config.0,
+    };
+    let mut beat = probe(&m).await;
+    let raw_up = beat.up;
+    let debug = beat.debug.take();
+    if cfg_bool(&m.config, "upside_down") {
+        beat.up = !beat.up;
+        if !beat.up {
+            beat.message = Some("up (inverted by upside-down)".into());
+        }
+    }
+    if let Err(e) = write_beat(&state.data, m.id, &beat).await {
+        tracing::error!(error = %e, monitor = %m.id, "check_once write heartbeat");
+    }
+    if let Some(detail) = debug {
+        let _ = write_debug(&state.config, m.id, if raw_up { "ok" } else { "err" }, &detail).await;
+    }
+}
+
 async fn load_monitors(state: &AppState) -> anyhow::Result<Vec<Monitor>> {
     let rows: Vec<(Uuid, String, String, i32, Json<Value>)> = sqlx::query_as(
         "SELECT id, kind::text, target, interval_secs, config \

@@ -128,6 +128,7 @@ async fn main() -> Result<()> {
         .route("/api/namespaces/{id}/monitors", post(api::create_monitor))
         .route("/api/channel-types", get(api::channel_types))
         .route("/api/channels", get(api::list_all_channels))
+        .route("/api/channels/{id}/alerts", get(api::channel_alerts))
         .route(
             "/api/namespaces/{id}/channels",
             get(api::list_channels).post(api::create_channel),
@@ -199,6 +200,34 @@ async fn main() -> Result<()> {
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(%addr, "hub listening");
-    axum::serve(listener, app).await?;
+    // Drain in-flight requests on SIGTERM/Ctrl-C instead of dropping them — lets
+    // orchestrators (Docker/k8s) stop the hub cleanly within their grace period.
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+    tracing::info!("hub stopped");
     Ok(())
+}
+
+/// Resolves on the first Ctrl-C or SIGTERM, so callers can shut down gracefully.
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+    #[cfg(unix)]
+    let term = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut s) => {
+                s.recv().await;
+            }
+            Err(_) => std::future::pending::<()>().await,
+        }
+    };
+    #[cfg(not(unix))]
+    let term = std::future::pending::<()>();
+    tokio::select! {
+        _ = ctrl_c => {}
+        _ = term => {}
+    }
+    tracing::info!("shutdown signal received — draining");
 }

@@ -57,6 +57,7 @@ const revealed = ref({}) // field key -> bool
 const err = ref('')
 const modalTest = ref('') // '' | 'run' | 'ok' | 'fail'
 const readOnly = ref(false) // viewing a channel you can't edit (other namespace)
+const usedBy = ref([]) // alert rules that notify through the open channel
 
 const filtered = computed(() => {
   const q = search.value.toLowerCase().trim()
@@ -75,7 +76,7 @@ const advFields = computed(() => cur.value?.fields.filter((f) => f.advanced) || 
 function openNew() {
   editId.value = null; cur.value = null; step.value = 'pick'; readOnly.value = false
   search.value = ''; form.value = { name: '', config: {}, nsId: namespaces.value[0]?.id || '' }
-  err.value = ''; modalTest.value = ''; modalOpen.value = true
+  usedBy.value = []; err.value = ''; modalTest.value = ''; modalOpen.value = true
 }
 function openEdit(c) {
   const p = byKind(c.kind)
@@ -83,6 +84,8 @@ function openEdit(c) {
   editId.value = c.id; cur.value = p; step.value = 'form'; readOnly.value = false
   form.value = { name: c.name, config: { ...(c.config || {}) }, nsId: c.namespace_id }
   showAdv.value = false; revealed.value = {}; err.value = ''; modalTest.value = ''; modalOpen.value = true
+  usedBy.value = []
+  api.get(`/api/channels/${c.id}/alerts`).then((r) => { usedBy.value = r }).catch(() => {})
 }
 // Click a card to view it; opens the editor read-only when you can't edit it.
 function openView(c) {
@@ -177,9 +180,9 @@ onMounted(async () => {
         </div>
       </div>
       <div v-else class="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))]">
-        <div v-for="c in channels" :key="c.id" class="rounded-xl border border-line bg-surface p-3.5 transition-colors hover:border-accent/40">
-          <!-- click anywhere on the card to view; actions below require edit rights -->
-          <button type="button" @click="openView(c)" class="flex w-full items-center gap-3 text-left">
+        <div v-for="c in channels" :key="c.id" @click="openView(c)" class="cursor-pointer rounded-xl border border-line bg-surface p-3.5 transition-colors hover:border-accent/40">
+          <!-- whole card opens the view; the action buttons stop propagation -->
+          <div class="flex w-full items-center gap-3">
             <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
               :style="{ background: byKind(c.kind)?.color || 'rgb(var(--surface2))', color: byKind(c.kind)?.fg || 'rgb(var(--fg))' }"
               v-html="iconSvg(byKind(c.kind)?.icon || 'chat', 22)"></span>
@@ -189,17 +192,17 @@ onMounted(async () => {
                 <span class="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 align-middle"></span>{{ byKind(c.kind)?.name || c.kind }} <span class="text-faint/70">· {{ c.namespace }}</span>
               </span>
             </span>
-          </button>
+          </div>
           <div class="mt-3 flex items-center gap-2 border-t border-line/70 pt-3">
             <span v-if="testState[c.id] === 'ok'" class="mr-auto text-xs text-accent">✓ sent</span>
             <span v-else-if="testState[c.id] === 'fail'" class="mr-auto text-xs text-rose-400">✗ failed</span>
             <span v-else class="mr-auto text-[11px] text-faint">{{ c.can_edit ? '' : 'view only' }}</span>
             <template v-if="c.can_edit">
-              <button @click="testChannel(c)" :disabled="testState[c.id] === 'testing'" class="rounded-lg border border-line bg-surface2 px-2.5 py-1 text-xs text-fg hover:border-accent/50 disabled:opacity-50">{{ testState[c.id] === 'testing' ? 'Testing…' : 'Test' }}</button>
-              <button @click="openEdit(c)" class="rounded-lg p-1.5 text-muted hover:bg-surface2 hover:text-fg" title="Edit">
+              <button @click.stop="testChannel(c)" :disabled="testState[c.id] === 'testing'" class="rounded-lg border border-line bg-surface2 px-2.5 py-1 text-xs text-fg hover:border-accent/50 disabled:opacity-50">{{ testState[c.id] === 'testing' ? 'Testing…' : 'Test' }}</button>
+              <button @click.stop="openEdit(c)" class="rounded-lg p-1.5 text-muted hover:bg-surface2 hover:text-fg" title="Edit">
                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
               </button>
-              <button @click="removeChannel(c)" class="rounded-lg p-1.5 text-muted hover:bg-surface2 hover:text-rose-400" title="Delete">
+              <button @click.stop="removeChannel(c)" class="rounded-lg p-1.5 text-muted hover:bg-surface2 hover:text-rose-400" title="Delete">
                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
               </button>
             </template>
@@ -322,6 +325,21 @@ onMounted(async () => {
               </div>
             </div>
           </fieldset>
+
+          <!-- which alert rules notify through this channel -->
+          <div v-if="editId" class="border-t border-line px-5 py-4">
+            <div class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-faint">Used by {{ usedBy.length }} alert rule{{ usedBy.length === 1 ? '' : 's' }}</div>
+            <p v-if="!usedBy.length" class="text-xs text-faint">No alert rules notify through this channel yet.</p>
+            <div v-else class="flex max-h-32 flex-col gap-1.5 overflow-y-auto">
+              <RouterLink v-for="r in usedBy" :key="r.id" :to="{ name: 'alerts', query: { ns: r.namespace, rule: r.id } }"
+                class="flex items-center gap-2 rounded-lg border border-line bg-surface2 px-2.5 py-1.5 text-xs hover:border-accent/50">
+                <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="r.enabled ? 'bg-accent' : 'bg-faint'"></span>
+                <span class="truncate text-fg">{{ r.target }}</span>
+                <span class="shrink-0 text-faint">· {{ r.namespace }}</span>
+                <span v-if="!r.enabled" class="ml-auto shrink-0 text-faint">disabled</span>
+              </RouterLink>
+            </div>
+          </div>
 
           <div class="flex items-center gap-2.5 border-t border-line bg-surface/60 px-5 py-3.5">
             <button v-if="!readOnly" @click="modalSendTest" :disabled="modalTest === 'run'" class="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface2 px-3 py-2 text-xs font-medium text-fg hover:border-accent/50 disabled:opacity-50">
