@@ -19,6 +19,7 @@ import Alerts from '../pages/Alerts.vue'
 import DataRetention from '../pages/DataRetention.vue'
 import Backup from '../pages/Backup.vue'
 import Audit from '../pages/Audit.vue'
+import ApiTokens from '../pages/ApiTokens.vue'
 import About from '../pages/About.vue'
 
 const routes = [
@@ -36,6 +37,7 @@ const routes = [
   { path: '/data', name: 'data', component: DataRetention },
   { path: '/backup', name: 'backup', component: Backup },
   { path: '/audit', name: 'audit', component: Audit },
+  { path: '/tokens', name: 'tokens', component: ApiTokens },
   { path: '/about', name: 'about', component: About },
 ]
 

@@ -47,35 +47,88 @@ impl FromRequestParts<AppState> for CurrentUser {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
+        // Humans authenticate with the session cookie; programmatic callers (scripts,
+        // third parties, the MCP server) send `Authorization: Bearer <pat>`.
         let jar = CookieJar::from_headers(&parts.headers);
-        let token = jar
-            .get(SESSION_COOKIE)
-            .map(|c| c.value().to_owned())
-            .ok_or(StatusCode::UNAUTHORIZED)?;
-
-        let row: Option<(Uuid, String, bool, bool)> = sqlx::query_as(
-            "SELECT u.id, u.email, u.is_admin, u.read_all FROM sessions s \
-             JOIN users u ON u.id = s.user_id \
-             WHERE s.token = $1 AND s.expires_at > now()",
-        )
-        .bind(&token)
-        .fetch_optional(&state.config)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "session lookup");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-        match row {
-            Some((id, email, is_admin, read_all)) => Ok(CurrentUser {
-                id,
-                email,
-                is_admin,
-                read_all,
-            }),
-            None => Err(StatusCode::UNAUTHORIZED),
+        if let Some(c) = jar.get(SESSION_COOKIE) {
+            if let Some(u) = user_from_session(state, c.value()).await? {
+                return Ok(u);
+            }
         }
+        if let Some(tok) = parts
+            .headers
+            .get("authorization")
+            .and_then(|h| h.to_str().ok())
+            .and_then(|s| s.strip_prefix("Bearer "))
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            if let Some(u) = user_from_pat(state, tok).await? {
+                return Ok(u);
+            }
+        }
+        Err(StatusCode::UNAUTHORIZED)
     }
+}
+
+async fn user_from_session(
+    state: &AppState,
+    token: &str,
+) -> Result<Option<CurrentUser>, StatusCode> {
+    let row: Option<(Uuid, String, bool, bool)> = sqlx::query_as(
+        "SELECT u.id, u.email, u.is_admin, u.read_all FROM sessions s \
+         JOIN users u ON u.id = s.user_id \
+         WHERE s.token = $1 AND s.expires_at > now()",
+    )
+    .bind(token)
+    .fetch_optional(&state.config)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "session lookup");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    Ok(row.map(|(id, email, is_admin, read_all)| CurrentUser {
+        id,
+        email,
+        is_admin,
+        read_all,
+    }))
+}
+
+/// Hex SHA-256 of a token — what we store/compare for PATs (tokens are
+/// high-entropy, so a fast hash is fine; argon2 is only for human passwords).
+pub fn token_hash(token: &str) -> String {
+    use sha2::{Digest, Sha256};
+    hex::encode(Sha256::digest(token.as_bytes()))
+}
+
+async fn user_from_pat(state: &AppState, token: &str) -> Result<Option<CurrentUser>, StatusCode> {
+    let row: Option<(Uuid, String, bool, bool, Uuid)> = sqlx::query_as(
+        "SELECT u.id, u.email, u.is_admin, u.read_all, p.id FROM api_pats p \
+         JOIN users u ON u.id = p.user_id \
+         WHERE p.token_hash = $1 AND (p.expires_at IS NULL OR p.expires_at > now())",
+    )
+    .bind(token_hash(token))
+    .fetch_optional(&state.config)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "pat lookup");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    let Some((id, email, is_admin, read_all, pat_id)) = row else {
+        return Ok(None);
+    };
+    // best-effort "last used" stamp; never block auth on it
+    let _ = sqlx::query("UPDATE api_pats SET last_used = now() WHERE id = $1")
+        .bind(pat_id)
+        .execute(&state.config)
+        .await;
+    Ok(Some(CurrentUser {
+        id,
+        email,
+        is_admin,
+        read_all,
+    }))
 }
 
 /// Optional variant for HTML page handlers: yields `None` (instead of 401) when

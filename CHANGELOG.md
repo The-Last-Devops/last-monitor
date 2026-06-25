@@ -9,6 +9,18 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-06-25
+
+### Added
+- **Programmatic API access tokens (PAT).** Mint tokens under **Settings › API tokens**
+  (shown once, revocable, optional expiry) and call the API with
+  `Authorization: Bearer <token>`. A token acts as its user and inherits that user's
+  RBAC — scope it by issuing it to a limited service-account user.
+- **Embedded MCP server** at `POST /mcp` (JSON-RPC 2.0), authenticated by a PAT, so AI
+  assistants (Claude, etc.) can read and operate the monitor. Tools: `list_systems`,
+  `list_services`, `alerts_firing`, `recent_events` (read, scoped to your namespaces) and
+  `run_service_check`, `toggle_alert_rule` (write, require editor of the target's namespace).
+
 ## [1.5.5] — 2026-06-25
 
 ### Added
@@ -184,7 +196,8 @@ Each released version's section is used verbatim as the GitHub Release notes
   agent, Uptime-Kuma-style service checks, and alerting, with multi-user namespace-scoped
   RBAC and public status pages.
 
-[Unreleased]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.5...HEAD
+[Unreleased]: https://github.com/The-Last-Devops/last-monitor/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.5...v1.6.0
 [1.5.5]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.4...v1.5.5
 [1.5.4]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.2...v1.5.3

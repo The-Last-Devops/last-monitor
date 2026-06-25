@@ -55,8 +55,15 @@ Cargo workspace with three crates plus a hub-served SSR frontend:
   **No open registration** — the first admin is bootstrapped from `ADMIN_EMAIL`/`ADMIN_PASSWORD`
   env on startup, and admins provision further users via `POST /api/users`. Auth lives entirely
   in `auth.rs` so adding OAuth/OIDC/LDAP later only means minting a session there.
-- **Two auth paths, don't conflate them:** agents authenticate per-request with the
-  `x-agent-token` header (no session); humans use the session cookie.
+- **Three auth paths, don't conflate them:** agents authenticate per-request with the
+  `x-agent-token` header (no session); humans use the session cookie; programmatic callers
+  (scripts, third parties, the **MCP server**) send `Authorization: Bearer <pat>`. The
+  `CurrentUser` extractor accepts cookie *or* PAT, so a PAT acts AS its user and inherits that
+  user's RBAC — scope a token by issuing it to a limited service-account user. PATs live in
+  `api_pats` (sha256-hashed, revocable), distinct from agent enrollment keys (`api_keys`).
+- **MCP server is embedded in the hub** at `POST /mcp` (JSON-RPC 2.0, PAT-authed) — see `mcp.rs`.
+  Tools run with the caller's RBAC: reads scoped to their namespaces, writes via `require_role`.
+  Adding a tool = one arm in `call_tool` + an entry in `tool_defs`; it must enforce RBAC itself.
 - **sqlx with runtime queries** (`sqlx::query` / `query_as`), not the compile-time `query!`
   macros, so the workspace builds without a live database / `DATABASE_URL` at compile time.
 

@@ -65,6 +65,7 @@ const groups = computed(() =>
         { label: 'Audit', name: 'audit', admin: true },
         { label: 'Data & retention', name: 'data', admin: true },
         { label: 'Backup', name: 'backup', admin: true },
+        { label: 'API tokens', name: 'tokens' },
         { label: 'About', name: 'about' },
       ],
     },

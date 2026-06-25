@@ -17,6 +17,7 @@ mod data;
 mod keys;
 mod monitors;
 mod namespaces;
+mod pats;
 mod servers;
 mod users;
 
@@ -25,6 +26,7 @@ pub use data::*;
 pub use keys::*;
 pub use monitors::*;
 pub use namespaces::*;
+pub use pats::*;
 pub use servers::*;
 pub use users::*;
 

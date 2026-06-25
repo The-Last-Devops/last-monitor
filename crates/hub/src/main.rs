@@ -15,6 +15,7 @@ mod data_admin;
 mod db;
 mod ingest;
 mod install;
+mod mcp;
 mod notify;
 mod probe;
 mod rbac;
@@ -75,6 +76,9 @@ async fn main() -> Result<()> {
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/me", get(auth::me))
         // admin user provisioning + data management
+        .route("/mcp", post(mcp::handle))
+        .route("/api/pats", get(api::list_pats).post(api::create_pat))
+        .route("/api/pats/{id}", delete(api::delete_pat))
         .route("/api/users", get(api::list_users).post(api::create_user))
         .route(
             "/api/users/{id}",
