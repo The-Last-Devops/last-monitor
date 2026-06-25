@@ -37,12 +37,14 @@ Cargo workspace with three crates plus a hub-served SSR frontend:
     agnostic to that.
   - Use TimescaleDB **continuous aggregates + retention policies** for downsampling instead
     of hand-rolling it.
-- **Frontend is Rust SSR + HTMX, not a JS SPA.** The hub renders HTML (templating) and uses
-  HTMX for interactivity; realtime updates go over SSE/WebSocket; charts use **uPlot** loaded
-  via `<script>`. Styling is **Tailwind via the standalone CLI binary** (no Node/`npm`,
-  no `node_modules`) — it compiles to one CSS file that gets embedded/served by the hub.
-  Chosen for minimal weight and a single-binary, single-codebase footprint. Do not introduce
-  a React/Node build step. (daisyUI is an optional Tailwind plugin, not a hard dependency.)
+- **Frontend is a Vue 3 SPA embedded in the hub binary** (in `frontend/`: Vite + Vue 3 +
+  vue-router + Pinia, Tailwind via PostCSS, charts via **uPlot**). `vite build` emits to
+  `frontend/dist`, which is embedded into the hub and served at `/`; any non-`/api/*` route
+  falls back to `index.html` (SPA history fallback). The SPA talks to the hub's JSON API with a
+  same-origin session cookie (`fetch(credentials:'include')`). Dev: run the hub on :8080 and
+  `vite` on :5173 (proxies `/api`). Still a single binary — keep it that way; don't add a
+  separate server for the UI. (Migrated from the original Rust SSR + HTMX; see `frontend/PLAN.md`.)
+  - **Never paint a blank/black screen while loading** — see the "Frontend" convention below.
 - **RBAC is namespace-scoped.** Permissions live in a `memberships` table (user × namespace ×
   role: `owner` / `editor` / `viewer`), plus a system-level `admin` (bypasses to owner
   everywhere). Authorize at the namespace boundary — every namespaced route funnels through
@@ -93,3 +95,13 @@ docker compose up -d
   never ad-hoc one-liners (no inline `curl | python`, piped greps, etc.).** Write the check into a
   script, run it yourself, and don't ask for permission to run it. New checks should be idempotent
   and self-cleaning (e.g. `scripts/check-alerts.sh`).
+- **Frontend: never paint a blank/black screen while loading — always show a loader.**
+  - Route components in `frontend/src/router/index.js` are imported **eagerly**, not lazily
+    (`() => import()`). A lazy route fetches its JS chunk on first navigation and the router renders
+    nothing until it lands — that gap is the blank flash. Keep new pages eager-imported.
+  - Every page that fetches data owns a loading flag initialised to its "still loading" value
+    (`const loading = ref(true)` / `const loaded = ref(false)`) and renders `Loading…` until the
+    first fetch settles — clear it in a `finally`, and also on the no-namespace early-return so it
+    can't spin forever. Polling reloads must NOT re-flash the loader (gate the loader on the
+    first-load flag, not on every fetch). Show the empty-state only *after* loading completes
+    (`v-if="loading" … v-else-if="!items.length"`).

@@ -3,7 +3,9 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../lib/api'
 import AppShell from '../components/AppShell.vue'
+import PageLoader from '../components/PageLoader.vue'
 import Gauge from '../components/Gauge.vue'
+import { minLoad } from '../lib/minLoad'
 import AddSystemModal from '../components/AddSystemModal.vue'
 import SystemSearch from '../components/SystemSearch.vue'
 import FleetCharts from '../components/FleetCharts.vue'
@@ -182,7 +184,13 @@ function setFilter(key, val) { const toks = chips.value.filter((t) => !t.toLower
 function toggleRow(id) { selected.has(id) ? selected.delete(id) : selected.add(id) }
 function toggleAll(rows) { const all = rows.length && rows.every((s) => selected.has(s.id)); rows.forEach((s) => (all ? selected.delete(s.id) : selected.add(s.id))) }
 function toggleExpand(k) { expanded.has(k) ? expanded.delete(k) : expanded.add(k) }
-async function bulkDelete() { for (const id of [...selected]) { try { await api.del(`/api/systems/${id}`) } catch {} } selected.clear(); await load() }
+async function bulkDelete() {
+  const n = selected.size
+  if (!n) return
+  if (!confirm(`Delete ${n} selected system${n > 1 ? 's' : ''}? This removes ${n > 1 ? 'them' : 'it'} and all collected metrics. This cannot be undone.`)) return
+  for (const id of [...selected]) { try { await api.del(`/api/systems/${id}`) } catch {} }
+  selected.clear(); await load()
+}
 
 // ---- Fleet overlay (NewRelic-style: every visible host on one chart per metric) ----
 const FRANGES = ['30m', '1h', '3h', '6h', '12h', '24h']
@@ -247,8 +255,10 @@ const fleetCharts = computed(() => {
 })
 
 async function load() {
+  const first = !loaded.value
   try {
-    servers.value = await api.get('/api/systems')
+    const w = api.get('/api/systems')
+    servers.value = await (first ? minLoad(w) : w)
     error.value = ''
     loaded.value = true
   } catch {
@@ -317,7 +327,7 @@ const detailLink = (s) => {
         <button @click="showAdd = true" class="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-accentfg hover:opacity-90"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> Add system</button>
       </div>
 
-      <p v-if="!loaded && !error" class="text-sm text-muted">Loading…</p>
+      <PageLoader v-if="!loaded && !error" />
       <p v-if="error" class="text-sm text-red-500">{{ error }}</p>
 
       <!-- Fleet overlay: every visible host on one chart per metric (filter applies) -->

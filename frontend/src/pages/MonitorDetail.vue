@@ -2,6 +2,8 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppShell from '../components/AppShell.vue'
+import PageLoader from '../components/PageLoader.vue'
+import { minLoad } from '../lib/minLoad'
 import UplotChart from '../components/UplotChart.vue'
 import { api } from '../lib/api'
 
@@ -102,7 +104,7 @@ function copy(d, e) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadMeta(), loadHb(), loadEvents(), loadDebug()])
+  await minLoad(Promise.all([loadMeta(), loadHb(), loadEvents(), loadDebug()]))
   timer = setInterval(() => { loadMeta(); loadHb(); loadEvents() }, 30000)
 })
 onUnmounted(() => timer && clearInterval(timer))
@@ -119,7 +121,7 @@ onUnmounted(() => timer && clearInterval(timer))
     </template>
 
     <div v-if="err" class="rounded-xl border border-line bg-surface p-6 text-center text-rose-400">{{ err }}</div>
-    <div v-else-if="!m" class="text-sm text-muted">Loading…</div>
+    <PageLoader v-else-if="!m" />
     <div v-else class="space-y-5">
       <!-- header -->
       <div class="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-line bg-surface p-4">

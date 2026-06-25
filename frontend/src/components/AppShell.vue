@@ -4,6 +4,7 @@ import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { api } from '../lib/api'
 import { useAuth } from '../stores/auth'
 import { useUi } from '../stores/ui'
+import { useVersion } from '../stores/version'
 
 const props = defineProps({
   title: { type: String, default: '' },
@@ -12,8 +13,10 @@ const props = defineProps({
 
 const auth = useAuth()
 const ui = useUi()
+const ver = useVersion()
 const route = useRoute()
 const router = useRouter()
+onMounted(() => ver.ensureLoaded())
 
 const drawer = ref(false)
 const nsOpen = ref(false)
@@ -212,6 +215,16 @@ watch(() => props.title, (t) => { document.title = t ? `${t} — Last Monitor` :
           <svg v-if="!ui.light" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
           <svg v-else class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
           </button>
+          <!-- build version → About; green = up to date / unknown, amber = newer release out -->
+          <RouterLink v-if="ver.current" :to="{ name: 'about' }"
+            :title="ver.isOutdated ? `Update available: ${ver.latestTag} — you have v${ver.current}` : `You're on v${ver.current}`"
+            class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors"
+            :class="ver.isOutdated
+              ? 'border-amber-400/40 bg-amber-400/10 text-amber-400 hover:bg-amber-400/20'
+              : 'border-emerald-400/40 bg-emerald-400/10 text-emerald-400 hover:bg-emerald-400/20'">
+            <span class="h-1.5 w-1.5 rounded-full" :class="ver.isOutdated ? 'bg-amber-400' : 'bg-emerald-400'"></span>
+            v{{ ver.current }}
+          </RouterLink>
         </div>
       </header>
       <main class="flex-1 p-4 sm:p-6"><slot /></main>

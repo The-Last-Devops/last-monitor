@@ -2,6 +2,8 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import AppShell from '../components/AppShell.vue'
+import PageLoader from '../components/PageLoader.vue'
+import { minLoad } from '../lib/minLoad'
 import { api } from '../lib/api'
 
 const route = useRoute()
@@ -19,6 +21,7 @@ const channels = ref([])
 const monitors = ref([])
 const systems = ref([])
 const types = ref([]) // channel-type manifest, for channel badge colors/icons
+const loaded = ref(false) // true after the first load, so polling never re-flashes the loader
 let timer = null
 
 // ---- channel badge helpers (kind → color/icon) ----
@@ -86,11 +89,16 @@ function ago(iso) {
 }
 
 async function load() {
-  if (!nsId.value) { alerts.value = []; return }
+  if (!nsId.value) { alerts.value = []; loaded.value = true; return }
+  const first = !loaded.value
   try {
-    alerts.value = await api.get(`/api/namespaces/${nsId.value}/alerts`)
-    channels.value = await api.get(`/api/namespaces/${nsId.value}/channels`)
+    const work = (async () => {
+      alerts.value = await api.get(`/api/namespaces/${nsId.value}/alerts`)
+      channels.value = await api.get(`/api/namespaces/${nsId.value}/channels`)
+    })()
+    await (first ? minLoad(work) : work)
   } catch { alerts.value = [] }
+  finally { loaded.value = true }
 }
 watch(nsId, load)
 function resolveNs() {
@@ -210,6 +218,8 @@ onMounted(async () => {
   try { monitors.value = await api.get('/api/monitors') } catch {}
   try { systems.value = await api.get('/api/systems') } catch {}
   resolveNs()
+  // No namespace → nsId never changes, the watch won't fire; clear the loader here.
+  if (!nsId.value) loaded.value = true
   timer = setInterval(load, 15000)
 })
 onUnmounted(() => clearInterval(timer))
@@ -225,7 +235,8 @@ onUnmounted(() => clearInterval(timer))
         </button>
       </div>
 
-      <p v-if="!alerts.length" class="rounded-2xl border border-line bg-surface/50 p-10 text-center text-sm text-muted">No alert rules in this namespace yet. Click <b class="text-fg">New rule</b> to wire one up.</p>
+      <PageLoader v-if="!loaded" />
+      <p v-else-if="!alerts.length" class="rounded-2xl border border-line bg-surface/50 p-10 text-center text-sm text-muted">No alert rules in this namespace yet. Click <b class="text-fg">New rule</b> to wire one up.</p>
 
       <section v-for="g in sections" :key="g.key" class="space-y-2.5">
         <div class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-faint">

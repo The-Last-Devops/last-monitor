@@ -3,6 +3,8 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../lib/api'
 import AppShell from '../components/AppShell.vue'
+import PageLoader from '../components/PageLoader.vue'
+import { minLoad } from '../lib/minLoad'
 import UplotChart from '../components/UplotChart.vue'
 import FleetCharts from '../components/FleetCharts.vue'
 import Gauge from '../components/Gauge.vue'
@@ -213,7 +215,7 @@ let timer = null
 function restartTimer() { clearInterval(timer); timer = setInterval(reload, live.value ? 1000 : 5000) }
 // node metadata (namespace, kernel, cpu model…) — fetched once per target, not polled
 const meta = ref(null)
-async function loadMeta() { try { const all = await api.get('/api/systems'); meta.value = all.find((s) => s.id === id.value) || null } catch { meta.value = null } }
+async function loadMeta() { try { const all = await minLoad(api.get('/api/systems')); meta.value = all.find((s) => s.id === id.value) || null } catch { meta.value = null } }
 onMounted(() => { reload(); restartTimer(); loadMeta() })
 onBeforeUnmount(() => clearInterval(timer))
 // reload only when the target or range changes — NOT when ?sel (metric selection)
@@ -233,6 +235,9 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
     <template #header>
       <span class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-full" :class="statusDot"></span><span class="text-xs font-medium" :class="statusText">{{ statusLabel }}</span></span>
     </template>
+
+    <!-- first paint while metadata loads — never a blank content area -->
+    <PageLoader v-if="!meta" />
 
     <!-- node metadata — every field links to the fleet filtered by that value -->
     <div v-if="meta && type !== 'container'" class="mb-4 flex flex-wrap items-center gap-x-6 gap-y-1.5 rounded-xl border border-line bg-surface px-4 py-2.5 text-xs">

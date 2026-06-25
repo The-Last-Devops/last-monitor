@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import AppShell from '../components/AppShell.vue'
+import PageLoader from '../components/PageLoader.vue'
 import { api } from '../lib/api'
+import { minLoad } from '../lib/minLoad'
 import { useAuth } from '../stores/auth'
 
 const auth = useAuth()
@@ -15,7 +17,7 @@ const msg = ref('')
 async function load() {
   loading.value = true
   try {
-    stats.value = await api.get('/api/admin/data')
+    stats.value = await minLoad(api.get('/api/admin/data'))
     draft.value = Object.fromEntries(stats.value.retention.map((t) => [t.table, t.value ?? '']))
   } catch { stats.value = null }
   loading.value = false
@@ -37,7 +39,7 @@ async function save(tier) {
       Only system admins can manage data retention.
     </div>
     <div v-else class="space-y-6">
-      <p v-if="loading" class="text-sm text-muted">Loading…</p>
+      <PageLoader v-if="loading" />
       <template v-else-if="stats">
         <!-- DB size + tables -->
         <section class="space-y-3">

@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import AppShell from '../components/AppShell.vue'
+import PageLoader from '../components/PageLoader.vue'
 import { api } from '../lib/api'
+import { minLoad } from '../lib/minLoad'
 import { useAuth } from '../stores/auth'
 
 const auth = useAuth()
@@ -13,7 +15,7 @@ const loading = ref(true)
 
 async function loadUsers() {
   loading.value = true
-  try { users.value = await api.get('/api/users') } catch { users.value = [] }
+  try { users.value = await minLoad(api.get('/api/users')) } catch { users.value = [] }
   loading.value = false
 }
 
@@ -163,7 +165,7 @@ onMounted(async () => {
             <th class="px-4 py-3"></th>
           </tr></thead>
           <tbody>
-            <tr v-if="loading"><td colspan="4" class="px-4 py-6 text-center text-muted">Loading…</td></tr>
+            <tr v-if="loading"><td colspan="4"><PageLoader min-height="40vh" /></td></tr>
             <template v-for="u in users" :key="u.id">
             <tr class="border-b border-line/60 last:border-0 hover:bg-surface2/50">
               <td class="px-4 py-3 text-fg">{{ u.email }}<span v-if="u.id === auth.user?.id" class="ml-2 text-[10px] uppercase tracking-wider text-faint">you</span></td>

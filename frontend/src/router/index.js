@@ -1,22 +1,42 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuth } from '../stores/auth'
 
+// Pages are imported eagerly (not lazy `() => import()`). Lazy routes fetch a
+// JS chunk on first navigation, and the router renders nothing until it lands —
+// that gap is the brief blank/black flash when switching pages. Eager imports
+// make every navigation synchronous, so the new page paints in one frame. The
+// whole app is small enough (single-binary internal tool) that one bundle is fine.
+import Login from '../pages/Login.vue'
+import Systems from '../pages/Systems.vue'
+import SystemDetail from '../pages/SystemDetail.vue'
+import Namespaces from '../pages/Namespaces.vue'
+import Members from '../pages/Members.vue'
+import Monitors from '../pages/Monitors.vue'
+import MonitorDetail from '../pages/MonitorDetail.vue'
+import Notifications from '../pages/Notifications.vue'
+import Events from '../pages/Events.vue'
+import Alerts from '../pages/Alerts.vue'
+import DataRetention from '../pages/DataRetention.vue'
+import Backup from '../pages/Backup.vue'
+import Audit from '../pages/Audit.vue'
+import About from '../pages/About.vue'
+
 const routes = [
-  { path: '/login', name: 'login', component: () => import('../pages/Login.vue'), meta: { public: true } },
-  { path: '/', name: 'systems', component: () => import('../pages/Systems.vue') },
-  { path: '/attention', name: 'attention', component: () => import('../pages/Systems.vue') },
-  { path: '/system/:id', name: 'system', component: () => import('../pages/SystemDetail.vue') },
-  { path: '/namespaces', name: 'namespaces', component: () => import('../pages/Namespaces.vue') },
-  { path: '/members', name: 'members', component: () => import('../pages/Members.vue') },
-  { path: '/monitors', name: 'monitors', component: () => import('../pages/Monitors.vue') },
-  { path: '/monitor/:id', name: 'monitor', component: () => import('../pages/MonitorDetail.vue') },
-  { path: '/notifications', name: 'notifications', component: () => import('../pages/Notifications.vue') },
-  { path: '/events', name: 'events', component: () => import('../pages/Events.vue') },
-  { path: '/alerts', name: 'alerts', component: () => import('../pages/Alerts.vue') },
-  { path: '/data', name: 'data', component: () => import('../pages/DataRetention.vue') },
-  { path: '/backup', name: 'backup', component: () => import('../pages/Backup.vue') },
-  { path: '/audit', name: 'audit', component: () => import('../pages/Audit.vue') },
-  { path: '/about', name: 'about', component: () => import('../pages/About.vue') },
+  { path: '/login', name: 'login', component: Login, meta: { public: true } },
+  { path: '/', name: 'systems', component: Systems },
+  { path: '/attention', name: 'attention', component: Systems },
+  { path: '/system/:id', name: 'system', component: SystemDetail },
+  { path: '/namespaces', name: 'namespaces', component: Namespaces },
+  { path: '/members', name: 'members', component: Members },
+  { path: '/monitors', name: 'monitors', component: Monitors },
+  { path: '/monitor/:id', name: 'monitor', component: MonitorDetail },
+  { path: '/notifications', name: 'notifications', component: Notifications },
+  { path: '/events', name: 'events', component: Events },
+  { path: '/alerts', name: 'alerts', component: Alerts },
+  { path: '/data', name: 'data', component: DataRetention },
+  { path: '/backup', name: 'backup', component: Backup },
+  { path: '/audit', name: 'audit', component: Audit },
+  { path: '/about', name: 'about', component: About },
 ]
 
 const router = createRouter({

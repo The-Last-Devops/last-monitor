@@ -2,7 +2,9 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import AppShell from '../components/AppShell.vue'
+import PageLoader from '../components/PageLoader.vue'
 import { api } from '../lib/api'
+import { minLoad } from '../lib/minLoad'
 
 const route = useRoute()
 const nsQuery = computed(() => (route.query.ns ? { ns: route.query.ns } : {}))
@@ -29,11 +31,13 @@ function resolveNs() {
 
 async function load() {
   if (!nsId.value) { alerts.value = []; events.value = []; loading.value = false; return }
+  const first = loading.value
   try {
-    const [a, e] = await Promise.all([
+    const work = Promise.all([
       api.get(`/api/namespaces/${nsId.value}/alerts`),
       api.get(`/api/namespaces/${nsId.value}/alert-events`),
     ])
+    const [a, e] = await (first ? minLoad(work) : work)
     alerts.value = a
     events.value = e
   } catch { alerts.value = []; events.value = [] }
@@ -121,7 +125,7 @@ onUnmounted(() => clearInterval(timer))
         </div>
       </div>
 
-      <p v-if="loading" class="text-sm text-muted">Loading…</p>
+      <PageLoader v-if="loading" />
 
       <!-- empty -->
       <div v-else-if="!active.length && !shownHistory.length" class="flex flex-col items-center gap-3.5 rounded-2xl border border-line bg-surface/50 px-7 py-12 text-center">

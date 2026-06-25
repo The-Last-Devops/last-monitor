@@ -2,7 +2,9 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import AppShell from '../components/AppShell.vue'
+import PageLoader from '../components/PageLoader.vue'
 import { api } from '../lib/api'
+import { minLoad } from '../lib/minLoad'
 
 const route = useRoute()
 const selectedNsName = () => {
@@ -61,7 +63,8 @@ const filtered = computed(() => {
 const upPct = (m) => (m.recent && m.recent.length ? Math.round((m.recent.filter(Boolean).length / m.recent.length) * 100) : null)
 
 async function load() {
-  try { monitors.value = await api.get('/api/monitors'); err.value = '' }
+  const first = loading.value
+  try { const w = api.get('/api/monitors'); monitors.value = await (first ? minLoad(w) : w); err.value = '' }
   catch { if (!monitors.value.length) err.value = 'Failed to load monitors' }
   try { events.value = await api.get('/api/events?range=7d') } catch { events.value = [] }
   loading.value = false
@@ -184,15 +187,15 @@ onUnmounted(() => clearInterval(timer))
 
 <template>
   <AppShell :title="downOnly ? 'Services — Down' : 'Services'">
-    <div class="flex gap-4">
+    <PageLoader v-if="loading" />
+    <div v-else class="flex gap-4">
       <!-- LEFT: monitor list (Uptime-Kuma style) -->
       <aside class="flex w-[330px] shrink-0 flex-col gap-3">
         <button @click="formOpen ? (formOpen = false) : openCreate()" class="flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-accentfg hover:opacity-90">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> Add monitor
         </button>
         <input v-model="q" placeholder="Search…" class="w-full rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
-        <p v-if="loading" class="text-sm text-muted">Loading…</p>
-        <p v-else-if="err" class="text-sm text-rose-400">{{ err }}</p>
+        <p v-if="err" class="text-sm text-rose-400">{{ err }}</p>
         <p v-else-if="!filtered.length" class="rounded-xl border border-line bg-surface p-4 text-center text-sm text-muted">{{ downOnly ? 'Nothing down. 🎉' : (q ? 'No matches.' : 'No monitors yet.') }}</p>
         <div v-else class="space-y-1 overflow-y-auto">
           <div v-for="m in filtered" :key="m.id" class="group relative rounded-lg border border-line bg-surface px-2.5 py-2 hover:border-accent/40">

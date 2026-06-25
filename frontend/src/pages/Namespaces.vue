@@ -2,7 +2,9 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AppShell from '../components/AppShell.vue'
+import PageLoader from '../components/PageLoader.vue'
 import { api } from '../lib/api'
+import { minLoad } from '../lib/minLoad'
 import { useAuth } from '../stores/auth'
 
 const auth = useAuth()
@@ -16,7 +18,7 @@ const creating = ref(false)
 
 async function load() {
   loading.value = true
-  try { rows.value = await api.get('/api/namespaces') } catch { rows.value = [] }
+  try { rows.value = await minLoad(api.get('/api/namespaces')) } catch { rows.value = [] }
   loading.value = false
 }
 onMounted(() => { load(); loadThr() })
@@ -125,7 +127,7 @@ async function saveThr(ns) {
             </tr>
           </thead>
           <tbody>
-            <tr v-if="loading"><td colspan="5" class="px-4 py-6 text-center text-muted">Loading…</td></tr>
+            <tr v-if="loading"><td colspan="5"><PageLoader min-height="40vh" /></td></tr>
             <tr v-else-if="!rows.length"><td colspan="5" class="px-4 py-6 text-center text-muted">No namespaces yet.</td></tr>
             <template v-for="ns in rows" :key="ns.id">
             <tr class="border-b border-line/60 last:border-0 hover:bg-surface2/50">

@@ -2,7 +2,9 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import AppShell from '../components/AppShell.vue'
+import PageLoader from '../components/PageLoader.vue'
 import { api } from '../lib/api'
+import { minLoad } from '../lib/minLoad'
 
 const route = useRoute()
 const selectedNsName = () => {
@@ -13,7 +15,8 @@ const selectedNsName = () => {
 const namespaces = ref([])
 const nsId = ref('')
 const channels = ref([])
-const loading = ref(false)
+// Start true so the first paint shows the loader, never an empty-state flash.
+const loading = ref(true)
 
 // Provider manifest comes from the backend (GET /api/channel-types), so adding a
 // provider server-side surfaces here with no frontend change.
@@ -42,10 +45,10 @@ function iconSvg(name, size = 20) {
 }
 
 async function loadChannels() {
-  if (!nsId.value) { channels.value = []; return }
+  if (!nsId.value) { channels.value = []; loading.value = false; return }
   loading.value = true
-  try { channels.value = await api.get(`/api/namespaces/${nsId.value}/channels`) } catch { channels.value = [] }
-  loading.value = false
+  try { channels.value = await minLoad(api.get(`/api/namespaces/${nsId.value}/channels`)) } catch { channels.value = [] }
+  finally { loading.value = false }
 }
 watch(nsId, loadChannels)
 function resolveNs() {
@@ -149,6 +152,8 @@ onMounted(async () => {
   try { types.value = await api.get('/api/channel-types') } catch { types.value = [] }
   try { namespaces.value = await api.get('/api/namespaces') } catch { namespaces.value = [] }
   resolveNs()
+  // If there's no namespace, nsId never changes so the watch won't fire — clear the loader here.
+  if (!nsId.value) loading.value = false
 })
 </script>
 
@@ -164,7 +169,7 @@ onMounted(async () => {
       </div>
 
       <!-- list -->
-      <p v-if="loading" class="text-sm text-muted">Loading…</p>
+      <PageLoader v-if="loading" />
       <div v-else-if="!channels.length" class="flex flex-col items-center gap-3.5 rounded-2xl border border-line bg-surface/50 px-7 py-12 text-center">
         <span class="grid h-16 w-16 place-items-center rounded-2xl border border-accent/30 bg-accent/10 text-accent">
           <svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/></svg>
