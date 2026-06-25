@@ -85,23 +85,14 @@ sub-pages.
 
 ## Architecture
 
-```
-                 push (x-api-key)
-  ┌─────────┐  ───────────────────────►  ┌──────────────────────────────┐
-  │ agent   │     POST /pub/ingest        │  hub (Axum, single binary)   │
-  │ (Rust)  │                             │  ingest · auth/RBAC          │
-  └─────────┘                             │  JSON API · embedded Vue SPA │
-   one per host                           └───────────────┬──────────────┘
-                                          ┌───────────────┴───────────────┐
-                                          │ config DB (Postgres)           │  users, namespaces,
-                                          │ data   DB (Postgres+Timescale) │  RBAC, API keys, systems
-                                          └────────────────────────────────┘  metrics, containers
-```
+<p align="center"><img src="assets/architecture.svg" alt="Last Monitor architecture" width="900"></p>
 
-Two **separate** PostgreSQL databases (config vs time-series), related only by IDs at the
-application layer — **never JOINed** — so the time-series store can be scaled or relocated
-independently. The agent ↔ hub wire types live in `crates/shared`. See
-[CLAUDE.md](CLAUDE.md) for the full design.
+Agents **push** to the hub (`POST /pub/ingest`, per-server token) so they work behind
+NAT/firewalls — the hub never connects back. The hub is a **single Rust binary** that also
+**probes** your services and embeds the Vue SPA. Storage is **two separate PostgreSQL
+databases** (config vs time-series on TimescaleDB), related only by IDs at the application
+layer — **never JOINed** — so the time-series store can scale or relocate independently. The
+agent ↔ hub wire types live in `crates/shared`. See [CLAUDE.md](CLAUDE.md) for the full design.
 
 ## Quick start (Docker Compose)
 
