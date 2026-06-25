@@ -162,6 +162,8 @@ pub fn manifest() -> Vec<ProviderMeta> {
                 .hint("Channel → Edit → Integrations → Webhooks → New Webhook → Copy URL."),
             f("username", "Override bot name", "text").adv().ph("Last Monitor")
                 .hint("Optional. Posts under this name instead of the webhook's default."),
+            f("thread_id", "Thread ID", "text").adv().ph("123456789012345678")
+                .hint("Optional. Post into an existing thread — right-click the thread → Copy ID (needs Developer Mode)."),
         ]),
         p("mattermost", "Mattermost", "Chat", "#1B57C2", "#fff", "chat",
           "Incoming webhook to a Mattermost channel", vec![
@@ -341,7 +343,15 @@ pub async fn dispatch(
             if let Some(u) = s(cfg, "username") {
                 payload["username"] = json!(u);
             }
-            post_json(client, url, payload).await?;
+            // Posting into a thread is a query param on the webhook URL, not a body field.
+            let url = match s(cfg, "thread_id") {
+                Some(t) => {
+                    let sep = if url.contains('?') { '&' } else { '?' };
+                    format!("{url}{sep}thread_id={t}")
+                }
+                None => url.to_string(),
+            };
+            post_json(client, &url, payload).await?;
         }
         "telegram" => {
             let token = sreq(cfg, kind, "bot_token")?;

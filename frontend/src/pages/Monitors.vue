@@ -39,17 +39,28 @@ const pushUrl = (m) => `${location.origin}/pub/push/${m.config?.push_token || ''
 
 // "Down" sub-view (/monitors?status=down) shows only enabled monitors that are down.
 const downOnly = computed(() => route.query.status === 'down')
-const shown = computed(() => (downOnly.value ? monitors.value.filter((m) => m.enabled && m.up === false) : monitors.value))
+// Namespace filter from the sidebar (?ns=a,b ; empty = all) — same as Infrastructure.
+const selectedNs = computed(() => (route.query.ns || '').split(',').filter(Boolean))
+const nsMonitors = computed(() =>
+  selectedNs.value.length ? monitors.value.filter((m) => selectedNs.value.includes(m.namespace)) : monitors.value,
+)
+const shown = computed(() => (downOnly.value ? nsMonitors.value.filter((m) => m.enabled && m.up === false) : nsMonitors.value))
 
-// Quick stats (Uptime-Kuma style) across the active monitors.
+// Quick stats (Uptime-Kuma style) across the monitors in the selected namespace(s).
 const stats = computed(() => {
   let up = 0, down = 0, paused = 0
-  for (const m of monitors.value) {
+  for (const m of nsMonitors.value) {
     if (!m.enabled) paused++
     else if (m.up === true) up++
     else if (m.up === false) down++
   }
-  return { up, down, paused, total: monitors.value.length }
+  return { up, down, paused, total: nsMonitors.value.length }
+})
+// Recent-events feed limited to services in the selected namespace(s).
+const shownEvents = computed(() => {
+  if (!selectedNs.value.length) return events.value
+  const ids = new Set(nsMonitors.value.map((m) => m.id))
+  return events.value.filter((e) => ids.has(e.monitor_id))
 })
 const evTime = (iso) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 // Up events carry no probe message; name the transition instead of showing "—".
@@ -66,10 +77,11 @@ const fmtDur = (s) => {
 // of the same service (smaller index, events are newest-first). The newest event
 // of a service has no successor yet → the state is still ongoing.
 const stateDur = (i) => {
-  const start = new Date(events.value[i].at).getTime()
+  const list = shownEvents.value
+  const start = new Date(list[i].at).getTime()
   for (let j = i - 1; j >= 0; j--) {
-    if (events.value[j].monitor_id === events.value[i].monitor_id)
-      return { secs: (new Date(events.value[j].at).getTime() - start) / 1000, ongoing: false }
+    if (list[j].monitor_id === list[i].monitor_id)
+      return { secs: (new Date(list[j].at).getTime() - start) / 1000, ongoing: false }
   }
   return { secs: (Date.now() - start) / 1000, ongoing: true }
 }
@@ -342,7 +354,7 @@ onUnmounted(() => clearInterval(timer))
         <!-- recent events feed (Uptime-Kuma style) -->
         <section class="space-y-2">
           <h2 class="text-sm font-semibold text-fg">Recent events</h2>
-          <p v-if="!events.length" class="rounded-xl border border-line bg-surface p-6 text-center text-sm text-muted">No status changes recorded recently.</p>
+          <p v-if="!shownEvents.length" class="rounded-xl border border-line bg-surface p-6 text-center text-sm text-muted">No status changes recorded recently.</p>
         <div v-else class="overflow-x-auto rounded-xl border border-line bg-surface">
           <table class="w-full text-sm">
             <thead><tr class="border-b border-line text-left text-[11px] uppercase tracking-wider text-faint">
@@ -353,7 +365,7 @@ onUnmounted(() => clearInterval(timer))
               <th class="px-4 py-2.5 font-medium">Message</th>
             </tr></thead>
             <tbody>
-              <tr v-for="(e, i) in events" :key="i" class="border-b border-line/60 last:border-0 hover:bg-surface2/40">
+              <tr v-for="(e, i) in shownEvents" :key="i" class="border-b border-line/60 last:border-0 hover:bg-surface2/40">
                 <td class="px-4 py-2.5">
                   <span class="inline-flex items-center gap-1.5 text-xs font-medium" :class="e.up ? 'text-accent' : 'text-red-500'">
                     <span class="h-2 w-2 rounded-full" :class="e.up ? 'bg-accent' : 'bg-red-500'"></span>{{ e.up ? 'Up' : 'Down' }}

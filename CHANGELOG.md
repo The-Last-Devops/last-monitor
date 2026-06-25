@@ -9,6 +9,17 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ## [Unreleased]
 
+## [1.5.3] — 2026-06-25
+
+### Added
+- **Discord** notify channels can post into a specific **thread** — a new optional
+  "Thread ID" field on the Discord channel form.
+
+### Fixed
+- **Services** now respects the sidebar namespace filter — the service list, the
+  Up/Down/Paused/Total stats, and the Recent-events feed all scope to the selected
+  namespace(s), matching Infrastructure (previously Services ignored the filter).
+
 ## [1.5.2] — 2026-06-25
 
 ### Added
@@ -127,7 +138,8 @@ Each released version's section is used verbatim as the GitHub Release notes
   agent, Uptime-Kuma-style service checks, and alerting, with multi-user namespace-scoped
   RBAC and public status pages.
 
-[Unreleased]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.2...HEAD
+[Unreleased]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.3...HEAD
+[1.5.3]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/The-Last-Devops/last-monitor/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/The-Last-Devops/last-monitor/compare/v1.4.0...v1.5.0
