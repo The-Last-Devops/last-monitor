@@ -150,3 +150,6 @@ docker compose up -d
 - **Dev loop: stop the running hub before `cargo build`/`cargo run -p hub`** — a running binary
   holds `target/debug/last-hub` and the link fails (looks like an obscure linker error). Free
   `:8080` first. Watch disk too: a full disk surfaces as `ld: No space left on device`.
+- **Always run `cargo fmt` immediately before committing Rust** — CI's Format job runs
+  `cargo fmt --check` and has failed a release twice because new code was committed unformatted.
+  Run `cargo fmt && cargo fmt --check` after the *last* Rust edit, not before it.
