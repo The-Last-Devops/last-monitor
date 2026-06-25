@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="img" aria-label="Last Monitor — self-hosted server & service monitoring">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="img" aria-label="Last Monitor — self-hosted server and service monitoring">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#0B0E14"/><stop offset="1" stop-color="#0E1A1E"/>
@@ -17,9 +17,9 @@
   </g>
   <text x="220" y="150" fill="#E7ECF3" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="52" font-weight="700">Last Monitor</text>
   <text x="222" y="190" fill="#94A3B8" font-family="ui-sans-serif,system-ui,Segoe UI,Roboto" font-size="22">Self-hosted server &amp; service monitoring — metrics, uptime checks &amp; alerts</text>
-  <g font-family="ui-monospace,Menlo,monospace" font-size="15">
-    <text x="222" y="233" fill="#64748B">● Rust + Axum</text>
-    <text x="372" y="233" fill="#34E1C4">● self-hosted</text>
-    <text x="520" y="233" fill="#64748B">● multi-tenant RBAC</text>
+  <g font-family="ui-monospace,Menlo,monospace" font-size="15" fill="#34E1C4">
+    <text x="222" y="233">● Rust + Axum</text>
+    <text x="372" y="233">● self-hosted</text>
+    <text x="520" y="233">● multi-tenant RBAC</text>
   </g>
 </svg>

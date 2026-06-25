@@ -27,6 +27,8 @@ const nsMonitors = computed(() =>
 )
 const shown = computed(() => (downOnly.value ? nsMonitors.value.filter((m) => m.enabled && m.up === false) : nsMonitors.value))
 const upPct = (m) => (m.recent && m.recent.length ? Math.round((m.recent.filter(Boolean).length / m.recent.length) * 100) : null)
+// How much wall-clock the recent-beats window covers (count × interval).
+const windowSecs = (m) => (m.recent?.length || 0) * (m.interval_secs || 60)
 
 const stats = computed(() => {
   let up = 0, down = 0, paused = 0
@@ -116,16 +118,14 @@ onUnmounted(() => clearInterval(timer))
 
 <template>
   <AppShell :title="downOnly ? 'Services — Down' : 'Services'">
+    <template #title-after><span class="text-sm text-faint">{{ stats.total }} services<span v-if="stats.down" class="text-rose-500"> · {{ stats.down }} down</span></span></template>
+    <template #actions>
+      <button @click="openCreate" class="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accentfg hover:opacity-90">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> Add service
+      </button>
+    </template>
     <PageLoader v-if="loading" />
     <div v-else class="space-y-4">
-      <div class="flex flex-wrap items-center gap-3">
-        <h1 class="text-xl font-bold text-fg">{{ downOnly ? 'Services — Down' : 'Services' }}</h1>
-        <span class="text-sm text-faint">{{ stats.total }} services<span v-if="stats.down" class="text-rose-500"> · {{ stats.down }} down</span></span>
-        <button @click="openCreate" class="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-accentfg hover:opacity-90">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> Add service
-        </button>
-      </div>
-
       <p v-if="err" class="rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-sm text-rose-500">{{ err }}</p>
 
       <!-- quick stats -->
@@ -147,11 +147,14 @@ onUnmounted(() => clearInterval(timer))
         <template #cell-namespace="{ row }"><span class="text-muted">{{ row.namespace }}</span></template>
         <template #cell-typeLabel="{ row }"><span class="text-muted">{{ row.typeLabel }}</span></template>
         <template #cell-target="{ row }"><span class="text-faint">{{ row.target || '—' }}</span></template>
-        <template #cell-uptime="{ row }"><span :class="row.uptime == null ? 'text-faint' : row.uptime >= 99 ? 'text-accent' : row.uptime >= 90 ? 'text-amber-500' : 'text-rose-500'">{{ row.uptime == null ? 'N/A' : row.uptime + '%' }}</span></template>
+        <template #cell-uptime="{ row }"><span :class="row.uptime == null ? 'text-faint' : row.uptime >= 99 ? 'text-accent' : row.uptime >= 90 ? 'text-amber-500' : 'text-rose-500'" v-tip="row.recent?.length ? `${row.uptime}% over the last ${row.recent.length} checks (~${fmtDur(windowSecs(row))})` : 'No checks yet'">{{ row.uptime == null ? 'N/A' : row.uptime + '%' }}</span></template>
         <template #cell-history="{ row }">
-          <span class="flex items-end gap-px">
-            <span v-for="(u, i) in (row.recent || []).slice(-24)" :key="i" class="h-3.5 w-1 rounded-sm" :class="u ? 'bg-accent' : 'bg-rose-500'"></span>
-            <span v-if="!row.recent || !row.recent.length" class="text-[11px] text-faint">no checks</span>
+          <span class="flex items-center gap-2" v-tip="row.recent?.length ? `Last ${row.recent.length} checks · spans ~${fmtDur(windowSecs(row))}` : 'No checks yet'">
+            <span class="flex items-end gap-px">
+              <span v-for="(u, i) in (row.recent || []).slice(-24)" :key="i" class="h-3.5 w-1 rounded-sm" :class="u ? 'bg-accent' : 'bg-rose-500'"></span>
+            </span>
+            <span v-if="row.recent?.length" class="text-[11px] tabular-nums text-faint">{{ fmtDur(windowSecs(row)) }}</span>
+            <span v-else class="text-[11px] text-faint">no checks</span>
           </span>
         </template>
         <template #cell-actions="{ row }">

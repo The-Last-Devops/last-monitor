@@ -46,22 +46,26 @@ function ruleCond(a) {
 
 // ---- members ----
 const NS_ROLES = ['viewer', 'editor', 'owner']
-const addEmail = ref('')
+const addEmail = ref('') // selected candidate's email
 const addRole = ref('viewer')
 const memErr = ref('')
+const candidates = ref([]) // existing users not yet in this namespace
 async function loadMembers() {
   try { members.value = await api.get(`/api/namespaces/${nsId.value}/members`) } catch { members.value = [] }
 }
+async function loadCandidates() {
+  try { candidates.value = await api.get(`/api/namespaces/${nsId.value}/member-candidates`) } catch { candidates.value = [] }
+}
 async function addMember() {
   memErr.value = ''
-  const email = addEmail.value.trim()
-  if (!email) return
+  const email = addEmail.value
+  if (!email) { memErr.value = 'Pick a user to add.'; return }
   try {
     await api.post(`/api/namespaces/${nsId.value}/members`, { email, role: addRole.value })
     addEmail.value = ''
-    await loadMembers()
+    await Promise.all([loadMembers(), loadCandidates()])
   } catch (e) {
-    memErr.value = e.status === 404 ? 'No member with that email — create them in Members first.' : e.status === 403 ? 'You need owner access.' : `Failed (${e.status}).`
+    memErr.value = e.status === 403 ? 'You need owner access.' : `Failed (${e.status}).`
   }
 }
 async function setRole(m, role) {
@@ -72,7 +76,7 @@ async function setRole(m, role) {
 async function removeMember(m) {
   if (m.user_id === auth.user?.id && !confirm('Remove your own access to this namespace?')) return
   if (!confirm(`Remove ${m.email} from ${ns.value.name}?`)) return
-  try { await api.del(`/api/namespaces/${nsId.value}/members/${m.user_id}`); await loadMembers() }
+  try { await api.del(`/api/namespaces/${nsId.value}/members/${m.user_id}`); await Promise.all([loadMembers(), loadCandidates()]) }
   catch (e) { memErr.value = `Failed (${e.status}).` }
 }
 
@@ -122,7 +126,7 @@ onMounted(async () => {
     keys.value = ks
     thr.value = thrs.find((x) => x.namespace === ns.value.name) || null
     resetThrForm()
-    if (canManage.value) await loadMembers()
+    if (canManage.value) await Promise.all([loadMembers(), loadCandidates()])
   })()
   await minLoad(work)
   loaded.value = true
@@ -154,9 +158,9 @@ onMounted(async () => {
             </div>
             <template v-if="canManage">
               <div class="mb-3 flex flex-wrap gap-2">
-                <input v-model="addEmail" @keyup.enter="addMember" placeholder="member@company.com" class="min-w-48 flex-1 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
+                <UiSelect v-model="addEmail" block class="min-w-[220px] flex-1" :placeholder="candidates.length ? 'Select a user…' : 'All users are already members'" :options="candidates.map((c) => ({ value: c.email, label: c.email }))" />
                 <UiSelect v-model="addRole" :options="NS_ROLES.map((r) => ({ value: r, label: r[0].toUpperCase() + r.slice(1) }))" />
-                <button @click="addMember" class="rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-accentfg hover:opacity-90">Add</button>
+                <button @click="addMember" :disabled="!addEmail" class="rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-accentfg hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">Add</button>
               </div>
               <p v-if="memErr" class="mb-2 text-xs" :class="memErr.startsWith('✓') ? 'text-accent' : 'text-rose-400'">{{ memErr }}</p>
               <div v-if="!members.length" class="text-xs text-faint">No members yet.</div>
@@ -170,7 +174,7 @@ onMounted(async () => {
                   </button>
                 </div>
               </div>
-              <p class="mt-3 text-xs text-faint">Roles apply only inside <b class="text-muted">{{ ns.name }}</b>. System admins always have full access and aren't listed. Add a member by the email of an existing user.</p>
+              <p class="mt-3 text-xs text-faint">Roles apply only inside <b class="text-muted">{{ ns.name }}</b>. System admins always have full access and aren't listed. Pick an existing user, then a role.</p>
             </template>
             <p v-else class="rounded-lg border border-line bg-surface2/40 px-3 py-2.5 text-xs text-muted">Only owners of this namespace (and system admins) can view and manage members. You have <b class="text-fg capitalize">{{ ns.role }}</b> access.</p>
           </div>

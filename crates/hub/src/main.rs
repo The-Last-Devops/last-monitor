@@ -126,6 +126,10 @@ async fn main() -> Result<()> {
             "/api/namespaces/{id}/members",
             get(api::list_members).post(api::add_member),
         )
+        .route(
+            "/api/namespaces/{id}/member-candidates",
+            get(api::member_candidates),
+        )
         // API keys (reusable; systems auto-register)
         .route(
             "/api/namespaces/{id}/keys",

@@ -66,9 +66,18 @@ curl -s -b "$JAR" "$BASE/api/channels/$CH/alerts" \
   | py "import sys,json;d=[a for a in json.load(sys.stdin) if a['id']=='$AL'];print('ok' if d and d[0]['target']=='All services' and d[0]['kind']=='service' else 'FAIL')" \
   | grep -qx ok && echo ok || { echo FAIL; fail=1; }
 
+# ---- re-target a rule via PATCH (source is editable now) ----
+say "patch re-targets rule (all_services → all_hosts)"
+curl -s -b "$JAR" -o /dev/null -X PATCH "$BASE/api/alerts/$AL" -H 'content-type: application/json' \
+  -d "{\"scope_kind\":\"all_hosts\",\"scope_namespace_id\":\"$NS\"}"
+curl -s -b "$JAR" "$BASE/api/alerts/$AL" \
+  | py "import sys,json;print(json.load(sys.stdin).get('scope_kind'))" | grep -qx all_hosts && echo ok || { echo FAIL; fail=1; }
+
 # ---- namespace members round-trip (uses the admin's own account) ----
 say "namespace members list (owner-scoped)"
 curl -s -b "$JAR" -o /dev/null -w '%{http_code}' "$BASE/api/namespaces/$NS/members" | grep -qx 200 && echo ok || { echo FAIL; fail=1; }
+say "member-candidates endpoint (owner-scoped)"
+curl -s -b "$JAR" -o /dev/null -w '%{http_code}' "$BASE/api/namespaces/$NS/member-candidates" | grep -qx 200 && echo ok || { echo FAIL; fail=1; }
 
 # cleanup
 curl -s -b "$JAR" -o /dev/null -X DELETE "$BASE/api/alerts/$AL"

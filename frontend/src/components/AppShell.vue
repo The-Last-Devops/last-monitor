@@ -160,7 +160,7 @@ watch(() => props.title, (t) => { document.title = t ? `${t} — Last Monitor` :
       <nav class="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">
         <div v-for="g in groups" :key="g.key">
           <div class="flex items-center rounded-lg text-sm transition hover:bg-surface2"
-            :class="groupActive(g) ? 'font-medium text-fg' : 'text-muted'">
+            :class="groupActive(g) ? 'font-semibold text-fg' : 'font-medium text-fg'">
             <button @click="openGroup(g)" class="flex min-w-0 flex-1 items-center gap-2.5 py-2 pl-3 pr-1 text-left"
               :class="groupActive(g) ? 'text-fg' : 'hover:text-fg'">
               <svg v-if="g.key === 'infra'" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
@@ -178,7 +178,7 @@ watch(() => props.title, (t) => { document.title = t ? `${t} — Last Monitor` :
           <div v-show="expanded(g)" class="mt-0.5 space-y-0.5">
             <RouterLink v-for="c in g.children" :key="c.label + (c.down ? '-down' : '')" :to="childTo(c)"
               class="flex items-center rounded-lg py-1.5 pl-10 pr-3 text-sm transition hover:bg-surface2 hover:text-fg"
-              :class="childActive(c) ? '!bg-accent/10 font-medium !text-accent' : 'text-muted'">{{ c.label }}</RouterLink>
+              :class="childActive(c) ? '!bg-accent/10 font-semibold !text-accent' : 'font-medium text-muted'">{{ c.label }}</RouterLink>
           </div>
         </div>
       </nav>
@@ -214,8 +214,8 @@ watch(() => props.title, (t) => { document.title = t ? `${t} — Last Monitor` :
 
     <!-- main -->
     <div class="flex min-w-0 flex-1 flex-col">
-      <header class="flex items-center justify-between border-b border-line bg-surface/60 px-4 py-3 backdrop-blur sm:px-6">
-        <div class="flex items-center gap-3">
+      <header class="flex min-h-[60px] items-center justify-between gap-3 border-b border-line bg-surface/60 px-4 py-2.5 backdrop-blur sm:px-6">
+        <div class="flex min-w-0 items-center gap-3">
           <button @click="drawer = true" class="rounded-lg border border-line bg-surface2 p-1.5 text-muted hover:text-accent md:hidden">
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
           </button>
@@ -230,6 +230,7 @@ watch(() => props.title, (t) => { document.title = t ? `${t} — Last Monitor` :
           <slot name="title-after" />
         </div>
         <div class="flex items-center gap-3">
+          <slot name="actions" />
           <slot name="header" />
           <button @click="ui.toggleTheme()" v-tip="`Toggle theme`" class="rounded-lg border border-line bg-surface2 p-1.5 text-muted hover:text-accent">
           <svg v-if="!ui.light" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>

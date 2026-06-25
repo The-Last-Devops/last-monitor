@@ -159,15 +159,13 @@ onUnmounted(() => clearInterval(timer))
 
 <template>
   <AppShell title="Alert rules">
+    <template #title-after><span class="text-sm text-faint">{{ alerts.length }} rules<span v-if="firingCount" class="text-rose-500"> · {{ firingCount }} firing</span></span></template>
+    <template #actions>
+      <button @click="openNew" class="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accentfg hover:opacity-90">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> New rule
+      </button>
+    </template>
     <div class="space-y-4">
-      <div class="flex flex-wrap items-center gap-3">
-        <h1 class="text-xl font-bold text-fg">Alert rules</h1>
-        <span class="text-sm text-faint">{{ alerts.length }} rules<span v-if="firingCount" class="text-rose-500"> · {{ firingCount }} firing</span></span>
-        <button @click="openNew" class="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-accentfg hover:opacity-90">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> New rule
-        </button>
-      </div>
-
       <PageLoader v-if="!loaded" />
       <DataTable v-else v-model:selected="selectedIds" :columns="columns" :rows="tableRows" :row-key="(r) => r.id"
         selectable clickable @row-click="openEdit"

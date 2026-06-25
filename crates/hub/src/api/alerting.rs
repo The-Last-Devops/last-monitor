@@ -622,26 +622,90 @@ pub struct PatchAlert {
     pub renotify_secs: Option<i32>,
     #[serde(default)]
     pub condition: Option<Value>,
+    /// Optional re-target (the editor's "source" change). Provide a specific
+    /// `monitor_id` or `system_id`, OR a `scope_kind` + `scope_namespace_id`.
+    #[serde(default)]
+    pub monitor_id: Option<Uuid>,
+    #[serde(default)]
+    pub system_id: Option<Uuid>,
+    #[serde(default)]
+    pub scope_kind: Option<String>,
+    #[serde(default)]
+    pub scope_namespace_id: Option<Uuid>,
 }
 
-/// PATCH /api/alerts/:id — toggle enabled, edit condition/channels/cadence.
-/// A bare `{enabled}` toggle leaves channels and renotify untouched; the editor
-/// sends `channel_ids` (which also commits `renotify_secs`, allowing null = off).
+/// PATCH /api/alerts/:id — toggle enabled, edit condition/channels/cadence, and
+/// optionally re-target the rule's source. A bare `{enabled}` toggle leaves the
+/// rest untouched; the editor sends `channel_ids` (also commits `renotify_secs`).
 pub async fn patch_alert(
     State(state): State<AppState>,
     user: CurrentUser,
     Path(id): Path<Uuid>,
     Json(req): Json<PatchAlert>,
 ) -> Result<StatusCode, StatusCode> {
+    // Current namespace (covers scope-wide rules via scope_namespace_id).
     let ns = ns_of(
         &state,
-        "SELECT COALESCE(m.namespace_id, s.namespace_id) FROM alerts r \
+        "SELECT COALESCE(m.namespace_id, s.namespace_id, r.scope_namespace_id) FROM alerts r \
          LEFT JOIN monitors m ON m.id = r.monitor_id \
          LEFT JOIN systems s ON s.id = r.system_id WHERE r.id = $1",
         id,
     )
     .await?;
     rbac::require_role(&state, &user, ns, Role::Editor).await?;
+
+    // Optional re-target. Editor must also be allowed in the NEW target's namespace.
+    let retarget = req.monitor_id.is_some() || req.system_id.is_some() || req.scope_kind.is_some();
+    if retarget {
+        let new_ns = if let Some(mid) = req.monitor_id {
+            ns_of(
+                &state,
+                "SELECT namespace_id FROM monitors WHERE id = $1",
+                mid,
+            )
+            .await?
+        } else if let Some(sid) = req.system_id {
+            ns_of(
+                &state,
+                "SELECT namespace_id FROM systems WHERE id = $1",
+                sid,
+            )
+            .await?
+        } else {
+            // scope rule
+            if !matches!(
+                req.scope_kind.as_deref(),
+                Some("all_services") | Some("all_hosts")
+            ) {
+                return Err(StatusCode::BAD_REQUEST);
+            }
+            req.scope_namespace_id.ok_or(StatusCode::BAD_REQUEST)?
+        };
+        rbac::require_role(&state, &user, new_ns, Role::Editor).await?;
+        let scope_ns = if req.scope_kind.is_some() {
+            Some(new_ns)
+        } else {
+            None
+        };
+        sqlx::query(
+            "UPDATE alerts SET monitor_id = $2, system_id = $3, scope_kind = $4, \
+                scope_namespace_id = $5 WHERE id = $1",
+        )
+        .bind(id)
+        .bind(req.monitor_id)
+        .bind(req.system_id)
+        .bind(&req.scope_kind)
+        .bind(scope_ns)
+        .execute(&state.config)
+        .await
+        .map_err(internal)?;
+        // Re-pointing the rule invalidates its firing state — clear it.
+        let _ = sqlx::query("DELETE FROM alert_state WHERE alert_id = $1")
+            .bind(id)
+            .execute(&state.config)
+            .await;
+    }
+
     sqlx::query(
         "UPDATE alerts SET enabled = COALESCE($2, enabled), \
             cooldown_secs = COALESCE($3, cooldown_secs), \

@@ -305,6 +305,36 @@ pub async fn list_members(
     ))
 }
 
+#[derive(Serialize)]
+pub struct CandidateRow {
+    pub id: Uuid,
+    pub email: String,
+}
+
+/// GET /api/namespaces/:id/member-candidates — users not yet in this namespace,
+/// for the "add member" picker. Owners (and admins) only; minimal fields.
+pub async fn member_candidates(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Path(ns): Path<Uuid>,
+) -> Result<Json<Vec<CandidateRow>>, StatusCode> {
+    rbac::require_role(&state, &user, ns, Role::Owner).await?;
+    let rows: Vec<(Uuid, String)> = sqlx::query_as(
+        "SELECT u.id, u.email FROM users u \
+         WHERE u.id NOT IN (SELECT user_id FROM memberships WHERE namespace_id = $1) \
+         ORDER BY u.email",
+    )
+    .bind(ns)
+    .fetch_all(&state.config)
+    .await
+    .map_err(internal)?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|(id, email)| CandidateRow { id, email })
+            .collect(),
+    ))
+}
+
 #[derive(Deserialize)]
 pub struct AddMember {
     pub email: String,

@@ -110,23 +110,25 @@ async fn tick(state: &AppState, client: &reqwest::Client) -> anyhow::Result<()> 
             .await;
         }
 
-        // Persist state. last_notified advances only when we actually notified.
-        if eval.firing != was_firing || should_notify {
-            sqlx::query(
-                "INSERT INTO alert_state (alert_id, firing, last_changed, last_notified) \
-                 VALUES ($1, $2, now(), CASE WHEN $3 THEN now() ELSE NULL END) \
-                 ON CONFLICT (alert_id) DO UPDATE SET \
-                   firing = EXCLUDED.firing, \
-                   last_changed = CASE WHEN alert_state.firing <> EXCLUDED.firing \
-                                       THEN now() ELSE alert_state.last_changed END, \
-                   last_notified = CASE WHEN $3 THEN now() ELSE alert_state.last_notified END",
-            )
-            .bind(rule.id)
-            .bind(eval.firing)
-            .bind(should_notify)
-            .execute(&state.config)
-            .await?;
-        }
+        // Persist state on EVERY evaluation that produced a verdict — so a brand-new
+        // rule that's healthy from the start gets an `ok` row immediately instead of
+        // showing "Pending" forever (it only ever had a row written on a transition).
+        // last_changed advances only on an actual firing flip; last_notified only when
+        // we notified.
+        sqlx::query(
+            "INSERT INTO alert_state (alert_id, firing, last_changed, last_notified) \
+             VALUES ($1, $2, now(), CASE WHEN $3 THEN now() ELSE NULL END) \
+             ON CONFLICT (alert_id) DO UPDATE SET \
+               firing = EXCLUDED.firing, \
+               last_changed = CASE WHEN alert_state.firing <> EXCLUDED.firing \
+                                   THEN now() ELSE alert_state.last_changed END, \
+               last_notified = CASE WHEN $3 THEN now() ELSE alert_state.last_notified END",
+        )
+        .bind(rule.id)
+        .bind(eval.firing)
+        .bind(should_notify)
+        .execute(&state.config)
+        .await?;
     }
     Ok(())
 }

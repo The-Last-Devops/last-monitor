@@ -3,7 +3,7 @@
      names. Do not show "last-monitor" as a user-facing label. -->
 <div align="center">
 
-<img src="assets/banner.svg" alt="Last Monitor" width="820">
+<img src="assets/banner.png" alt="Last Monitor" width="820">
 
 # Last Monitor
 
