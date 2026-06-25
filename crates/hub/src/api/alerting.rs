@@ -286,9 +286,11 @@ pub struct AlertRow {
     pub system_id: Option<Uuid>,
     /// Every channel this rule fans out to.
     pub channels: Vec<ChannelRef>,
-    /// "monitor" | "host" + the target's display name.
+    /// "monitor" | "host" | "all_services" | "all_hosts" + a display name.
     pub target_kind: String,
     pub target_name: String,
+    /// Set for namespace-wide rules ("all_services" | "all_hosts").
+    pub scope_kind: Option<String>,
     pub cooldown_secs: i32,
     /// Re-notify cadence while firing; null = notify once.
     pub renotify_secs: Option<i32>,
@@ -304,6 +306,7 @@ struct AlertJoin {
     id: Uuid,
     monitor_id: Option<Uuid>,
     system_id: Option<Uuid>,
+    scope_kind: Option<String>,
     cooldown_secs: i32,
     renotify_secs: Option<i32>,
     enabled: bool,
@@ -327,7 +330,7 @@ pub async fn list_alerts(
 ) -> Result<Json<Vec<AlertRow>>, StatusCode> {
     rbac::require_role(&state, &user, ns, Role::Viewer).await?;
     let rows: Vec<AlertJoin> = sqlx::query_as(
-        "SELECT r.id, r.monitor_id, r.system_id, r.cooldown_secs, r.renotify_secs, r.enabled, \
+        "SELECT r.id, r.monitor_id, r.system_id, r.scope_kind, r.cooldown_secs, r.renotify_secs, r.enabled, \
                 r.condition, m.name AS monitor_name, s.name AS system_name, \
                 st.firing, st.last_changed AS since, \
                 c.id AS channel_id, c.name AS channel_name, c.kind AS channel_kind \
@@ -337,7 +340,7 @@ pub async fn list_alerts(
          LEFT JOIN monitors m ON m.id = r.monitor_id \
          LEFT JOIN systems s ON s.id = r.system_id \
          LEFT JOIN alert_state st ON st.alert_id = r.id \
-         WHERE COALESCE(m.namespace_id, s.namespace_id) = $1 \
+         WHERE COALESCE(m.namespace_id, s.namespace_id, r.scope_namespace_id) = $1 \
          ORDER BY st.firing DESC NULLS LAST, r.enabled DESC, r.id",
     )
     .bind(ns)
@@ -348,10 +351,13 @@ pub async fn list_alerts(
     let mut out: Vec<AlertRow> = Vec::new();
     for a in rows {
         if out.last().map(|r| r.id) != Some(a.id) {
-            let (target_kind, target_name) = if a.monitor_id.is_some() {
-                ("monitor", a.monitor_name.clone().unwrap_or_default())
-            } else {
-                ("host", a.system_name.clone().unwrap_or_default())
+            let (target_kind, target_name) = match a.scope_kind.as_deref() {
+                Some("all_services") => ("all_services", "All services".to_string()),
+                Some("all_hosts") => ("all_hosts", "All hosts".to_string()),
+                _ if a.monitor_id.is_some() => {
+                    ("monitor", a.monitor_name.clone().unwrap_or_default())
+                }
+                _ => ("host", a.system_name.clone().unwrap_or_default()),
             };
             out.push(AlertRow {
                 id: a.id,
@@ -360,6 +366,7 @@ pub async fn list_alerts(
                 channels: Vec::new(),
                 target_kind: target_kind.into(),
                 target_name,
+                scope_kind: a.scope_kind.clone(),
                 cooldown_secs: a.cooldown_secs,
                 renotify_secs: a.renotify_secs,
                 enabled: a.enabled,
@@ -577,6 +584,9 @@ pub struct CreateAlert {
     pub monitor_id: Option<Uuid>,
     #[serde(default)]
     pub system_id: Option<Uuid>,
+    /// Namespace-wide scope instead of a single target: "all_services" | "all_hosts".
+    #[serde(default)]
+    pub scope_kind: Option<String>,
     pub channel_ids: Vec<Uuid>,
     #[serde(default)]
     pub condition: Option<Value>,
@@ -594,7 +604,13 @@ pub async fn create_alert(
     Json(req): Json<CreateAlert>,
 ) -> Result<Json<Uuid>, StatusCode> {
     rbac::require_role(&state, &user, ns, Role::Editor).await?;
-    if req.monitor_id.is_none() && req.system_id.is_none() {
+    // Either a specific target (monitor/system) OR a namespace-wide scope.
+    let scope_kind = req.scope_kind.as_deref().filter(|s| !s.is_empty());
+    if let Some(k) = scope_kind {
+        if !matches!(k, "all_services" | "all_hosts") {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    } else if req.monitor_id.is_none() && req.system_id.is_none() {
         return Err(StatusCode::BAD_REQUEST);
     }
     if req.channel_ids.is_empty() {
@@ -612,12 +628,21 @@ pub async fn create_alert(
         return Err(StatusCode::BAD_REQUEST);
     }
 
+    // For a ns-wide rule the target columns are null and the scope columns are set
+    // (scope namespace = the path's namespace).
+    let (mon, sys, scope_ns) = match scope_kind {
+        Some(_) => (None, None, Some(ns)),
+        None => (req.monitor_id, req.system_id, None),
+    };
     let (id,): (Uuid,) = sqlx::query_as(
-        "INSERT INTO alerts (monitor_id, system_id, condition, cooldown_secs, renotify_secs) \
-         VALUES ($1, $2, $3, $4, $5) RETURNING id",
+        "INSERT INTO alerts (monitor_id, system_id, scope_kind, scope_namespace_id, \
+            condition, cooldown_secs, renotify_secs) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
     )
-    .bind(req.monitor_id)
-    .bind(req.system_id)
+    .bind(mon)
+    .bind(sys)
+    .bind(scope_kind)
+    .bind(scope_ns)
     .bind(sqlx::types::Json(
         req.condition.unwrap_or_else(|| serde_json::json!({})),
     ))

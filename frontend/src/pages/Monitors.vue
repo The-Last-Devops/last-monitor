@@ -222,7 +222,7 @@ onUnmounted(() => clearInterval(timer))
     <PageLoader v-if="loading" />
     <div v-else class="flex flex-col gap-4 md:flex-row">
       <!-- LEFT: monitor list (Uptime-Kuma style) — full width on mobile, fixed column on desktop -->
-      <aside class="flex w-full shrink-0 flex-col gap-3 md:w-[330px]">
+      <aside class="flex w-full shrink-0 flex-col gap-3 md:w-[412px]">
         <button @click="formOpen ? (formOpen = false) : openCreate()" class="flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-accentfg hover:opacity-90">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> Add service
         </button>

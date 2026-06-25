@@ -28,6 +28,9 @@ struct Rule {
     id: Uuid,
     monitor_id: Option<Uuid>,
     system_id: Option<Uuid>,
+    /// Namespace-wide scope: "all_services" | "all_hosts" (+ scope_ns), else specific target.
+    scope_kind: Option<String>,
+    scope_ns: Option<Uuid>,
     condition: Value,
     /// Re-notify cadence while still firing; None = notify once, never repeat.
     renotify_secs: Option<i32>,
@@ -135,6 +138,8 @@ async fn load_rules(state: &AppState) -> anyhow::Result<Vec<Rule>> {
         Uuid,
         Option<Uuid>,
         Option<Uuid>,
+        Option<String>,
+        Option<Uuid>,
         Json<Value>,
         Option<i32>,
         Option<String>,
@@ -142,8 +147,8 @@ async fn load_rules(state: &AppState) -> anyhow::Result<Vec<Rule>> {
         Option<String>,
     );
     let rows: Vec<Row> = sqlx::query_as(
-        "SELECT r.id, r.monitor_id, r.system_id, r.condition, r.renotify_secs, \
-                c.kind, c.config, c.name \
+        "SELECT r.id, r.monitor_id, r.system_id, r.scope_kind, r.scope_namespace_id, \
+                r.condition, r.renotify_secs, c.kind, c.config, c.name \
          FROM alerts r \
          LEFT JOIN alert_channels ac ON ac.alert_id = r.id \
          LEFT JOIN channels c ON c.id = ac.channel_id \
@@ -155,12 +160,26 @@ async fn load_rules(state: &AppState) -> anyhow::Result<Vec<Rule>> {
 
     // Collapse the rows into one Rule per id, accumulating its channels.
     let mut rules: Vec<Rule> = Vec::new();
-    for (id, monitor_id, system_id, condition, renotify_secs, kind, config, name) in rows {
+    for (
+        id,
+        monitor_id,
+        system_id,
+        scope_kind,
+        scope_ns,
+        condition,
+        renotify_secs,
+        kind,
+        config,
+        name,
+    ) in rows
+    {
         if rules.last().map(|r| r.id) != Some(id) {
             rules.push(Rule {
                 id,
                 monitor_id,
                 system_id,
+                scope_kind,
+                scope_ns,
                 condition: condition.0,
                 renotify_secs,
                 channels: Vec::new(),
@@ -185,7 +204,72 @@ async fn evaluate(state: &AppState, rule: &Rule) -> anyhow::Result<Option<Eval>>
     if let Some(sid) = rule.system_id {
         return evaluate_server(state, sid, &rule.condition).await;
     }
+    if let (Some(kind), Some(ns)) = (rule.scope_kind.as_deref(), rule.scope_ns) {
+        return evaluate_scope(state, kind, ns, &rule.condition).await;
+    }
     Ok(None)
+}
+
+/// A namespace-wide rule: evaluate every matching target and aggregate. Fires when
+/// ANY target is failing; the message names them. None until at least one target has data.
+async fn evaluate_scope(
+    state: &AppState,
+    kind: &str,
+    ns: Uuid,
+    cond: &Value,
+) -> anyhow::Result<Option<Eval>> {
+    let (targets, label): (Vec<(Uuid, String)>, &str) = match kind {
+        "all_services" => (
+            sqlx::query_as(
+                "SELECT id, name FROM monitors WHERE namespace_id = $1 AND enabled = true",
+            )
+            .bind(ns)
+            .fetch_all(&state.config)
+            .await?,
+            "services",
+        ),
+        "all_hosts" => (
+            sqlx::query_as("SELECT id, name FROM systems WHERE namespace_id = $1")
+                .bind(ns)
+                .fetch_all(&state.config)
+                .await?,
+            "hosts",
+        ),
+        _ => return Ok(None),
+    };
+    if targets.is_empty() {
+        return Ok(None);
+    }
+    let mut any_data = false;
+    let mut down: Vec<String> = Vec::new();
+    for (id, name) in &targets {
+        let e = if kind == "all_services" {
+            evaluate_monitor(state, *id).await?
+        } else {
+            evaluate_server(state, *id, cond).await?
+        };
+        if let Some(e) = e {
+            any_data = true;
+            if e.firing {
+                down.push(name.clone());
+            }
+        }
+    }
+    if !any_data {
+        return Ok(None);
+    }
+    let firing = !down.is_empty();
+    let message = if firing {
+        format!(
+            "{} of {} {label} affected: {}",
+            down.len(),
+            targets.len(),
+            down.join(", ")
+        )
+    } else {
+        format!("all {} {label} ok", targets.len())
+    };
+    Ok(Some(Eval { firing, message }))
 }
 
 async fn evaluate_monitor(state: &AppState, monitor_id: Uuid) -> anyhow::Result<Option<Eval>> {

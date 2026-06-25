@@ -131,7 +131,12 @@ watch([alerts, highlightId], async () => {
 
 // ---- list actions ----
 async function toggle(a) {
-  try { await api.patch(`/api/alerts/${a.id}`, { enabled: !a.enabled }); await load() } catch (e) { alert(`Failed (${e.status}).`) }
+  // Optimistic: flip in the UI now, revert if the server rejects it. No reload, so
+  // the row doesn't jump.
+  const prev = a.enabled
+  a.enabled = !a.enabled
+  try { await api.patch(`/api/alerts/${a.id}`, { enabled: a.enabled }) }
+  catch (e) { a.enabled = prev; alert(`Failed (${e.status}).`) }
 }
 async function removeAlert(a) {
   if (!confirm('Delete this alert rule?')) return
@@ -149,33 +154,43 @@ async function testAlert(a) {
 const modalOpen = ref(false)
 const editId = ref(null)
 const err = ref('')
-const ed = ref({ srcType: 'monitor', targetId: '', condType: 'metric', metric: 'cpu_percent', op: '>', value: 90, offlineSecs: 120, channels: new Set(), renotify: '' })
+const ed = ref({ srcType: 'monitor', targetId: '', scopeNs: '', condType: 'metric', metric: 'cpu_percent', op: '>', value: 90, offlineSecs: 120, channels: new Set(), renotify: '' })
+// srcType: monitor | host (one target) | all_services | all_hosts (whole namespace).
+const isScope = computed(() => ed.value.srcType === 'all_services' || ed.value.srcType === 'all_hosts')
+const isServiceLike = computed(() => ed.value.srcType === 'monitor' || ed.value.srcType === 'all_services')
 // Candidate sources = those in the active namespace(s).
 const activeNsNames = computed(() => new Set(activeNs.value.map((n) => n.name)))
 const monsInNs = computed(() => monitors.value.filter((m) => activeNsNames.value.has(m.namespace)))
 const sysInNs = computed(() => systems.value.filter((s) => activeNsNames.value.has(s.namespace)))
-// Namespace of the picked target → where the rule is created (auth = editor there).
+// Where the rule is created (auth = editor there): the picked target's namespace,
+// or the chosen scope namespace for a namespace-wide rule.
 const targetNs = computed(() => {
   const list = ed.value.srcType === 'monitor' ? monitors.value : systems.value
   const name = list.find((x) => x.id === ed.value.targetId)?.namespace
   return namespaces.value.find((n) => n.name === name) || null
 })
+const saveNs = computed(() =>
+  isScope.value ? namespaces.value.find((n) => n.id === ed.value.scopeNs) || null : targetNs.value,
+)
 // Channels are global — any rule may notify any channel.
 const editChannels = computed(() => channels.value)
 const RENOTIFY = [['', 'Off — notify once'], ['900', 'every 15 min'], ['1800', 'every 30 min'], ['3600', 'every hour']]
 
 function openNew() {
   editId.value = null; err.value = ''
-  ed.value = { srcType: 'monitor', targetId: '', condType: 'metric', metric: 'cpu_percent', op: '>', value: 90, offlineSecs: 120, channels: new Set(), renotify: '' }
+  ed.value = { srcType: 'monitor', targetId: '', scopeNs: activeNs.value[0]?.id || namespaces.value[0]?.id || '', condType: 'metric', metric: 'cpu_percent', op: '>', value: 90, offlineSecs: 120, channels: new Set(), renotify: '' }
   modalOpen.value = true
 }
 function openEdit(a) {
   editId.value = a.id; err.value = ''
   const c = a.condition || {}
+  const scope = a.scope_kind // 'all_services' | 'all_hosts' | undefined
+  const serviceLike = scope === 'all_services' || a.target_kind === 'monitor'
   ed.value = {
-    srcType: a.target_kind === 'monitor' ? 'monitor' : 'host',
+    srcType: scope || (a.target_kind === 'monitor' ? 'monitor' : 'host'),
     targetId: a.monitor_id || a.system_id || '',
-    condType: c.offline_secs ? 'offline' : 'metric',
+    scopeNs: scope ? namespaces.value.find((n) => n.name === a.namespace)?.id || '' : '',
+    condType: serviceLike ? 'down' : c.offline_secs ? 'offline' : 'metric',
     metric: c.metric || 'cpu_percent',
     op: c.op || '>',
     value: c.value ?? 90,
@@ -188,7 +203,7 @@ function openEdit(a) {
 function setSrcType(t) {
   ed.value.srcType = t
   ed.value.targetId = ''
-  ed.value.condType = t === 'monitor' ? 'down' : 'metric'
+  ed.value.condType = t === 'monitor' || t === 'all_services' ? 'down' : 'metric'
 }
 function toggleChan(id) {
   const s = ed.value.channels
@@ -197,13 +212,16 @@ function toggleChan(id) {
 }
 
 const targetName = computed(() => {
+  if (ed.value.srcType === 'all_services') return 'any service'
+  if (ed.value.srcType === 'all_hosts') return 'any host'
   const list = ed.value.srcType === 'monitor' ? monitors.value : sysInNs.value
   return list.find((x) => x.id === ed.value.targetId)?.name || ''
 })
 const summary = computed(() => {
-  const t = targetName.value || '<source>'
+  const nsName = saveNs.value?.name
+  const t = (targetName.value || '<source>') + (isScope.value && nsName ? ` in ${nsName}` : '')
   let cond
-  if (ed.value.srcType === 'monitor') cond = 'is down'
+  if (isServiceLike.value) cond = 'is down'
   else if (ed.value.condType === 'offline') cond = `is offline for ${ed.value.offlineSecs}s`
   else cond = `${METRIC_LABEL[ed.value.metric]} ${ed.value.op} ${ed.value.value}`
   const names = [...ed.value.channels].map((id) => channels.value.find((c) => c.id === id)?.name).filter(Boolean)
@@ -211,13 +229,13 @@ const summary = computed(() => {
 })
 
 function buildCondition() {
-  if (ed.value.srcType === 'monitor') return {}
+  if (isServiceLike.value) return {}
   if (ed.value.condType === 'offline') return { offline_secs: Number(ed.value.offlineSecs) || 120 }
   return { metric: ed.value.metric, op: ed.value.op, value: Number(ed.value.value) }
 }
 async function save() {
   err.value = ''
-  if (!editId.value && !ed.value.targetId) { err.value = `Pick a ${ed.value.srcType === 'monitor' ? 'service' : 'host'}.`; return }
+  if (!editId.value && !isScope.value && !ed.value.targetId) { err.value = `Pick a ${ed.value.srcType === 'monitor' ? 'service' : 'host'}.`; return }
   if (!ed.value.channels.size) { err.value = 'Pick at least one channel.'; return }
   const channel_ids = [...ed.value.channels]
   const renotify_secs = ed.value.renotify ? Number(ed.value.renotify) : null
@@ -225,11 +243,12 @@ async function save() {
     if (editId.value) {
       await api.patch(`/api/alerts/${editId.value}`, { channel_ids, renotify_secs, condition: buildCondition() })
     } else {
-      if (!targetNs.value) { err.value = 'Pick a source first.'; return }
+      if (!saveNs.value) { err.value = 'Pick a source first.'; return }
       const body = { channel_ids, renotify_secs, condition: buildCondition() }
-      if (ed.value.srcType === 'monitor') body.monitor_id = ed.value.targetId
+      if (isScope.value) body.scope_kind = ed.value.srcType
+      else if (ed.value.srcType === 'monitor') body.monitor_id = ed.value.targetId
       else body.system_id = ed.value.targetId
-      await api.post(`/api/namespaces/${targetNs.value.id}/alerts`, body)
+      await api.post(`/api/namespaces/${saveNs.value.id}/alerts`, body)
     }
     modalOpen.value = false
     await load()
@@ -299,9 +318,10 @@ onUnmounted(() => clearInterval(timer))
               <span v-for="ch in a.channels" :key="ch.id" :title="ch.name" class="grid h-[26px] w-[26px] place-items-center rounded-lg" :style="{ background: chanColor(ch.kind), color: chanFg(ch.kind) }" v-html="iconSvg(chanIcon(ch.kind), 15)"></span>
               <span v-if="!a.channels.length" class="text-xs text-rose-400">no channel</span>
             </span>
+            <span class="text-[11px] text-faint" :title="a.renotify_secs ? 'Re-notifies while still firing' : 'Notifies once per incident'">· {{ renotifyText(a) }}</span>
           </div>
           <div class="mt-3 flex items-center gap-2 border-t border-line/70 pt-3">
-            <span class="mr-auto text-xs text-faint">{{ renotifyText(a) }}</span>
+            <span class="mr-auto"></span>
             <span v-if="testState[a.id] === 'ok'" class="text-xs text-accent">✓ sent</span>
             <span v-else-if="testState[a.id] === 'fail'" class="text-xs text-rose-400">✗ failed</span>
             <button @click.stop="testAlert(a)" :disabled="testState[a.id] === 'testing'" class="rounded-lg border border-line bg-surface2 px-2.5 py-1 text-xs text-fg hover:border-accent/50 disabled:opacity-50">{{ testState[a.id] === 'testing' ? 'Testing…' : 'Test' }}</button>
@@ -326,26 +346,31 @@ onUnmounted(() => clearInterval(timer))
           <!-- 1. source -->
           <div>
             <div class="mb-2.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-faint"><span class="grid h-[18px] w-[18px] place-items-center rounded bg-surface2 text-accent">1</span>What to watch</div>
-            <div v-if="!editId" class="mb-2.5 inline-flex overflow-hidden rounded-lg border border-line">
-              <button @click="setSrcType('monitor')" class="flex items-center gap-1.5 px-3.5 py-2 text-sm" :class="ed.srcType === 'monitor' ? 'bg-surface2 text-fg' : 'text-muted hover:text-fg'">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Service
-              </button>
-              <button @click="setSrcType('host')" class="flex items-center gap-1.5 px-3.5 py-2 text-sm" :class="ed.srcType === 'host' ? 'bg-surface2 text-fg' : 'text-muted hover:text-fg'">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Host
-              </button>
+            <div v-if="!editId" class="mb-2.5 flex flex-wrap overflow-hidden rounded-lg border border-line">
+              <button v-for="o in [['monitor','Service'],['all_services','All services'],['host','Host'],['all_hosts','All hosts']]" :key="o[0]"
+                @click="setSrcType(o[0])" class="px-3.5 py-2 text-sm" :class="ed.srcType === o[0] ? 'bg-surface2 text-fg' : 'text-muted hover:text-fg'">{{ o[1] }}</button>
             </div>
-            <select v-if="!editId" v-model="ed.targetId" class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none">
+            <!-- one specific target -->
+            <select v-if="!editId && !isScope" v-model="ed.targetId" class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none">
               <option value="">— pick a {{ ed.srcType === 'monitor' ? 'service' : 'host' }} —</option>
               <option v-for="m in (ed.srcType === 'monitor' ? monsInNs : sysInNs)" :key="m.id" :value="m.id">{{ m.name }}</option>
             </select>
+            <!-- whole namespace -->
+            <div v-else-if="!editId">
+              <select v-model="ed.scopeNs" class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none">
+                <option value="">— pick a namespace —</option>
+                <option v-for="n in namespaces" :key="n.id" :value="n.id">{{ n.name }}</option>
+              </select>
+              <p class="mt-1.5 text-xs text-faint">Covers every {{ ed.srcType === 'all_services' ? 'service' : 'host' }} in this namespace — new ones are included automatically.</p>
+            </div>
             <div v-else class="rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-muted">Source can't be changed — delete and recreate to retarget.</div>
           </div>
 
           <!-- 2. condition -->
           <div>
             <div class="mb-2.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-faint"><span class="grid h-[18px] w-[18px] place-items-center rounded bg-surface2 text-accent">2</span>When it fires</div>
-            <div v-if="ed.srcType === 'monitor'" class="flex items-center gap-2 text-sm text-muted">
-              Fires when the service is <span class="rounded-md border border-amber-400/40 bg-amber-400/10 px-2 py-1 font-semibold text-amber-400">DOWN</span>
+            <div v-if="isServiceLike" class="flex items-center gap-2 text-sm text-muted">
+              Fires when {{ ed.srcType === 'all_services' ? 'any service' : 'the service' }} is <span class="rounded-md border border-amber-400/40 bg-amber-400/10 px-2 py-1 font-semibold text-amber-400">DOWN</span>
             </div>
             <div v-else class="flex flex-wrap items-center gap-2.5">
               <span class="text-sm text-muted">Fires when</span>
