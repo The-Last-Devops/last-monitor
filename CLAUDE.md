@@ -89,3 +89,7 @@ docker compose up -d
 - Metrics/time-series writes target the `data` pool; everything else targets the `config` pool.
 - Migrations are split per database (`migrations/config/`, `migrations/data/`); only the
   `data` DB runs `CREATE EXTENSION timescaledb`.
+- **Checks/smoke-tests go in a committed `scripts/*.sh`, then run with `bash scripts/<name>.sh` —
+  never ad-hoc one-liners (no inline `curl | python`, piped greps, etc.).** Write the check into a
+  script, run it yourself, and don't ask for permission to run it. New checks should be idempotent
+  and self-cleaning (e.g. `scripts/check-alerts.sh`).
