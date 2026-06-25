@@ -202,7 +202,9 @@ pub async fn check_once(state: &AppState, monitor_id: Uuid) {
     .fetch_optional(&state.config)
     .await
     .unwrap_or(None);
-    let Some((kind, target, interval_secs, config)) = row else { return };
+    let Some((kind, target, interval_secs, config)) = row else {
+        return;
+    };
     if kind == "push" {
         return;
     }
@@ -226,7 +228,13 @@ pub async fn check_once(state: &AppState, monitor_id: Uuid) {
         tracing::error!(error = %e, monitor = %m.id, "check_once write heartbeat");
     }
     if let Some(detail) = debug {
-        let _ = write_debug(&state.config, m.id, if raw_up { "ok" } else { "err" }, &detail).await;
+        let _ = write_debug(
+            &state.config,
+            m.id,
+            if raw_up { "ok" } else { "err" },
+            &detail,
+        )
+        .await;
     }
 }
 
