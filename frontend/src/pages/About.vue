@@ -46,7 +46,7 @@ onMounted(async () => {
         <span class="vantage-logo inline-block h-10 w-10 rounded-lg"></span>
         <div>
           <div class="text-lg font-semibold text-fg">Vantage</div>
-          <div class="text-sm text-muted">Self-hosted infrastructure &amp; service monitoring</div>
+          <div class="text-sm text-muted">Self-hosted DevOps control plane — monitor, alert &amp; operate servers, clusters, services &amp; cloud</div>
         </div>
       </div>
 

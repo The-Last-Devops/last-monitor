@@ -3,15 +3,16 @@
      names. Do not show "vantage" as a user-facing label. -->
 <div align="center">
 
-<img src="assets/social-preview.png" alt="Vantage" width="760">
+<img src="assets/banner.svg" alt="Vantage" width="760">
 
 # Vantage
 
-**Lightweight, self-hosted server & fleet monitoring — written in Rust.**
+**Lightweight, self-hosted DevOps control plane — written in Rust.**
 
-Beszel-style host metrics (an agent on every server) with a NewRelic-style fleet overview,
-multi-user namespaces and RBAC — all served from a **single Rust binary** that embeds the
-web UI. No Node, no `node_modules` at runtime.
+One place to **monitor, alert and operate** your infrastructure — servers, clusters,
+services and cloud. Host metrics (an agent on every server) with a NewRelic-style fleet
+overview, SSH/shell exec to act on a host, multi-user namespaces and RBAC — all served
+from a **single Rust binary** that embeds the web UI. No Node, no `node_modules` at runtime.
 
 </div>
 

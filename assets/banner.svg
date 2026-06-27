@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="img" aria-label="Vantage — self-hosted server and service monitoring">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="img" aria-label="Vantage — self-hosted DevOps control plane">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#0B0E14"/><stop offset="1" stop-color="#0E1A1E"/>
@@ -6,20 +6,29 @@
     <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#3BE9CC"/><stop offset="1" stop-color="#0E9C8C"/>
     </linearGradient>
+    <radialGradient id="glow" cx="0.1" cy="0.35" r="0.55">
+      <stop offset="0" stop-color="#34E1C4" stop-opacity="0.15"/><stop offset="1" stop-color="#34E1C4" stop-opacity="0"/>
+    </radialGradient>
   </defs>
   <rect width="1200" height="300" fill="url(#bg)"/>
-  <path d="M0 210 H360 L405 150 L455 252 L500 120 L540 210 H760 L805 168 L850 232 L892 210 H1200"
-        fill="none" stroke="#34E1C4" stroke-width="2.5" opacity="0.14" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect width="1200" height="300" fill="url(#glow)"/>
+  <!-- decorative summit ridgeline -->
+  <path d="M0 224 H300 L420 96 L560 224 H1200"
+        fill="none" stroke="#34E1C4" stroke-width="2.5" opacity="0.12" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- logo tile: summit + terminal cursor (Peak + Cursor mark) -->
   <g transform="translate(84 98)">
     <rect width="104" height="104" rx="24" fill="url(#tile)"/>
-    <path d="M15 55 H37 L46 34 L57 76 L65 47 L72 55 H89" fill="none" stroke="#08231F" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
-    <circle cx="89" cy="55" r="5.5" fill="#08231F"/>
+    <path d="M16 70 L40 30 L64 70" fill="none" stroke="#08231F" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="71" y="63" width="22" height="9" rx="3" fill="#08231F"/>
   </g>
+  <!-- mono wordmark echoes the terminal cursor -->
   <text x="220" y="150" fill="#E7ECF3" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="52" font-weight="700">Vantage</text>
-  <text x="222" y="190" fill="#94A3B8" font-family="ui-sans-serif,system-ui,Segoe UI,Roboto" font-size="22">Self-hosted server &amp; service monitoring — metrics, uptime checks &amp; alerts</text>
+  <text x="222" y="190" fill="#94A3B8" font-family="ui-sans-serif,system-ui,Segoe UI,Roboto" font-size="22">Self-hosted DevOps control plane — monitor, alert &amp; operate your whole stack</text>
   <g font-family="ui-monospace,Menlo,monospace" font-size="15" fill="#34E1C4">
-    <text x="222" y="233">● Rust + Axum</text>
-    <text x="372" y="233">● self-hosted</text>
-    <text x="520" y="233">● multi-tenant RBAC</text>
+    <text x="222" y="233">● servers</text>
+    <text x="340" y="233">● clusters</text>
+    <text x="462" y="233">● services</text>
+    <text x="586" y="233">● cloud</text>
+    <text x="688" y="233">● monitor · alert · operate</text>
   </g>
 </svg>
