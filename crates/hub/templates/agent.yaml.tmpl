@@ -1,4 +1,4 @@
-# last-monitor agent — DaemonSet (one pod per node, reports host metrics).
+# vantage agent — DaemonSet (one pod per node, reports host metrics).
 # Rendered by the hub; apply directly:
 #   kubectl apply -f "<HUB_URL>/pub/agent.yaml?key=YOUR_KEY&cluster=YOUR_CLUSTER"
 ---
@@ -10,7 +10,7 @@ metadata:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: last-agent
+  name: vantage-agent
   namespace: <NAMESPACE>
 type: Opaque
 stringData:
@@ -19,15 +19,15 @@ stringData:
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: last-agent
+  name: vantage-agent
   namespace: <NAMESPACE>
-  labels: { app: last-agent }
+  labels: { app: vantage-agent }
 spec:
   selector:
-    matchLabels: { app: last-agent }
+    matchLabels: { app: vantage-agent }
   template:
     metadata:
-      labels: { app: last-agent }
+      labels: { app: vantage-agent }
     spec:
       hostNetwork: true              # report host interfaces
       hostPID: true                  # see host processes (host-level CPU/mem)
@@ -54,7 +54,7 @@ spec:
             - name: API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: last-agent
+                  name: vantage-agent
                   key: api-key
           resources:
             requests: { cpu: 20m, memory: 32Mi }

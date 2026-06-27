@@ -28,19 +28,19 @@ RUN cargo chef prepare --recipe-path recipe.json
 # 4) Build: cook deps (cached layer), then compile the hub
 FROM chef AS build
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release -p hub --recipe-path recipe.json
+RUN cargo chef cook --release -p vantage-hub --recipe-path recipe.json
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 # rust-embed reads crates/hub/../../frontend/dist at compile time.
 COPY --from=web /web/dist ./frontend/dist
-RUN cargo build --release -p hub && cp target/release/last-hub /usr/local/bin/last-hub
+RUN cargo build --release -p vantage-hub && cp target/release/vantage-hub /usr/local/bin/vantage-hub
 
 FROM debian:bookworm-slim
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=build /usr/local/bin/last-hub /usr/local/bin/last-hub
+COPY --from=build /usr/local/bin/vantage-hub /usr/local/bin/vantage-hub
 # Migrations are read at runtime via Migrator::new("migrations/...").
 COPY migrations ./migrations
 EXPOSE 8080
-CMD ["last-hub"]
+CMD ["vantage-hub"]

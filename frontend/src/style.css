@@ -40,16 +40,16 @@
 
 /* Logo mark color is driven by --logo-hue (set in App.vue), shared with the
    animated favicon so the tab icon and sidebar logo always match. */
-.lm-logo { background-color: hsl(var(--logo-hue, 170) 70% 55%); box-shadow: 0 0 18px -4px hsl(var(--logo-hue, 170) 70% 55%); }
+.vantage-logo { background-color: hsl(var(--logo-hue, 170) 70% 55%); box-shadow: 0 0 18px -4px hsl(var(--logo-hue, 170) 70% 55%); }
 
 /* Table rows: clear hover/select in both themes (left accent when selected). */
-.lm-row:hover { background: rgb(var(--fg) / 0.05); }
-.light .lm-row:hover { background: rgb(var(--accent) / 0.10); }
-.lm-row.sel { background: rgb(var(--accent) / 0.14); box-shadow: inset 3px 0 0 rgb(var(--accent)); }
+.vantage-row:hover { background: rgb(var(--fg) / 0.05); }
+.light .vantage-row:hover { background: rgb(var(--accent) / 0.10); }
+.vantage-row.sel { background: rgb(var(--accent) / 0.14); box-shadow: inset 3px 0 0 rgb(var(--accent)); }
 
 /* Tooltip (v-tip directive). One body-level element; themed, fast, with a flipping
    arrow. Bigger/clearer than the native title box. */
-.lm-tip {
+.vantage-tip {
   position: fixed; z-index: 90; pointer-events: none;
   background: rgb(12 17 27); color: rgb(var(--fg));
   border: 1px solid rgb(var(--accent) / 0.22); border-radius: 10px;
@@ -59,29 +59,29 @@
   transition: opacity 0.1s ease, transform 0.1s ease;
   white-space: normal; overflow-wrap: anywhere; text-align: left;
 }
-.light .lm-tip { background: rgb(var(--fg)); color: rgb(var(--surface)); border-color: rgb(var(--fg)); }
-.lm-tip.show { opacity: 1; transform: translateY(0); }
-.lm-tip::after {
+.light .vantage-tip { background: rgb(var(--fg)); color: rgb(var(--surface)); border-color: rgb(var(--fg)); }
+.vantage-tip.show { opacity: 1; transform: translateY(0); }
+.vantage-tip::after {
   content: ""; position: absolute; left: var(--ax, 50%); margin-left: -6px;
   width: 0; height: 0; border: 6px solid transparent;
 }
-.lm-tip:not([data-below])::after { top: 100%; border-top-color: rgb(var(--accent) / 0.22); }
-.lm-tip[data-below]::after { bottom: 100%; border-bottom-color: rgb(var(--accent) / 0.22); }
-.light .lm-tip:not([data-below])::after { border-top-color: rgb(var(--fg)); }
-.light .lm-tip[data-below]::after { border-bottom-color: rgb(var(--fg)); }
-@media (prefers-reduced-motion: reduce) { .lm-tip { transition: none; } }
+.vantage-tip:not([data-below])::after { top: 100%; border-top-color: rgb(var(--accent) / 0.22); }
+.vantage-tip[data-below]::after { bottom: 100%; border-bottom-color: rgb(var(--accent) / 0.22); }
+.light .vantage-tip:not([data-below])::after { border-top-color: rgb(var(--fg)); }
+.light .vantage-tip[data-below]::after { border-bottom-color: rgb(var(--fg)); }
+@media (prefers-reduced-motion: reduce) { .vantage-tip { transition: none; } }
 
 /* Status pill (StatePill.vue). State color flips with the theme via --ok/--warn/--down. */
-.lm-pill { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+.vantage-pill { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
   border-radius: 999px; border: 1px solid transparent; padding: 2px 10px; font-size: 12px; font-weight: 600; }
-.lm-pill .d { width: 7px; height: 7px; border-radius: 50%; }
-.lm-pill-ok   { color: rgb(var(--ok));   background: rgb(var(--ok) / 0.12);   border-color: rgb(var(--ok) / 0.30); }
-.lm-pill-ok   .d { background: rgb(var(--ok)); }
-.lm-pill-warn { color: rgb(var(--warn)); background: rgb(var(--warn) / 0.13); border-color: rgb(var(--warn) / 0.30); }
-.lm-pill-warn .d { background: rgb(var(--warn)); }
-.lm-pill-down { color: rgb(var(--down)); background: rgb(var(--down) / 0.12); border-color: rgb(var(--down) / 0.30); }
-.lm-pill-down .d { background: rgb(var(--down)); }
-.lm-pill-info { color: rgb(var(--accent)); background: rgb(var(--accent) / 0.12); border-color: rgb(var(--accent) / 0.30); }
-.lm-pill-info .d { background: rgb(var(--accent)); }
-.lm-pill-muted { color: rgb(var(--faint)); background: rgb(var(--surface2)); border-color: rgb(var(--line)); }
-.lm-pill-muted .d { background: rgb(var(--faint)); }
+.vantage-pill .d { width: 7px; height: 7px; border-radius: 50%; }
+.vantage-pill-ok   { color: rgb(var(--ok));   background: rgb(var(--ok) / 0.12);   border-color: rgb(var(--ok) / 0.30); }
+.vantage-pill-ok   .d { background: rgb(var(--ok)); }
+.vantage-pill-warn { color: rgb(var(--warn)); background: rgb(var(--warn) / 0.13); border-color: rgb(var(--warn) / 0.30); }
+.vantage-pill-warn .d { background: rgb(var(--warn)); }
+.vantage-pill-down { color: rgb(var(--down)); background: rgb(var(--down) / 0.12); border-color: rgb(var(--down) / 0.30); }
+.vantage-pill-down .d { background: rgb(var(--down)); }
+.vantage-pill-info { color: rgb(var(--accent)); background: rgb(var(--accent) / 0.12); border-color: rgb(var(--accent) / 0.30); }
+.vantage-pill-info .d { background: rgb(var(--accent)); }
+.vantage-pill-muted { color: rgb(var(--faint)); background: rgb(var(--surface2)); border-color: rgb(var(--line)); }
+.vantage-pill-muted .d { background: rgb(var(--faint)); }

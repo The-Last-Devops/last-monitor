@@ -101,7 +101,7 @@ async function addUser() {
   } catch (e) { addErr.value = e.status === 409 ? 'A member with that email already exists.' : `Failed (${e.status}).` }
   finally { adding.value = false }
 }
-const credentialsText = computed(() => created.value ? `Last Monitor\nURL: ${location.origin}\nEmail: ${created.value.email}\nPassword: ${created.value.password}` : '')
+const credentialsText = computed(() => created.value ? `Vantage\nURL: ${location.origin}\nEmail: ${created.value.email}\nPassword: ${created.value.password}` : '')
 function copyCreds(ev) {
   navigator.clipboard?.writeText(credentialsText.value)
   const b = ev.target, o = b.textContent; b.textContent = 'Copied'; setTimeout(() => (b.textContent = o), 1200)

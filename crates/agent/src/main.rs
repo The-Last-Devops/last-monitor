@@ -1,4 +1,4 @@
-//! last-monitor agent: collects system metrics and pushes them to the hub.
+//! vantage agent: collects system metrics and pushes them to the hub.
 //!
 //! Configuration via environment variables:
 //!   HUB_URL      e.g. http://hub.example.com:8080  (required)

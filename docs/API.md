@@ -1,4 +1,4 @@
-# Last Monitor — API
+# Vantage — API
 
 The hub exposes a JSON API (the web UI consumes it) plus an embedded **MCP server**.
 This is a hand-maintained reference; treat the running hub as the source of truth.

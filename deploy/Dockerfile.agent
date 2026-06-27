@@ -17,12 +17,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends musl-tools \
     && rm -rf /var/lib/apt/lists/*
 RUN rustup target add "$(uname -m)-unknown-linux-musl"
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --target "$(uname -m)-unknown-linux-musl" -p agent --recipe-path recipe.json
+RUN cargo chef cook --release --target "$(uname -m)-unknown-linux-musl" -p vantage-agent --recipe-path recipe.json
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
-RUN cargo build --release --target "$(uname -m)-unknown-linux-musl" -p agent \
-    && cp "target/$(uname -m)-unknown-linux-musl/release/last-agent" /last-agent
+RUN cargo build --release --target "$(uname -m)-unknown-linux-musl" -p vantage-agent \
+    && cp "target/$(uname -m)-unknown-linux-musl/release/vantage-agent" /vantage-agent
 
 FROM scratch
-COPY --from=build /last-agent /last-agent
-ENTRYPOINT ["/last-agent"]
+COPY --from=build /vantage-agent /vantage-agent
+ENTRYPOINT ["/vantage-agent"]

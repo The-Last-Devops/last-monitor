@@ -1,9 +1,9 @@
-# last-monitor HUB chart — installs the hub + its two databases only.
+# vantage HUB chart — installs the hub + its two databases only.
 # Agents are deployed separately (deploy/agent) with a token created in the UI
 # under Add System.
 
 image:
-  hub: ghcr.io/the-last-devops/last-monitor-hub:main
+  hub: ghcr.io/the-last-devops/vantage-hub:main
   # :main is a mutable rolling tag → Always, so a redeploy actually pulls the new
   # build. Pin a version tag (e.g. :1.1.0) and set IfNotPresent for production.
   pullPolicy: Always

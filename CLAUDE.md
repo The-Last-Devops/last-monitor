@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`last-monitor` is a self-hosted server & service monitoring system written in Rust,
+`vantage` is a self-hosted server & service monitoring system written in Rust,
 combining Beszel-style host metrics (agent on each server) with Uptime-Kuma-style
 service checks + alerting. Multi-user with namespace-scoped RBAC and public status pages.
 
@@ -15,7 +15,7 @@ Cargo workspace with three crates plus a hub-served SSR frontend:
 - `crates/shared` — types exchanged between agent and hub (e.g. `MetricsReport`,
   `IngestAck`, the `API_KEY_HEADER` constant). Both sides depend on this; keep the
   wire format here so they can't drift.
-- `crates/agent` — `last-agent` binary. Runs on each monitored server, collects host
+- `crates/agent` — `vantage-agent` binary. Runs on each monitored server, collects host
   metrics via `sysinfo`, and **pushes** them to the hub. Configured purely by env vars
   (`HUB_URL`, `API_KEY`; `INTERVAL` is an optional override). The push cadence is
   controlled by the hub, which returns the next interval in `IngestAck`.
@@ -74,15 +74,15 @@ Cargo workspace with three crates plus a hub-served SSR frontend:
 cargo build
 
 # Run the hub (needs CONFIG_DATABASE_URL + DATA_DATABASE_URL env vars)
-cargo run -p hub
+cargo run -p vantage-hub
 
 # Run an agent against a hub
-HUB_URL=http://localhost:8080 API_KEY=<api-key> cargo run -p agent
+HUB_URL=http://localhost:8080 API_KEY=<api-key> cargo run -p vantage-agent
 
 # Tests
 cargo test                      # whole workspace
-cargo test -p hub               # one crate
-cargo test -p hub <name>        # a single test by name
+cargo test -p vantage-hub               # one crate
+cargo test -p vantage-hub <name>        # a single test by name
 
 # Lint / format
 cargo clippy --all-targets
@@ -166,8 +166,8 @@ docker compose up -d
   `App.vue`): `if (!(await confirm({ title, message, danger: true, confirmText: 'Delete' }))) return`.
   It returns a `Promise<boolean>`; the enclosing handler must be `async`. Use `danger: true` for
   destructive actions (red + warning icon).
-- **Dev loop: stop the running hub before `cargo build`/`cargo run -p hub`** — a running binary
-  holds `target/debug/last-hub` and the link fails (looks like an obscure linker error). Free
+- **Dev loop: stop the running hub before `cargo build`/`cargo run -p vantage-hub`** — a running binary
+  holds `target/debug/vantage-hub` and the link fails (looks like an obscure linker error). Free
   `:8080` first. Watch disk too: a full disk surfaces as `ld: No space left on device`.
 - **Reclaim disk with `bash scripts/disk-cleanup.sh`** — `target/` alone grows to ~15-18 GB and
   is the usual cause of a full disk. The script runs `cargo clean` + prunes Docker **build cache**

@@ -11,26 +11,26 @@ defineProps({
 
 <template>
   <div class="flex w-full flex-col items-center justify-center gap-4" :style="{ minHeight }">
-    <span class="lm-spinner" aria-hidden="true"></span>
+    <span class="vantage-spinner" aria-hidden="true"></span>
     <span v-if="label" class="text-sm text-muted">{{ label }}</span>
     <span class="sr-only">Loading</span>
   </div>
 </template>
 
 <style scoped>
-.lm-spinner {
+.vantage-spinner {
   width: 40px;
   height: 40px;
   border-radius: 9999px;
   border: 3px solid rgb(var(--line));
   border-top-color: rgb(var(--accent));
-  animation: lm-spin 0.7s linear infinite;
+  animation: vantage-spin 0.7s linear infinite;
   box-shadow: 0 0 22px -6px rgb(var(--accent) / 0.6);
 }
-@keyframes lm-spin {
+@keyframes vantage-spin {
   to { transform: rotate(360deg); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .lm-spinner { animation-duration: 1.6s; }
+  .vantage-spinner { animation-duration: 1.6s; }
 }
 </style>

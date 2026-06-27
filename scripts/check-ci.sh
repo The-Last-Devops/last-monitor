@@ -4,7 +4,7 @@
 #   bash scripts/check-ci.sh           # latest run per workflow
 #   bash scripts/check-ci.sh 12        # scan the last N runs (default 12)
 set -euo pipefail
-REPO="${REPO:-The-Last-Devops/last-monitor}"
+REPO="${REPO:-The-Last-Devops/vantage}"
 N="${1:-12}"
 API="https://api.github.com/repos/$REPO/actions"
 

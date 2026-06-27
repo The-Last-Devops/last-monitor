@@ -9,7 +9,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.agent
-    image: last-monitor-agent:latest
+    image: vantage-agent:latest
     restart: unless-stopped
     # Host namespaces -> host CPU / memory / network are reported, not the container's.
     pid: host

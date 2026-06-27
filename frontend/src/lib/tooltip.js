@@ -12,7 +12,7 @@ let active = null
 function ensure() {
   if (!tipEl) {
     tipEl = document.createElement('div')
-    tipEl.className = 'lm-tip'
+    tipEl.className = 'vantage-tip'
     document.body.appendChild(tipEl)
   }
   return tipEl

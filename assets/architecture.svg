@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 660" width="1000" height="660" font-family="ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif" role="img" aria-label="Last Monitor architecture">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 660" width="1000" height="660" font-family="ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif" role="img" aria-label="Vantage architecture">
   <defs>
     <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0 0 L10 5 L0 10 z" fill="#34E1C4"/>
@@ -19,7 +19,7 @@
   </defs>
 
   <rect width="1000" height="660" fill="#0B0E14"/>
-  <text x="36" y="42" class="t h" font-size="20">Last Monitor — architecture</text>
+  <text x="36" y="42" class="t h" font-size="20">Vantage — architecture</text>
   <text x="36" y="64" class="f" font-size="13">Single Rust/Axum binary (embeds the Vue SPA) · agents push in · two Postgres databases</text>
 
   <!-- ===== clients (top) ===== -->
@@ -35,7 +35,7 @@
 
   <!-- ===== hub (center) ===== -->
   <rect class="hub" x="300" y="210" width="400" height="250" rx="16"/>
-  <text x="500" y="236" text-anchor="middle" class="a h" font-size="15">last-hub</text>
+  <text x="500" y="236" text-anchor="middle" class="a h" font-size="15">vantage-hub</text>
   <text x="500" y="254" text-anchor="middle" class="f" font-size="11">one binary · serves / (SPA) and /api</text>
   <!-- inner chips -->
   <g>
@@ -68,7 +68,7 @@
   <!-- ===== left: fleet + external services ===== -->
   <rect class="panel" x="36" y="220" width="216" height="96" rx="14"/>
   <text x="144" y="246" text-anchor="middle" class="t h">Your servers ×N</text>
-  <text x="144" y="268" text-anchor="middle" class="m" font-size="12">each runs last-agent</text>
+  <text x="144" y="268" text-anchor="middle" class="m" font-size="12">each runs vantage-agent</text>
   <text x="144" y="294" text-anchor="middle" class="f" font-size="11">collects host metrics (sysinfo)</text>
   <text x="144" y="309" text-anchor="middle" class="f" font-size="11">behind NAT / firewall</text>
 

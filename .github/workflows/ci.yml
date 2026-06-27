@@ -106,7 +106,7 @@ jobs:
           - component: hub
             arch: arm64
     env:
-      IMAGE: ghcr.io/the-last-devops/last-monitor-${{ matrix.component }}
+      IMAGE: ghcr.io/the-last-devops/vantage-${{ matrix.component }}
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       CHANGED: ${{ needs.changes.outputs[matrix.component] }}
     steps:
@@ -161,7 +161,7 @@ jobs:
       matrix:
         component: [hub, agent]
     env:
-      IMAGE: ghcr.io/the-last-devops/last-monitor-${{ matrix.component }}
+      IMAGE: ghcr.io/the-last-devops/vantage-${{ matrix.component }}
       CHANGED: ${{ needs.changes.outputs[matrix.component] }}
     steps:
       - uses: actions/download-artifact@v4

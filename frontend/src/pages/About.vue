@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import AppShell from '../components/AppShell.vue'
 import { api } from '../lib/api'
 
-const REPO = 'The-Last-Devops/last-monitor'
+const REPO = 'The-Last-Devops/vantage'
 const about = ref(null)
 const latest = ref(null)   // { tag, url, body, published }
 const checking = ref(false)
@@ -43,9 +43,9 @@ onMounted(async () => {
   <AppShell title="About">
     <div class="space-y-5">
       <div class="flex items-center gap-3">
-        <span class="lm-logo inline-block h-10 w-10 rounded-lg"></span>
+        <span class="vantage-logo inline-block h-10 w-10 rounded-lg"></span>
         <div>
-          <div class="text-lg font-semibold text-fg">Last Monitor</div>
+          <div class="text-lg font-semibold text-fg">Vantage</div>
           <div class="text-sm text-muted">Self-hosted infrastructure &amp; service monitoring</div>
         </div>
       </div>

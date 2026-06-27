@@ -1,11 +1,11 @@
-<!-- NAMING: the product display name is "Last Monitor" (Title Case) everywhere in
-     the UI and docs. The slug "last-monitor" is only for repo / package / image
-     names. Do not show "last-monitor" as a user-facing label. -->
+<!-- NAMING: the product display name is "Vantage" (Title Case) everywhere in
+     the UI and docs. The slug "vantage" is only for repo / package / image
+     names. Do not show "vantage" as a user-facing label. -->
 <div align="center">
 
-<img src="assets/social-preview.png" alt="Last Monitor" width="760">
+<img src="assets/social-preview.png" alt="Vantage" width="760">
 
-# Last Monitor
+# Vantage
 
 **Lightweight, self-hosted server & fleet monitoring — written in Rust.**
 
@@ -85,7 +85,7 @@ sub-pages.
 
 ## Architecture
 
-<p align="center"><img src="assets/architecture.svg" alt="Last Monitor architecture" width="900"></p>
+<p align="center"><img src="assets/architecture.svg" alt="Vantage architecture" width="900"></p>
 
 Agents **push** to the hub (`POST /pub/ingest`, per-server token) so they work behind
 NAT/firewalls — the hub never connects back. The hub is a **single Rust binary** that also
@@ -97,7 +97,7 @@ agent ↔ hub wire types live in `crates/shared`. See [CLAUDE.md](CLAUDE.md) for
 ## Quick start (Docker Compose)
 
 ```bash
-git clone <repo> && cd last-monitor
+git clone <repo> && cd vantage
 bash scripts/frontend.sh build        # build the embedded Vue SPA → frontend/dist (first run installs deps)
 docker compose up -d --build          # Postgres/TimescaleDB + hub (:8080) + Adminer (:8088) + a bundled agent
 ```
@@ -121,7 +121,7 @@ API key is managed for you. Run the agent anywhere; hosts appear automatically.
 docker run -d --restart=unless-stopped --pid=host \
   -e HUB_URL=https://hub.example.com -e API_KEY=<api-key> -e DISK_PATH=/host \
   -v /:/host:ro -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  ghcr.io/<owner>/last-monitor-agent:latest
+  ghcr.io/<owner>/vantage-agent:latest
 ```
 
 A **Helm chart** for the hub and a DaemonSet manifest for agents live in [deploy/](deploy/).
@@ -136,7 +136,7 @@ cargo fmt                    # format
 
 bash scripts/frontend.sh dev # Vite dev server on :5173 (HMR; proxies the API to :8080)
 bash scripts/frontend.sh build  # produce frontend/dist embedded by the hub
-HUB_URL=http://localhost:8080 API_KEY=<key> cargo run -p agent   # run an agent
+HUB_URL=http://localhost:8080 API_KEY=<key> cargo run -p vantage-agent   # run an agent
 ```
 
 During UI work use the Vite dev server (**:5173**) — it hot-reloads and is immune to hub

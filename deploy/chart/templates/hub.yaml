@@ -1,29 +1,29 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "lm.hub" . }}
+  name: {{ include "vantage.hub" . }}
 spec:
   replicas: {{ .Values.hub.replicas }}
   selector:
-    matchLabels: { app: {{ include "lm.hub" . }} }
+    matchLabels: { app: {{ include "vantage.hub" . }} }
   template:
     metadata:
-      labels: { app: {{ include "lm.hub" . }} }
+      labels: { app: {{ include "vantage.hub" . }} }
     spec:
-      {{- include "lm.pullSecrets" . | nindent 6 }}
+      {{- include "vantage.pullSecrets" . | nindent 6 }}
       containers:
         - name: hub
           image: {{ .Values.image.hub }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             - { name: BIND_ADDR, value: "0.0.0.0:8080" }
-            - { name: CONFIG_DATABASE_URL, value: {{ include "lm.configUrl" . | quote }} }
-            - { name: DATA_DATABASE_URL, value: {{ include "lm.dataUrl" . | quote }} }
+            - { name: CONFIG_DATABASE_URL, value: {{ include "vantage.configUrl" . | quote }} }
+            - { name: DATA_DATABASE_URL, value: {{ include "vantage.dataUrl" . | quote }} }
             {{- if .Values.admin.password }}
             # Optional: pre-seed the admin. Omit to create it on first login instead.
             - { name: ADMIN_EMAIL, value: {{ .Values.admin.email | quote }} }
             - name: ADMIN_PASSWORD
-              valueFrom: { secretKeyRef: { name: {{ include "lm.name" . }}, key: admin-password } }
+              valueFrom: { secretKeyRef: { name: {{ include "vantage.name" . }}, key: admin-password } }
             {{- end }}
           ports: [{ containerPort: 8080 }]
           readinessProbe:
@@ -34,17 +34,17 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "lm.hub" . }}
+  name: {{ include "vantage.hub" . }}
 spec:
   type: {{ .Values.hub.service.type }}
-  selector: { app: {{ include "lm.hub" . }} }
+  selector: { app: {{ include "vantage.hub" . }} }
   ports: [{ port: 8080, targetPort: 8080 }]
 {{- if or .Values.hub.ingress.enabled .Values.hub.ingress.host }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "lm.hub" . }}
+  name: {{ include "vantage.hub" . }}
   {{- with .Values.hub.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -56,7 +56,7 @@ spec:
   {{- if .Values.hub.ingress.tls }}
   tls:
     - hosts: [{{ .Values.hub.ingress.host | quote }}]
-      secretName: {{ include "lm.hub" . }}-tls
+      secretName: {{ include "vantage.hub" . }}-tls
   {{- end }}
   rules:
     - host: {{ .Values.hub.ingress.host | quote }}
@@ -66,6 +66,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ include "lm.hub" . }}
+                name: {{ include "vantage.hub" . }}
                 port: { number: 8080 }
 {{- end }}

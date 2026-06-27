@@ -67,7 +67,7 @@ pub async fn build_snapshot(state: &AppState, include_metrics: bool) -> Result<V
         config.insert(t.to_string(), dump_table(&state.config, t).await?);
     }
     let mut out = json!({
-        "format": "last-monitor-backup",
+        "format": "vantage-backup",
         "version": 1,
         "created_at": Utc::now().to_rfc3339(),
         "include_metrics": include_metrics,
@@ -128,8 +128,8 @@ async fn restore_into(
 
 /// Apply a snapshot. Config restore is one transaction; metrics another.
 pub async fn restore_snapshot(state: &AppState, snap: &Value) -> Result<(), String> {
-    if snap.get("format").and_then(|v| v.as_str()) != Some("last-monitor-backup") {
-        return Err("not a last-monitor backup file".into());
+    if snap.get("format").and_then(|v| v.as_str()) != Some("vantage-backup") {
+        return Err("not a vantage backup file".into());
     }
     let config = snap
         .get("config")
@@ -166,7 +166,7 @@ pub async fn download(
     })?;
     let body = gzip(&serde_json::to_vec(&snap).unwrap_or_default());
     let stamp = Utc::now().format("%Y%m%d-%H%M%S");
-    let name = format!("last-monitor-backup-{stamp}.json.gz");
+    let name = format!("vantage-backup-{stamp}.json.gz");
     Ok((
         [
             (header::CONTENT_TYPE, "application/gzip".to_string()),
@@ -206,7 +206,7 @@ pub struct S3Config {
     #[serde(default)]
     pub secret_key: String,
     #[serde(default)]
-    pub prefix: String, // optional key prefix, e.g. "last-monitor/"
+    pub prefix: String, // optional key prefix, e.g. "vantage/"
 }
 
 async fn load_s3(state: &AppState) -> Result<S3Config, String> {
@@ -411,7 +411,7 @@ pub async fn s3_upload(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     let body = gzip(&serde_json::to_vec(&snap).unwrap_or_default());
     let name = format!(
-        "last-monitor-backup-{}.json.gz",
+        "vantage-backup-{}.json.gz",
         Utc::now().format("%Y%m%d-%H%M%S")
     );
     let key = s3_key(&cfg, &name);
@@ -593,10 +593,7 @@ async fn tick_schedule(state: &AppState) -> Result<(), String> {
 
     let snap = build_snapshot(state, s.include_metrics).await?;
     let body = gzip(&serde_json::to_vec(&snap).map_err(|e| e.to_string())?);
-    let name = format!(
-        "last-monitor-backup-{}.json.gz",
-        now.format("%Y%m%d-%H%M%S")
-    );
+    let name = format!("vantage-backup-{}.json.gz", now.format("%Y%m%d-%H%M%S"));
     let key = s3_key(&cfg, &name);
     s3_request(&cfg, "PUT", &key, "", body).await?;
     sqlx::query("UPDATE app_settings SET last_backup_at = now() WHERE id = 1")

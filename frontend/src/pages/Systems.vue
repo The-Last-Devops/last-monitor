@@ -381,7 +381,7 @@ const detailLink = (s) => {
             </tr></thead>
             <tbody>
               <template v-for="s in rows" :key="s.id">
-                <tr class="lm-row border-b border-line border-l-2" :class="[selected.has(s.id) ? 'sel' : '', sevOf(s) === 3 || sevOf(s) === 2 ? 'border-l-red-500' : sevOf(s) === 1 ? 'border-l-amber-500' : 'border-l-transparent']" @mouseenter="onLegendHover(s.name)" @mouseleave="onLegendHover(null)">
+                <tr class="vantage-row border-b border-line border-l-2" :class="[selected.has(s.id) ? 'sel' : '', sevOf(s) === 3 || sevOf(s) === 2 ? 'border-l-red-500' : sevOf(s) === 1 ? 'border-l-amber-500' : 'border-l-transparent']" @mouseenter="onLegendHover(s.name)" @mouseleave="onLegendHover(null)">
                   <td class="px-3 py-3"><input type="checkbox" :checked="selected.has(s.id)" @change="toggleRow(s.id)" class="h-4 w-4 accent-accent" /></td>
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-1.5">
@@ -400,7 +400,7 @@ const detailLink = (s) => {
                   <td class="px-4 py-3"><Gauge :v="online(s)?pct(s.disk_used,s.disk_total):null" /></td>
                   <td class="px-4 py-3"><span class="rounded px-1.5 py-0.5 text-xs" :class="agentCls(s.agent_version)">{{ s.agent_version ? 'v'+s.agent_version : '—' }}</span></td>
                 </tr>
-                <tr v-for="c in (containers[s.id] || [])" v-show="s.kind === 'docker' && expanded.has(s.id)" :key="s.id + ':' + c.name" class="lm-row border-b border-line bg-bg/40">
+                <tr v-for="c in (containers[s.id] || [])" v-show="s.kind === 'docker' && expanded.has(s.id)" :key="s.id + ':' + c.name" class="vantage-row border-b border-line bg-bg/40">
                   <td></td>
                   <td class="px-4 py-2"><RouterLink :to="`/system/${s.id}?type=container&name=${encodeURIComponent(c.name)}&parent=${encodeURIComponent(s.name)}&ptype=docker`" class="flex items-center gap-2 pl-10 text-sm text-fg hover:text-accent"><span class="text-faint">└</span>{{ c.name }}</RouterLink></td>
                   <td class="px-4 py-2 text-faint">—</td>

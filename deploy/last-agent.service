@@ -1,19 +1,19 @@
 # Run the agent as a native binary via systemd (no Docker).
 #
-#   sudo cp target/release/last-agent /usr/local/bin/
-#   sudo cp deploy/last-agent.service /etc/systemd/system/
-#   sudo mkdir -p /etc/last-monitor && sudoedit /etc/last-monitor/agent.env   # HUB_URL, API_KEY
-#   sudo systemctl enable --now last-agent
+#   sudo cp target/release/vantage-agent /usr/local/bin/
+#   sudo cp deploy/vantage-agent.service /etc/systemd/system/
+#   sudo mkdir -p /etc/vantage && sudoedit /etc/vantage/agent.env   # HUB_URL, API_KEY
+#   sudo systemctl enable --now vantage-agent
 #
 [Unit]
-Description=last-monitor agent
+Description=vantage agent
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-EnvironmentFile=/etc/last-monitor/agent.env
-ExecStart=/usr/local/bin/last-agent
+EnvironmentFile=/etc/vantage/agent.env
+ExecStart=/usr/local/bin/vantage-agent
 Restart=always
 RestartSec=5
 # Hardening: the agent only needs to read /proc and reach the hub.

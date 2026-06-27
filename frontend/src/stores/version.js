@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { api } from '../lib/api'
 
-const REPO = 'The-Last-Devops/last-monitor'
+const REPO = 'The-Last-Devops/vantage'
 
 // naive semver compare (a vs b) → >0 if a newer
 function cmp(a, b) {

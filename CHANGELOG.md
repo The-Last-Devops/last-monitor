@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to **Last Monitor** are documented here.
+All notable changes to **Vantage** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
@@ -8,6 +8,29 @@ Each released version's section is used verbatim as the GitHub Release notes
 (extracted by `.github/workflows/release.yml`), so keep entries user-facing.
 
 ## [Unreleased]
+
+## [2.0.0] — 2026-06-27
+
+**Vantage** — the project formerly known as "Last Monitor". This is a clean,
+**incompatible** rebrand: there is no in-place upgrade from 1.x. Deploy fresh.
+
+### Changed
+- **Renamed everything to "Vantage".** Display name, repo, Rust crates/binaries
+  (`vantage-hub`, `vantage-agent`), Docker images
+  (`ghcr.io/the-last-devops/vantage-hub` / `vantage-agent`), Helm charts, Kubernetes
+  resources, and the databases (`vantage_config`, `vantage_data`). No abbreviations.
+- **New logo** — a summit `^` next to a terminal cursor: a vantage point you watch
+  from and operate from.
+- Positioned as a **centralized DevOps control plane** — manage and watch servers,
+  clusters, services, and cloud; monitor, alert, and operate from one place.
+
+### Breaking
+- Image names, database names, and Kubernetes resource names all changed from the
+  `last-monitor` / `lastmon` / `last-*` scheme. Existing 1.x deployments must be
+  **recreated** with the new names (no data migration path is provided).
+
+### Removed
+- Dead server-rendered (HTMX) assets left over from the earlier SPA migration.
 
 ## [1.7.3] — 2026-06-27
 

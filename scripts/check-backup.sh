@@ -15,7 +15,7 @@ curl -fsS -b "$JAR" "$BASE/api/admin/backup?metrics=false" -o "$TMP/b.json.gz"
 python3 - "$TMP/b.json.gz" <<'PY'
 import gzip,json,sys
 d=json.load(gzip.open(sys.argv[1]))
-assert d.get("format")=="last-monitor-backup", d.get("format")
+assert d.get("format")=="vantage-backup", d.get("format")
 print("  format ok, tables:", ", ".join(f"{k}={len(v)}" for k,v in d["config"].items()))
 PY
 

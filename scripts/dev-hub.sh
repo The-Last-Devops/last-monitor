@@ -11,12 +11,12 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO"
 docker compose up -d db
 docker compose stop hub agent 2>/dev/null || true   # free :8080, avoid a duplicate agent
-export CONFIG_DATABASE_URL="postgres://lastmon:lastmon@localhost:5432/lastmon_config"
-export DATA_DATABASE_URL="postgres://lastmon:lastmon@localhost:5432/lastmon_data"
+export CONFIG_DATABASE_URL="postgres://vantage:vantage@localhost:5432/vantage_config"
+export DATA_DATABASE_URL="postgres://vantage:vantage@localhost:5432/vantage_data"
 export BIND_ADDR="0.0.0.0:8080"
 export ADMIN_EMAIL="${ADMIN_EMAIL:-admin@local}"
 export ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin123}"
 export LOCAL_API_KEY="${LOCAL_API_KEY:-local-dev-token}"
 export RUST_LOG="${RUST_LOG:-info,sqlx=warn}"
 echo "hub (cargo run) → :8080 ; now run: bash scripts/frontend.sh dev  (→ http://localhost:5173)"
-exec cargo run -p hub
+exec cargo run -p vantage-hub

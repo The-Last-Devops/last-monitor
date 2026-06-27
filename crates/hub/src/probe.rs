@@ -45,9 +45,9 @@ const BODY_CAP: usize = 4096;
 // Honest, identifying defaults so WAFs don't reject a request with no UA/Accept
 // (e.g. a bare 406). Both are overridable per monitor via the headers config.
 const DEFAULT_UA: &str = concat!(
-    "last-monitor/",
+    "vantage/",
     env!("CARGO_PKG_VERSION"),
-    " (+https://github.com/the-last-devops/last-monitor)"
+    " (+https://github.com/the-last-devops/vantage)"
 );
 const DEFAULT_ACCEPT: &str = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
 

@@ -1,4 +1,4 @@
-//! last-monitor hub: ingest endpoint, JSON API, and the server-rendered web UI.
+//! vantage hub: ingest endpoint, JSON API, and the server-rendered web UI.
 //!
 //! Environment:
 //!   CONFIG_DATABASE_URL  Postgres URL for the config DB (users, namespaces, configs)

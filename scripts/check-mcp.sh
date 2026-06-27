@@ -23,7 +23,7 @@ mcp() { curl -s -X POST "$BASE/mcp" -H "Authorization: Bearer $TOKEN" -H 'conten
 
 say "initialize -> serverInfo.name"
 printf '%s' "$(mcp '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}')" \
-  | py "import sys,json;d=json.load(sys.stdin);print(d['result']['serverInfo']['name'])" | grep -qx "last-monitor" \
+  | py "import sys,json;d=json.load(sys.stdin);print(d['result']['serverInfo']['name'])" | grep -qx "vantage" \
   && echo "ok" || { echo "FAIL"; fail=1; }
 
 say "tools/list -> tool count"

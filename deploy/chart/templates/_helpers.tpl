@@ -1,18 +1,18 @@
-{{- define "lm.name" -}}{{ .Release.Name }}{{- end -}}
-{{- define "lm.dbConfig" -}}{{ .Release.Name }}-db-config{{- end -}}
-{{- define "lm.dbData" -}}{{ .Release.Name }}-db-data{{- end -}}
-{{- define "lm.hub" -}}{{ .Release.Name }}-hub{{- end -}}
+{{- define "vantage.name" -}}{{ .Release.Name }}{{- end -}}
+{{- define "vantage.dbConfig" -}}{{ .Release.Name }}-db-config{{- end -}}
+{{- define "vantage.dbData" -}}{{ .Release.Name }}-db-data{{- end -}}
+{{- define "vantage.hub" -}}{{ .Release.Name }}-hub{{- end -}}
 
 {{- /*
   In-cluster DB password: use the value if set, else reuse the one already stored
   in the Secret (so `helm upgrade` keeps it), else generate a random one. Memoized
   into .Values so every call in this render returns the same value.
 */ -}}
-{{- define "lm.dbPassword" -}}
+{{- define "vantage.dbPassword" -}}
 {{- if not .Values.timescaledb._pw -}}
   {{- $pw := .Values.timescaledb.password -}}
   {{- if not $pw -}}
-    {{- $existing := lookup "v1" "Secret" .Release.Namespace (include "lm.name" .) -}}
+    {{- $existing := lookup "v1" "Secret" .Release.Namespace (include "vantage.name" .) -}}
     {{- if and $existing $existing.data (hasKey $existing.data "db-password") -}}
       {{- $pw = index $existing.data "db-password" | b64dec -}}
     {{- else -}}
@@ -24,19 +24,19 @@
 {{- .Values.timescaledb._pw -}}
 {{- end -}}
 
-{{- define "lm.configUrl" -}}
+{{- define "vantage.configUrl" -}}
 {{- if .Values.timescaledb.enabled -}}
-postgres://lastmon:{{ include "lm.dbPassword" . }}@{{ include "lm.dbConfig" . }}:5432/lastmon_config
+postgres://vantage:{{ include "vantage.dbPassword" . }}@{{ include "vantage.dbConfig" . }}:5432/vantage_config
 {{- else -}}{{ .Values.hub.configDatabaseUrl }}{{- end -}}
 {{- end -}}
 
-{{- define "lm.dataUrl" -}}
+{{- define "vantage.dataUrl" -}}
 {{- if .Values.timescaledb.enabled -}}
-postgres://lastmon:{{ include "lm.dbPassword" . }}@{{ include "lm.dbData" . }}:5432/lastmon_data
+postgres://vantage:{{ include "vantage.dbPassword" . }}@{{ include "vantage.dbData" . }}:5432/vantage_data
 {{- else -}}{{ .Values.hub.dataDatabaseUrl }}{{- end -}}
 {{- end -}}
 
-{{- define "lm.pullSecrets" -}}
+{{- define "vantage.pullSecrets" -}}
 {{- with .Values.image.pullSecrets }}
 imagePullSecrets:
 {{- range . }}

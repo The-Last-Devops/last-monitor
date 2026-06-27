@@ -43,7 +43,7 @@ pub async fn handle(
             Ok(json!({
                 "protocolVersion": pv,
                 "capabilities": { "tools": {} },
-                "serverInfo": { "name": "last-monitor", "version": env!("CARGO_PKG_VERSION") },
+                "serverInfo": { "name": "vantage", "version": env!("CARGO_PKG_VERSION") },
             }))
         }
         "ping" => Ok(json!({})),

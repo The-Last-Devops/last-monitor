@@ -3,10 +3,10 @@ import { defineStore } from 'pinia'
 // Theme + namespace filter, shared across the shell and pages.
 export const useUi = defineStore('ui', {
   state: () => ({
-    light: localStorage.getItem('lm-theme') === 'light',
+    light: localStorage.getItem('vantage-theme') === 'light',
     // Set of selected namespace names; empty Set with `allNs` flag = show all.
-    selectedNs: new Set(JSON.parse(localStorage.getItem('lm-ns') || '[]')),
-    nsTouched: localStorage.getItem('lm-ns') != null,
+    selectedNs: new Set(JSON.parse(localStorage.getItem('vantage-ns') || '[]')),
+    nsTouched: localStorage.getItem('vantage-ns') != null,
   }),
   actions: {
     applyTheme() {
@@ -14,7 +14,7 @@ export const useUi = defineStore('ui', {
     },
     toggleTheme() {
       this.light = !this.light
-      localStorage.setItem('lm-theme', this.light ? 'light' : 'dark')
+      localStorage.setItem('vantage-theme', this.light ? 'light' : 'dark')
       this.applyTheme()
     },
     // namespace filter: if untouched, treat as "all"
@@ -39,7 +39,7 @@ export const useUi = defineStore('ui', {
       this._persistNs(allNames)
     },
     _persistNs() {
-      localStorage.setItem('lm-ns', JSON.stringify([...this.selectedNs]))
+      localStorage.setItem('vantage-ns', JSON.stringify([...this.selectedNs]))
     },
   },
 })

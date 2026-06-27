@@ -11,4 +11,4 @@ export AGENT_TOKEN="${AGENT_TOKEN:-local-dev-token}"   # bootstrapped LOCAL key
 export INTERVAL="${INTERVAL:-2}"
 export HOSTNAME_OVERRIDE="${HOSTNAME_OVERRIDE:-$(hostname -s)}"
 echo "native agent → $HUB_URL  (host=$HOSTNAME_OVERRIDE, every ${INTERVAL}s)"
-exec cargo run -p agent
+exec cargo run -p vantage-agent

@@ -309,7 +309,7 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
       </div>
       <table class="w-full min-w-[600px] text-sm"><thead class="border-b border-line bg-surface text-left text-xs uppercase tracking-wider text-muted"><tr><th class="px-4 py-2.5 font-medium">Container</th><th class="px-4 py-2.5 font-medium">CPU</th><th class="px-4 py-2.5 font-medium">Mem</th><th class="px-4 py-2.5 font-medium">Network</th></tr></thead>
         <tbody>
-          <tr v-for="c in containersList" :key="c.name" class="lm-row border-b border-line last:border-0">
+          <tr v-for="c in containersList" :key="c.name" class="vantage-row border-b border-line last:border-0">
             <td class="px-4 py-3"><RouterLink :to="`/system/${id}?type=container&name=${encodeURIComponent(c.name)}&parent=${encodeURIComponent(name)}&ptype=docker`" class="text-fg hover:text-accent">{{ c.name }}</RouterLink></td>
             <td class="px-4 py-3"><Gauge :v="c.cpu" /></td>
             <td class="px-4 py-3 tabular-nums text-muted">{{ c.mem != null ? (c.mem/1048576).toFixed(0)+' MB' : '—' }}</td>
@@ -331,7 +331,7 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
         <div class="flex items-center gap-2 border-b border-line bg-surface px-4 py-2.5"><h2 class="text-sm font-semibold text-fg">Containers</h2><span class="rounded-full bg-surface2 px-2 py-0.5 text-xs text-muted">{{ containersList.length }}</span></div>
         <table class="w-full min-w-[600px] text-sm"><thead class="border-b border-line bg-surface text-left text-xs uppercase tracking-wider text-muted"><tr><th class="px-4 py-2.5 font-medium">Container</th><th class="px-4 py-2.5 font-medium">CPU</th><th class="px-4 py-2.5 font-medium">Mem</th><th class="px-4 py-2.5 font-medium">Network</th></tr></thead>
           <tbody>
-            <tr v-for="(c, i) in containersList" :key="c.name" class="lm-row border-b border-line last:border-0" :class="selectedMetrics.includes(c.name) ? 'sel' : ''" @mouseenter="hoverMetric = c.name" @mouseleave="hoverMetric = null">
+            <tr v-for="(c, i) in containersList" :key="c.name" class="vantage-row border-b border-line last:border-0" :class="selectedMetrics.includes(c.name) ? 'sel' : ''" @mouseenter="hoverMetric = c.name" @mouseleave="hoverMetric = null">
               <td class="px-4 py-3"><div class="flex items-center gap-2"><button @click="toggleMetric(c.name)" v-tip="selectedMetrics.includes(c.name) ? 'Unpin' : 'Pin on charts'" class="h-2.5 w-2.5 shrink-0 rounded-full" :class="selectedMetrics.includes(c.name) ? 'ring-2 ring-offset-1 ring-offset-surface' : ''" :style="{ background: seriesColor(i), '--tw-ring-color': seriesColor(i) }"></button><span class="text-fg">{{ c.name }}</span></div></td>
               <td class="px-4 py-3"><Gauge :v="c.cpu" /></td>
               <td class="px-4 py-3 tabular-nums text-muted">{{ c.mem != null ? (c.mem/1048576).toFixed(0)+' MB' : '—' }}</td>

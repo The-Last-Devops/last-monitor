@@ -126,7 +126,7 @@ pub fn manifest() -> Vec<ProviderMeta> {
             f("method", "Method", "select").adv().opts(&["POST", "PUT", "PATCH"], "POST")
                 .hint("HTTP verb to send. POST fits almost every receiver."),
             f("headers", "Custom headers", "textarea").adv()
-                .ph("Authorization: Bearer …\nX-Source: last-monitor")
+                .ph("Authorization: Bearer …\nX-Source: vantage")
                 .hint("Optional. One `Key: Value` per line — e.g. an auth header."),
             f("body", "Body template", "textarea").adv().ph("{\"text\": \"{{message}}\"}")
                 .hint("Optional JSON template; {{message}} is replaced with the alert text. Default: {\"text\":\"<message>\"}."),
@@ -160,7 +160,7 @@ pub fn manifest() -> Vec<ProviderMeta> {
           "Webhook to a Discord channel", vec![
             f("url", "Webhook URL", "secret").req().ph("https://discord.com/api/webhooks/…")
                 .hint("Channel → Edit → Integrations → Webhooks → New Webhook → Copy URL."),
-            f("username", "Override bot name", "text").adv().ph("Last Monitor")
+            f("username", "Override bot name", "text").adv().ph("Vantage")
                 .hint("Optional. Posts under this name instead of the webhook's default."),
             f("thread_id", "Thread ID", "text").adv().ph("123456789012345678")
                 .hint("Optional. Post into an existing thread — right-click the thread → Copy ID (needs Developer Mode)."),
@@ -196,7 +196,7 @@ pub fn manifest() -> Vec<ProviderMeta> {
           "Push to a ntfy topic (self-host or ntfy.sh)", vec![
             f("server", "Server", "url").ph("https://ntfy.sh").default("https://ntfy.sh")
                 .hint("Leave as ntfy.sh, or point to your self-hosted server."),
-            f("topic", "Topic", "text").req().ph("last-monitor-alerts")
+            f("topic", "Topic", "text").req().ph("vantage-alerts")
                 .hint("Topic to publish to — anyone subscribed to it receives the alert."),
             f("token", "Access token", "secret").adv().ph("tk_…")
                 .hint("Bearer token; only needed for protected/private topics."),
@@ -268,7 +268,7 @@ pub fn manifest() -> Vec<ProviderMeta> {
                 .hint("SMTP login. Leave empty if the server needs no auth."),
             f("password", "Password", "secret").ph("••••••••")
                 .hint("SMTP password or app-specific password."),
-            f("from", "From", "text").req().ph("Last Monitor <alerts@example.com>")
+            f("from", "From", "text").req().ph("Vantage <alerts@example.com>")
                 .hint("Sender address. 'Name <addr>' format is allowed."),
             f("to", "To", "text").req().ph("oncall@example.com")
                 .hint("Recipient address for the alert email."),
@@ -398,7 +398,7 @@ impl Notification {
         for (k, val) in self.fields() {
             s.push_str(&format!("\n{k}: {val}"));
         }
-        s.push_str("\n— Last Monitor");
+        s.push_str("\n— Vantage");
         s
     }
     /// Telegram HTML body.
@@ -412,7 +412,7 @@ impl Notification {
         for (k, val) in self.fields() {
             s.push_str(&format!("\n<b>{k}:</b> {}", esc(val)));
         }
-        s.push_str("\n<i>Last Monitor</i>");
+        s.push_str("\n<i>Vantage</i>");
         s
     }
     fn color_int(&self) -> u32 {
@@ -461,7 +461,7 @@ impl Notification {
             "<div style=\"font-family:system-ui,Segoe UI,Roboto,sans-serif;font-size:14px\">\
              <div style=\"font-size:17px;font-weight:700;color:{};margin-bottom:10px\">{}</div>\
              <table style=\"border-collapse:collapse\">{rows}</table>\
-             <p style=\"color:#94a3b8;font-size:12px;margin-top:14px\">Last Monitor</p></div>",
+             <p style=\"color:#94a3b8;font-size:12px;margin-top:14px\">Vantage</p></div>",
             self.color_hex(),
             esc(&self.title())
         )
@@ -529,7 +529,7 @@ pub async fn dispatch(
                     "color": n.color_hex(),
                     "title": n.title(),
                     "fields": n.slack_fields(),
-                    "footer": "Last Monitor",
+                    "footer": "Vantage",
                 }] }),
             )
             .await?;
@@ -544,7 +544,7 @@ pub async fn dispatch(
                 "title": n.title(),
                 "color": n.color_int(),
                 "fields": n.discord_fields(),
-                "footer": { "text": "Last Monitor" },
+                "footer": { "text": "Vantage" },
             }] });
             if let Some(u) = s(cfg, "username") {
                 payload["username"] = json!(u);
@@ -636,7 +636,7 @@ pub async fn dispatch(
             post_json(
                 client,
                 &format!("{server}/push"),
-                json!({ "device_key": key, "title": "Last Monitor", "body": body }),
+                json!({ "device_key": key, "title": "Vantage", "body": body }),
             )
             .await?;
         }
@@ -649,7 +649,7 @@ pub async fn dispatch(
                 json!({
                     "routing_key": routing_key,
                     "event_action": "trigger",
-                    "payload": { "summary": body, "source": "last-monitor", "severity": severity },
+                    "payload": { "summary": body, "source": "vantage", "severity": severity },
                 }),
             )
             .await?;
@@ -693,7 +693,7 @@ pub async fn dispatch(
             post_json(
                 client,
                 &format!("{server}/notify"),
-                json!({ "urls": urls, "body": body, "title": "Last Monitor" }),
+                json!({ "urls": urls, "body": body, "title": "Vantage" }),
             )
             .await?;
         }

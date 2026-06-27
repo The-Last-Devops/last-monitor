@@ -1,10 +1,10 @@
 [package]
-name = "hub"
+name = "vantage-hub"
 version.workspace = true
 edition.workspace = true
 
 [[bin]]
-name = "last-hub"
+name = "vantage-hub"
 path = "src/main.rs"
 
 [dependencies]

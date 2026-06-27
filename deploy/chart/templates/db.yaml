@@ -8,10 +8,10 @@
 */}}
 {{- range $role := (list "config" "data") }}
 {{- $isData := eq $role "data" }}
-{{- $name := ternary (include "lm.dbData" $) (include "lm.dbConfig" $) $isData }}
+{{- $name := ternary (include "vantage.dbData" $) (include "vantage.dbConfig" $) $isData }}
 {{- $image := ternary $.Values.timescaledb.image $.Values.timescaledb.configImage $isData }}
 {{- $storage := ternary $.Values.timescaledb.dataStorage $.Values.timescaledb.configStorage $isData }}
-{{- $database := printf "lastmon_%s" $role }}
+{{- $database := printf "vantage_%s" $role }}
 ---
 apiVersion: v1
 kind: Service
@@ -38,15 +38,15 @@ spec:
         - name: db
           image: {{ $image }}
           env:
-            - { name: POSTGRES_USER, value: lastmon }
-            - { name: POSTGRES_PASSWORD, value: {{ include "lm.dbPassword" $ | quote }} }
+            - { name: POSTGRES_USER, value: vantage }
+            - { name: POSTGRES_PASSWORD, value: {{ include "vantage.dbPassword" $ | quote }} }
             - { name: POSTGRES_DB, value: {{ $database }} }
             - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
           ports: [{ containerPort: 5432 }]
           volumeMounts:
             - { name: data, mountPath: /var/lib/postgresql/data }
           readinessProbe:
-            exec: { command: ["pg_isready", "-U", "lastmon"] }
+            exec: { command: ["pg_isready", "-U", "vantage"] }
             initialDelaySeconds: 5
             periodSeconds: 5
   volumeClaimTemplates:

@@ -4,7 +4,7 @@
 # or the source tree — only regenerable build output.
 #   bash scripts/disk-cleanup.sh
 # Tip: run it periodically (e.g. weekly cron):
-#   (crontab -l 2>/dev/null; echo "0 3 * * 0 cd $(pwd) && bash scripts/disk-cleanup.sh >> /tmp/lm-cleanup.log 2>&1") | crontab -
+#   (crontab -l 2>/dev/null; echo "0 3 * * 0 cd $(pwd) && bash scripts/disk-cleanup.sh >> /tmp/vantage-cleanup.log 2>&1") | crontab -
 set -uo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO"
@@ -30,7 +30,7 @@ else
 fi
 
 # 3) Stray release tarballs left in the repo root.
-rm -f last-monitor-*.tar.gz 2>/dev/null || true
+rm -f vantage-*.tar.gz 2>/dev/null || true
 
 echo "after:  $(free)"
 echo "OK — cleanup done"

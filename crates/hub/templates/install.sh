@@ -1,5 +1,5 @@
 #!/bin/sh
-# last-monitor agent installer (native binary + systemd).
+# vantage agent installer (native binary + systemd).
 #   curl -fsSL <HUB>/install.sh | HUB_URL=<HUB> API_KEY=<key> sh
 #
 # Requires root (writes /usr/local/bin and a systemd unit). Linux x86_64/arm64.
@@ -8,7 +8,7 @@ set -eu
 : "${HUB_URL:?set HUB_URL, e.g. HUB_URL=https://monitor.senprints.net}"
 : "${API_KEY:?set API_KEY (from Add System in the UI)}"
 
-REPO="The-Last-Devops/last-monitor"
+REPO="The-Last-Devops/vantage"
 SUDO=""
 [ "$(id -u)" -ne 0 ] && SUDO="sudo"
 
@@ -18,7 +18,7 @@ case "$(uname -m)" in
   *) echo "unsupported arch $(uname -m); use the Docker method instead" >&2; exit 1 ;;
 esac
 
-echo "→ finding latest last-agent release for linux-$ARCH…"
+echo "→ finding latest vantage-agent release for linux-$ARCH…"
 URL=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
   | grep -oE "https://[^\"]*linux-$ARCH[^\"]*\.tar\.gz" | head -1)
 if [ -z "$URL" ]; then
@@ -30,22 +30,22 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 echo "→ downloading $URL"
 curl -fsSL "$URL" | tar -xz -C "$TMP"
-$SUDO install -m 0755 "$(find "$TMP" -name last-agent -type f | head -1)" /usr/local/bin/last-agent
+$SUDO install -m 0755 "$(find "$TMP" -name vantage-agent -type f | head -1)" /usr/local/bin/vantage-agent
 
-echo "→ writing /etc/last-monitor/agent.env"
-$SUDO mkdir -p /etc/last-monitor
-printf 'HUB_URL=%s\nAPI_KEY=%s\nDISK_PATH=/\n' "$HUB_URL" "$API_KEY" | $SUDO tee /etc/last-monitor/agent.env >/dev/null
-$SUDO chmod 600 /etc/last-monitor/agent.env
+echo "→ writing /etc/vantage/agent.env"
+$SUDO mkdir -p /etc/vantage
+printf 'HUB_URL=%s\nAPI_KEY=%s\nDISK_PATH=/\n' "$HUB_URL" "$API_KEY" | $SUDO tee /etc/vantage/agent.env >/dev/null
+$SUDO chmod 600 /etc/vantage/agent.env
 
 echo "→ installing systemd service"
-$SUDO tee /etc/systemd/system/last-agent.service >/dev/null <<'UNIT'
+$SUDO tee /etc/systemd/system/vantage-agent.service >/dev/null <<'UNIT'
 [Unit]
-Description=last-monitor agent
+Description=vantage agent
 After=network-online.target
 Wants=network-online.target
 [Service]
-EnvironmentFile=/etc/last-monitor/agent.env
-ExecStart=/usr/local/bin/last-agent
+EnvironmentFile=/etc/vantage/agent.env
+ExecStart=/usr/local/bin/vantage-agent
 Restart=always
 RestartSec=5
 [Install]
@@ -53,5 +53,5 @@ WantedBy=multi-user.target
 UNIT
 
 $SUDO systemctl daemon-reload
-$SUDO systemctl enable --now last-agent
-echo "✓ last-agent installed and started. Check: systemctl status last-agent"
+$SUDO systemctl enable --now vantage-agent
+echo "✓ vantage-agent installed and started. Check: systemctl status vantage-agent"

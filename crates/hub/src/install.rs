@@ -16,7 +16,7 @@ use axum::{
 };
 use serde::Deserialize;
 
-const AGENT_IMAGE: &str = "ghcr.io/the-last-devops/last-monitor-agent:main";
+const AGENT_IMAGE: &str = "ghcr.io/the-last-devops/vantage-agent:main";
 
 /// Reconstruct the hub's public base URL from the request the caller hit, so the
 /// agent reports back to the same domain (works behind an ingress / TLS).
@@ -45,7 +45,7 @@ pub struct AgentParams {
     #[serde(default)]
     cluster: String,
     /// k8s namespace to install the DaemonSet into (NOT the RBAC namespace, which
-    /// the API key already encodes). Defaults to `last-monitor`.
+    /// the API key already encodes). Defaults to `vantage`.
     ns: Option<String>,
 }
 
@@ -61,7 +61,7 @@ pub async fn k8s_agent_yaml(headers: HeaderMap, Query(p): Query<AgentParams>) ->
     let ns =
         p.ns.as_deref()
             .filter(|s| !s.is_empty())
-            .unwrap_or("last-monitor");
+            .unwrap_or("vantage");
     let body = AGENT_MANIFEST
         .replace("<HUB_URL>", &base_url(&headers))
         .replace("<API_KEY>", &p.key)

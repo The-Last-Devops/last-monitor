@@ -2,7 +2,7 @@
 # Show the latest "Release" workflow run + its per-job status (public repo, no auth).
 #   bash scripts/check-release.sh
 set -euo pipefail
-REPO="${REPO:-The-Last-Devops/last-monitor}"
+REPO="${REPO:-The-Last-Devops/vantage}"
 API="https://api.github.com/repos/$REPO/actions"
 
 run=$(curl -fsS "$API/runs?per_page=20" | python3 -c "

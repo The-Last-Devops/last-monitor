@@ -1,21 +1,21 @@
-# last-monitor agent — DaemonSet (one pod per node, reports host metrics).
+# vantage agent — DaemonSet (one pod per node, reports host metrics).
 # Edit the 4 placeholders below, then:  kubectl apply -f agent.yaml
 #
 #   <HUB_URL>     URL the cluster can reach the hub at (NOT localhost) e.g. https://mon.example.com
 #   <API_KEY>     key from "Add system → Kubernetes" in the UI
 #   <CLUSTER>     cluster name shown in the dashboard, e.g. prod-cluster
-#   <IMAGE>       agent image, e.g. ghcr.io/the-last-devops/last-monitor-agent:main
+#   <IMAGE>       agent image, e.g. ghcr.io/the-last-devops/vantage-agent:main
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: last-monitor
+  name: vantage
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: last-agent
-  namespace: last-monitor
+  name: vantage-agent
+  namespace: vantage
 type: Opaque
 stringData:
   api-key: "<API_KEY>"
@@ -23,15 +23,15 @@ stringData:
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: last-agent
-  namespace: last-monitor
-  labels: { app: last-agent }
+  name: vantage-agent
+  namespace: vantage
+  labels: { app: vantage-agent }
 spec:
   selector:
-    matchLabels: { app: last-agent }
+    matchLabels: { app: vantage-agent }
   template:
     metadata:
-      labels: { app: last-agent }
+      labels: { app: vantage-agent }
     spec:
       hostNetwork: true              # report host interfaces
       hostPID: true                  # see host processes (host-level CPU/mem)
@@ -57,7 +57,7 @@ spec:
             - name: API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: last-agent
+                  name: vantage-agent
                   key: api-key
           resources:
             requests: { cpu: 20m, memory: 32Mi }
