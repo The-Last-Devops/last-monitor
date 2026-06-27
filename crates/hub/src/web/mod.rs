@@ -4,12 +4,7 @@
 //! endpoint listing servers with their latest metric. Real templating (Askama/Maud),
 //! auth, and namespaces come next.
 
-use axum::{
-    extract::{Path, State},
-    http::StatusCode,
-    Json,
-};
-use serde::Serialize;
+use axum::http::StatusCode;
 use uuid::Uuid;
 
 use crate::auth::CurrentUser;
@@ -69,7 +64,7 @@ pub fn chart_tier(
         _ => ("", "time", "1 hour", "1 minute"),
     }
 }
-fn internal<E: std::fmt::Display>(e: E) -> StatusCode {
+pub(crate) fn internal<E: std::fmt::Display>(e: E) -> StatusCode {
     tracing::error!(error = %e, "web handler DB error");
     StatusCode::INTERNAL_SERVER_ERROR
 }

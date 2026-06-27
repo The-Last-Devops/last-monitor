@@ -1,263 +1,16 @@
-//! Service-check probe engine (the Uptime-Kuma half).
-//!
-//! A single background scheduler reloads enabled monitors from the config DB,
-//! fires each one on its own interval, and writes a heartbeat row into the data DB.
-//! It also stores the last successful and last failed request/response per monitor
-//! (the `monitor_debug` table) so a failure like a bare 406 can be inspected.
-//!
-//! Per-monitor options live in the `config` JSONB (all optional):
-//!   timeout_secs, retries, upside_down,
-//!   method, headers{}, body, auth{type,username,password,token},
-//!   accepted_status ("200-299,301"), max_redirects, ignore_tls,
-//!   keyword, keyword_invert   (tags/description are metadata, ignored here)
+//! Per-check-kind probe implementations and the kind dispatcher.
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
-use sqlx::types::Json;
 use tokio::time::timeout;
-use uuid::Uuid;
 
-use crate::AppState;
+use super::{
+    cfg_bool, cfg_str, cfg_u64, down, err_beat, ok_beat, status_matches, truncate, Beat, Monitor,
+    BODY_CAP, DEFAULT_ACCEPT, DEFAULT_UA,
+};
 
-#[derive(Clone)]
-struct Monitor {
-    id: Uuid,
-    kind: String,
-    target: String,
-    interval: Duration,
-    config: Value,
-}
-
-struct Beat {
-    up: bool,
-    latency_ms: Option<i32>,
-    status_code: Option<i32>,
-    message: Option<String>,
-    /// Rich request/response detail for the debug view (best-effort).
-    debug: Option<Value>,
-}
-
-const TICK: Duration = Duration::from_secs(2);
-const BODY_CAP: usize = 4096;
-// Honest, identifying defaults so WAFs don't reject a request with no UA/Accept
-// (e.g. a bare 406). Both are overridable per monitor via the headers config.
-const DEFAULT_UA: &str = concat!(
-    "vantage/",
-    env!("CARGO_PKG_VERSION"),
-    " (+https://github.com/the-last-devops/vantage)"
-);
-const DEFAULT_ACCEPT: &str = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
-
-fn cfg_u64(c: &Value, key: &str, default: u64) -> u64 {
-    c.get(key).and_then(|v| v.as_u64()).unwrap_or(default)
-}
-fn cfg_bool(c: &Value, key: &str) -> bool {
-    c.get(key).and_then(|v| v.as_bool()).unwrap_or(false)
-}
-fn cfg_str<'a>(c: &'a Value, key: &str) -> Option<&'a str> {
-    c.get(key)
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty())
-}
-
-/// Parse "200-299,301,400-403" → ranges. Empty/None means "any 2xx".
-fn status_matches(spec: Option<&str>, code: u16) -> bool {
-    let Some(spec) = spec else {
-        return (200..300).contains(&code);
-    };
-    for part in spec.split(',').map(str::trim).filter(|s| !s.is_empty()) {
-        if let Some((a, b)) = part.split_once('-') {
-            if let (Ok(lo), Ok(hi)) = (a.trim().parse::<u16>(), b.trim().parse::<u16>()) {
-                if (lo..=hi).contains(&code) {
-                    return true;
-                }
-            }
-        } else if part.parse::<u16>() == Ok(code) {
-            return true;
-        }
-    }
-    false
-}
-
-pub fn spawn(state: AppState) {
-    tokio::spawn(async move {
-        let mut last_run: HashMap<Uuid, Instant> = HashMap::new();
-        let streaks: Arc<Mutex<HashMap<Uuid, u64>>> = Arc::new(Mutex::new(HashMap::new()));
-
-        loop {
-            match load_monitors(&state).await {
-                Ok(monitors) => {
-                    let now = Instant::now();
-                    let live: std::collections::HashSet<Uuid> =
-                        monitors.iter().map(|m| m.id).collect();
-                    last_run.retain(|id, _| live.contains(id));
-                    streaks.lock().unwrap().retain(|id, _| live.contains(id));
-
-                    for m in monitors {
-                        let due = match last_run.get(&m.id) {
-                            Some(t) => now.duration_since(*t) >= m.interval,
-                            None => true,
-                        };
-                        if due {
-                            last_run.insert(m.id, now);
-                            let data = state.data.clone();
-                            let config = state.config.clone();
-                            let streaks = streaks.clone();
-                            tokio::spawn(async move {
-                                // Push monitors aren't probed; we just check staleness — the
-                                // "up" beats arrive via /pub/push/<token>.
-                                if m.kind == "push" {
-                                    let last: Option<(chrono::DateTime<chrono::Utc>,)> = sqlx::query_as(
-                                        "SELECT time FROM heartbeats WHERE monitor_id = $1 ORDER BY time DESC LIMIT 1",
-                                    )
-                                    .bind(m.id)
-                                    .fetch_optional(&data)
-                                    .await
-                                    .ok()
-                                    .flatten();
-                                    let stale = match last {
-                                        Some((t,)) => {
-                                            (chrono::Utc::now() - t).num_seconds().max(0) as u64
-                                                > m.interval.as_secs()
-                                        }
-                                        None => true,
-                                    };
-                                    if stale {
-                                        let beat = Beat {
-                                            up: false,
-                                            latency_ms: None,
-                                            status_code: None,
-                                            message: Some(
-                                                "no push received within interval".into(),
-                                            ),
-                                            debug: None,
-                                        };
-                                        let _ = write_beat(&data, m.id, &beat).await;
-                                    }
-                                    return;
-                                }
-                                let mut beat = probe(&m).await;
-                                // The raw check result (before upside-down / retries) is what
-                                // we classify the debug record by.
-                                let raw_up = beat.up;
-                                let debug = beat.debug.take();
-
-                                if cfg_bool(&m.config, "upside_down") {
-                                    beat.up = !beat.up;
-                                    if !beat.up {
-                                        beat.message = Some("up (inverted by upside-down)".into());
-                                    }
-                                }
-                                let retries = cfg_u64(&m.config, "retries", 1);
-                                let streak = {
-                                    let mut g = streaks.lock().unwrap();
-                                    let s = if beat.up {
-                                        0
-                                    } else {
-                                        g.get(&m.id).copied().unwrap_or(0) + 1
-                                    };
-                                    g.insert(m.id, s);
-                                    s
-                                };
-                                if !beat.up && streak <= retries {
-                                    beat.up = true;
-                                    beat.message = Some(format!(
-                                        "{} (retry {}/{})",
-                                        beat.message.as_deref().unwrap_or("check failed"),
-                                        streak,
-                                        retries
-                                    ));
-                                }
-                                if let Err(e) = write_beat(&data, m.id, &beat).await {
-                                    tracing::error!(error = %e, monitor = %m.id, "write heartbeat");
-                                }
-                                if let Some(detail) = debug {
-                                    let outcome = if raw_up { "ok" } else { "err" };
-                                    let _ = write_debug(&config, m.id, outcome, &detail).await;
-                                }
-                            });
-                        }
-                    }
-                }
-                Err(e) => tracing::error!(error = %e, "load monitors"),
-            }
-            tokio::time::sleep(TICK).await;
-        }
-    });
-}
-
-/// Probe a monitor once, immediately — called right after a monitor is created so
-/// its status (and any alert on it) doesn't wait for the next scheduler cycle.
-/// Records the raw result (no retry grace) so a service that's already down shows
-/// down at once. Push monitors have nothing to probe and are skipped.
-pub async fn check_once(state: &AppState, monitor_id: Uuid) {
-    let row: Option<(String, String, i32, Json<Value>)> = sqlx::query_as(
-        "SELECT kind::text, target, interval_secs, config FROM monitors \
-         WHERE id = $1 AND enabled = true",
-    )
-    .bind(monitor_id)
-    .fetch_optional(&state.config)
-    .await
-    .unwrap_or(None);
-    let Some((kind, target, interval_secs, config)) = row else {
-        return;
-    };
-    if kind == "push" {
-        return;
-    }
-    let m = Monitor {
-        id: monitor_id,
-        kind,
-        target,
-        interval: Duration::from_secs(interval_secs.max(1) as u64),
-        config: config.0,
-    };
-    let mut beat = probe(&m).await;
-    let raw_up = beat.up;
-    let debug = beat.debug.take();
-    if cfg_bool(&m.config, "upside_down") {
-        beat.up = !beat.up;
-        if !beat.up {
-            beat.message = Some("up (inverted by upside-down)".into());
-        }
-    }
-    if let Err(e) = write_beat(&state.data, m.id, &beat).await {
-        tracing::error!(error = %e, monitor = %m.id, "check_once write heartbeat");
-    }
-    if let Some(detail) = debug {
-        let _ = write_debug(
-            &state.config,
-            m.id,
-            if raw_up { "ok" } else { "err" },
-            &detail,
-        )
-        .await;
-    }
-}
-
-async fn load_monitors(state: &AppState) -> anyhow::Result<Vec<Monitor>> {
-    let rows: Vec<(Uuid, String, String, i32, Json<Value>)> = sqlx::query_as(
-        "SELECT id, kind::text, target, interval_secs, config \
-         FROM monitors WHERE enabled = true",
-    )
-    .fetch_all(&state.config)
-    .await?;
-    Ok(rows
-        .into_iter()
-        .map(|(id, kind, target, interval_secs, config)| Monitor {
-            id,
-            kind,
-            target,
-            interval: Duration::from_secs(interval_secs.max(1) as u64),
-            config: config.0,
-        })
-        .collect())
-}
-
-async fn probe(m: &Monitor) -> Beat {
+pub(super) async fn probe(m: &Monitor) -> Beat {
     let start = Instant::now();
     match m.kind.as_str() {
         "http" | "keyword" => probe_http(m, start).await,
@@ -305,16 +58,6 @@ async fn probe_ping(m: &Monitor) -> Beat {
             );
             b
         }
-    }
-}
-
-fn down(msg: &str) -> Beat {
-    Beat {
-        up: false,
-        latency_ms: None,
-        status_code: None,
-        message: Some(truncate(msg, 200)),
-        debug: None,
     }
 }
 
@@ -474,26 +217,6 @@ async fn probe_tcp(m: &Monitor, start: Instant) -> Beat {
             b.debug = Some(dbg(Some("connect timeout".into())));
             b
         }
-    }
-}
-
-/// Build an "up" beat for the simple connect-style checks.
-fn ok_beat(start: Instant, target: &str, msg: Option<String>) -> Beat {
-    Beat {
-        up: true,
-        latency_ms: Some(start.elapsed().as_millis() as i32),
-        status_code: None,
-        message: msg,
-        debug: Some(json!({ "target": target })),
-    }
-}
-fn err_beat(start: Instant, target: &str, msg: String) -> Beat {
-    Beat {
-        up: false,
-        latency_ms: Some(start.elapsed().as_millis() as i32),
-        status_code: None,
-        message: Some(truncate(&msg, 200)),
-        debug: Some(json!({ "target": target, "error": msg })),
     }
 }
 
@@ -721,42 +444,4 @@ async fn probe_tls(m: &Monitor, start: Instant) -> Beat {
         message: Some(msg),
         debug: Some(json!({ "target": m.target, "days_left": days, "warn_days": warn })),
     }
-}
-
-async fn write_beat(data: &sqlx::PgPool, monitor_id: Uuid, beat: &Beat) -> anyhow::Result<()> {
-    sqlx::query(
-        "INSERT INTO heartbeats (time, monitor_id, up, latency_ms, status_code, message) \
-         VALUES (now(), $1, $2, $3, $4, $5)",
-    )
-    .bind(monitor_id)
-    .bind(beat.up)
-    .bind(beat.latency_ms)
-    .bind(beat.status_code)
-    .bind(beat.message.as_deref())
-    .execute(data)
-    .await?;
-    Ok(())
-}
-
-/// Upsert the last 'ok' / 'err' request-response detail for a monitor.
-async fn write_debug(
-    config: &sqlx::PgPool,
-    monitor_id: Uuid,
-    outcome: &str,
-    detail: &Value,
-) -> anyhow::Result<()> {
-    sqlx::query(
-        "INSERT INTO monitor_debug (monitor_id, outcome, detail, at) VALUES ($1, $2, $3, now()) \
-         ON CONFLICT (monitor_id, outcome) DO UPDATE SET detail = EXCLUDED.detail, at = now()",
-    )
-    .bind(monitor_id)
-    .bind(outcome)
-    .bind(sqlx::types::Json(detail))
-    .execute(config)
-    .await?;
-    Ok(())
-}
-
-fn truncate(s: &str, n: usize) -> String {
-    s.chars().take(n).collect()
 }
