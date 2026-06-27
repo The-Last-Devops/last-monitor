@@ -9,6 +9,17 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ## [Unreleased]
 
+## [2.0.1] — 2026-06-27
+
+### Changed
+- **Internal: modularized the codebase — no functional changes.** Split the largest
+  files into per-concern modules so features are easier to add / remove / upgrade:
+  the hub (`notify`, `api/alerting`, `web/systems`, `web/monitors`, `probe`, `backup`),
+  the agent (`collect` / `push`), and the five largest Vue pages (into presentational
+  components plus a `hostFilter` lib). Public APIs, behavior, and the UI are unchanged.
+  Removed dead HTMX/SSR leftovers. Added a priority-ordered "Guiding principles"
+  section (security-first, lightweight, modular) to the contributor docs.
+
 ## [2.0.0] — 2026-06-27
 
 **Vantage** — the project formerly known as "Last Monitor". This is a clean,
