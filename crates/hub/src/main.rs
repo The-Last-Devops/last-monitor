@@ -16,6 +16,7 @@ mod auth;
 mod backup;
 mod data_admin;
 mod db;
+mod exec_crypto;
 mod ingest;
 mod install;
 mod mcp;

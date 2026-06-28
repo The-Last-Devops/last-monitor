@@ -23,6 +23,9 @@ axum-extra = { version = "0.10", features = ["cookie"] }
 rust-embed = "8"
 mime_guess = "2"
 argon2 = "0.5"
+# AEAD for encrypting users' stored SSH keys at rest (XChaCha20-Poly1305 — random
+# 24-byte nonces, no nonce-reuse footgun). Key = argon2 KEK from the user's password.
+chacha20poly1305 = "0.10"
 tower = "0.5"
 tower-http = { version = "0.6", features = ["fs", "trace"] }
 surge-ping = "0.8"
