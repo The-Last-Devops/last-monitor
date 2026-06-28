@@ -2,7 +2,7 @@
 // A status pill (Rancher-style): colored dot + label, tinted background + border.
 // Colors flip with the theme (see .vantage-pill-* in style.css).
 const props = defineProps({
-  tone: { type: String, default: 'muted' }, // ok | warn | down | info | muted
+  tone: { type: String, default: 'muted' }, // ok | warn | down | pending | info | muted
   label: { type: String, required: true },
   dot: { type: Boolean, default: true },
 })

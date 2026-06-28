@@ -60,7 +60,7 @@ function stateOf(a) {
   if (a.firing === false) return 'ok'
   return 'pending'
 }
-const TONE = { firing: 'down', ok: 'ok', pending: 'warn', disabled: 'muted' }
+const TONE = { firing: 'down', ok: 'ok', pending: 'pending', disabled: 'muted' }
 const STATE_LABEL = { firing: 'Firing', ok: 'OK', pending: 'Pending', disabled: 'Disabled' }
 const renotifyText = (a) => (a.renotify_secs ? `every ${Math.round(a.renotify_secs / 60)}m` : 'once')
 

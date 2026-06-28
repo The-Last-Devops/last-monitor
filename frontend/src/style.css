@@ -90,6 +90,8 @@
 .vantage-pill-warn .d { background: rgb(var(--warn)); }
 .vantage-pill-down { color: rgb(var(--down)); background: rgb(var(--down) / 0.12); border-color: rgb(var(--down) / 0.30); }
 .vantage-pill-down .d { background: rgb(var(--down)); }
+.vantage-pill-pending { color: rgb(var(--pending)); background: rgb(var(--pending) / 0.13); border-color: rgb(var(--pending) / 0.30); }
+.vantage-pill-pending .d { background: rgb(var(--pending)); }
 .vantage-pill-info { color: rgb(var(--accent)); background: rgb(var(--accent) / 0.12); border-color: rgb(var(--accent) / 0.30); }
 .vantage-pill-info .d { background: rgb(var(--accent)); }
 .vantage-pill-muted { color: rgb(var(--faint)); background: rgb(var(--surface2)); border-color: rgb(var(--line)); }
