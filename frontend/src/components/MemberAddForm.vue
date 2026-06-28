@@ -3,6 +3,7 @@
 // `submit`; after the parent creates the user it passes `created` back to show the
 // credentials hand-off. The parent owns validation, the API call, `adding`/`error`.
 import { ref, computed, watch } from 'vue'
+import { passwordProblem, passwordOk } from '../lib/password'
 
 const props = defineProps({
   adding: { type: Boolean, default: false },
@@ -19,13 +20,23 @@ const showCreatedPw = ref(false)
 // `created` back to null for a fresh add.
 watch(() => props.created, (v) => { if (!v) { nu.value = { email: '', password: '' }; showPw.value = false; showCreatedPw.value = false } })
 
+// Live policy hint for a manually-typed password ('' once acceptable).
+const pwHint = computed(() => (nu.value.password ? passwordProblem(nu.value.password) : ''))
+
 function genPassword() {
-  const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  const a = new Uint32Array(16); crypto.getRandomValues(a)
-  nu.value.password = Array.from(a, (n) => chars[n % chars.length]).join('')
+  // Include symbols so the generated password clears the policy; regenerate in the
+  // (vanishingly rare) case a draw misses a required class.
+  const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*-_=+'
+  do {
+    const a = new Uint32Array(18); crypto.getRandomValues(a)
+    nu.value.password = Array.from(a, (n) => chars[n % chars.length]).join('')
+  } while (!passwordOk(nu.value.password))
   showPw.value = true
 }
-function submit() { emit('submit', { email: nu.value.email, password: nu.value.password }) }
+function submit() {
+  if (!passwordOk(nu.value.password)) return
+  emit('submit', { email: nu.value.email, password: nu.value.password })
+}
 
 const credentialsText = computed(() => props.created ? `Vantage\nURL: ${location.origin}\nEmail: ${props.created.email}\nPassword: ${props.created.password}` : '')
 function copyCreds(ev) {
@@ -57,12 +68,13 @@ function copyCreds(ev) {
             </div>
             <button type="button" @click="genPassword()" class="shrink-0 rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-muted hover:border-accent/50 hover:text-fg">Generate</button>
           </div>
-          <span class="mt-1.5 block text-xs text-faint">The new member signs in with this; they can change it later. Set the role after creating.</span>
+          <span v-if="pwHint" class="mt-1.5 block text-xs text-warn">{{ pwHint }}</span>
+          <span v-else class="mt-1.5 block text-xs text-faint">The new member signs in with this; they can change it later. Set the role after creating.</span>
         </label>
         <p v-if="error" class="text-xs text-rose-400">{{ error }}</p>
         <div class="flex justify-end gap-2.5 pt-1">
           <button type="button" @click="emit('close')" class="rounded-lg px-3 py-2 text-sm text-muted hover:text-fg">Cancel</button>
-          <button type="submit" :disabled="adding" class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90 disabled:opacity-50">{{ adding ? 'Adding…' : 'Add member' }}</button>
+          <button type="submit" :disabled="adding || !passwordOk(nu.password)" class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90 disabled:opacity-50">{{ adding ? 'Adding…' : 'Add member' }}</button>
         </div>
       </form>
 

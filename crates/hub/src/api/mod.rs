@@ -39,6 +39,44 @@ pub fn valid_name(s: &str, max: usize) -> bool {
     !t.is_empty() && t.chars().count() <= max && !t.chars().any(char::is_control)
 }
 
+/// Password policy — long and high-difficulty. Mirror this rule in the Vue form
+/// (`lib/password.js`) for instant feedback; the API stays the source of truth.
+///
+/// Rules: 12–128 chars; at least 3 of {lowercase, uppercase, digit, symbol}; and not
+/// an obviously weak/common password. Strength matters doubly now that a user's
+/// password derives the KEK that encrypts their stored SSH keys (docs/exec-design.md),
+/// so a weak password directly weakens that encryption. Existing logins are
+/// unaffected — this gates only setting a *new* password.
+pub fn valid_password(s: &str) -> bool {
+    let len = s.chars().count();
+    if !(12..=128).contains(&len) {
+        return false;
+    }
+    let classes = [
+        s.chars().any(|c| c.is_ascii_lowercase()),
+        s.chars().any(|c| c.is_ascii_uppercase()),
+        s.chars().any(|c| c.is_ascii_digit()),
+        s.chars()
+            .any(|c| !c.is_alphanumeric() && !c.is_whitespace()),
+    ]
+    .into_iter()
+    .filter(|&b| b)
+    .count();
+    if classes < 3 {
+        return false;
+    }
+    // Reject obvious/common passwords and our own product words (case-insensitive).
+    let low = s.to_lowercase();
+    const WEAK: &[&str] = &[
+        "password", "passw0rd", "qwerty", "123456", "111111", "000000", "letmein", "welcome",
+        "iloveyou", "abc123", "admin", "vantage", "monitor",
+    ];
+    if WEAK.iter().any(|w| low.contains(w)) {
+        return false;
+    }
+    true
+}
+
 fn internal<E: std::fmt::Display>(e: E) -> StatusCode {
     tracing::error!(error = %e, "api DB error");
     StatusCode::INTERNAL_SERVER_ERROR
@@ -71,7 +109,7 @@ async fn ns_of(state: &AppState, sql: &str, id: Uuid) -> Result<Uuid, StatusCode
 
 #[cfg(test)]
 mod name_tests {
-    use super::valid_name;
+    use super::{valid_name, valid_password};
 
     #[test]
     fn accepts_normal_names() {
@@ -104,5 +142,33 @@ mod name_tests {
     fn counts_unicode_scalars_not_bytes() {
         // "é" is 2 bytes but 1 char — a 1-char limit must accept it.
         assert!(valid_name("é", 1));
+    }
+
+    #[test]
+    fn password_accepts_strong() {
+        assert!(valid_password("Tr0ub4dour&3xtra")); // 4 classes, long
+        assert!(valid_password("correct-Horse9Battery")); // lower/upper/digit/symbol
+        assert!(valid_password("Xy9$kLmn0pQr")); // exactly 12, 4 classes
+    }
+
+    #[test]
+    fn password_rejects_too_short_or_too_long() {
+        assert!(!valid_password("Sh0rt!")); // < 12
+        assert!(!valid_password("Xy9$kLmn0pQ")); // 11 chars
+        assert!(!valid_password(&format!("Aa1!{}", "x".repeat(130)))); // > 128
+    }
+
+    #[test]
+    fn password_rejects_low_diversity() {
+        assert!(!valid_password("alllowercaseletters")); // 1 class
+        assert!(!valid_password("onlylettersANDCAPS")); // 2 classes
+        assert!(!valid_password("123456789012345")); // 1 class (digits)
+    }
+
+    #[test]
+    fn password_rejects_common_and_product_words() {
+        assert!(!valid_password("MyPassword123!")); // contains "password"
+        assert!(!valid_password("Vantage2026!!")); // product word
+        assert!(!valid_password("Qwerty12345!")); // common
     }
 }

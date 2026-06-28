@@ -270,7 +270,7 @@ pub async fn setup_create(
         return Err(StatusCode::FORBIDDEN);
     }
     let email = req.email.trim().to_lowercase();
-    if email.is_empty() || !email.contains('@') || req.password.len() < 6 {
+    if email.is_empty() || !email.contains('@') || !crate::api::valid_password(&req.password) {
         return Err(StatusCode::BAD_REQUEST);
     }
     let hash = hash_password(&req.password).map_err(internal)?;
@@ -337,6 +337,15 @@ pub async fn bootstrap_admin(pool: &sqlx::PgPool) -> Result<()> {
         .await?;
     if exists.is_some() {
         return Ok(());
+    }
+
+    // Operator-supplied via env: warn (don't block startup — that could lock them out)
+    // if it doesn't meet the password policy applied to UI-set passwords.
+    if !crate::api::valid_password(&password) {
+        tracing::warn!(
+            "ADMIN_PASSWORD is weak (under the 12-char, mixed, non-common policy) — \
+             change it after first login"
+        );
     }
 
     let hash = hash_password(&password)?;

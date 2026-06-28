@@ -1,7 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../stores/auth'
+import { passwordProblem } from '../lib/password'
 
 const auth = useAuth()
 const route = useRoute()
@@ -15,10 +16,14 @@ const busy = ref(false)
 
 const setup = () => auth.needsSetup
 
+// Live policy hint while creating the admin (empty once the password is acceptable).
+const pwHint = computed(() => (setup() && password.value ? passwordProblem(password.value) : ''))
+
 async function submit() {
   error.value = ''
   if (setup()) {
-    if (password.value.length < 6) { error.value = 'Password must be at least 6 characters'; return }
+    const problem = passwordProblem(password.value)
+    if (problem) { error.value = problem; return }
     if (password.value !== confirm.value) { error.value = 'Passwords do not match'; return }
   }
   busy.value = true
@@ -62,6 +67,8 @@ async function submit() {
           <span class="text-muted">Password</span>
           <input v-model="password" type="password" required :autocomplete="setup() ? 'new-password' : 'current-password'"
             class="mt-1.5 w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-fg outline-none transition focus:border-accent" />
+          <span v-if="pwHint" class="mt-1 block text-xs text-warn">{{ pwHint }}</span>
+          <span v-else-if="setup()" class="mt-1 block text-xs text-faint">12+ chars, mix of cases, digits &amp; symbols.</span>
         </label>
 
         <label v-if="setup()" class="block text-sm">

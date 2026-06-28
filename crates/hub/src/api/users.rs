@@ -43,7 +43,7 @@ pub async fn create_user(
         return Err(StatusCode::FORBIDDEN);
     }
     let email = req.email.trim().to_lowercase();
-    if !valid_email(&email) || req.password.len() < 6 {
+    if !valid_email(&email) || !valid_password(&req.password) {
         return Err(StatusCode::BAD_REQUEST);
     }
     let hash = crate::auth::hash_password(&req.password).map_err(internal)?;
@@ -141,7 +141,7 @@ pub async fn patch_user(
             .map_err(internal)?;
     }
     if let Some(password) = req.password {
-        if password.len() < 6 {
+        if !valid_password(&password) {
             return Err(StatusCode::BAD_REQUEST);
         }
         let hash = crate::auth::hash_password(&password).map_err(internal)?;
