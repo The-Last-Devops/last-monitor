@@ -1,0 +1,52 @@
+// Vantage icon library — ported from the design system's icons.js (single source).
+// 24px grid · 2px round stroke · currentColor · no fill. Each value is the inner SVG
+// markup; <VIcon> wraps it in the standard <svg>. Keep in sync with the DS icons.js.
+export const ICONS = {
+  // navigation & core
+  'dashboard': '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
+  'fleet': '<rect x="4" y="4" width="4" height="4" rx="1"/><rect x="10" y="4" width="4" height="4" rx="1"/><rect x="16" y="4" width="4" height="4" rx="1"/><rect x="4" y="10" width="4" height="4" rx="1"/><rect x="10" y="10" width="4" height="4" rx="1"/><rect x="16" y="10" width="4" height="4" rx="1"/><rect x="4" y="16" width="4" height="4" rx="1"/><rect x="10" y="16" width="4" height="4" rx="1"/><rect x="16" y="16" width="4" height="4" rx="1"/>',
+  'server': '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
+  'service': '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  'metrics': '<path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 4-6"/>',
+  'search': '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  'logs': '<path d="M4 5h16M4 10h16M4 15h10M4 20h7"/>',
+  'globe': '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18A14 14 0 0 1 12 3Z"/>',
+  // monitoring — watch
+  'pulse': '<path d="M3 12h4l2.5-7 4 14 2.5-7H21"/>',
+  'cpu': '<rect x="6" y="6" width="12" height="12" rx="1.5"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/>',
+  'memory': '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 6v-2M12 6v-2M17 6v-2M8 11v2M12 11v2M16 11v2"/>',
+  'disk': '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/>',
+  'network': '<circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><path d="M6.4 17.6 17.6 6.4M17 19H7M19 7v10"/>',
+  'gauge': '<path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 18l4-5"/>',
+  'latency': '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/>',
+  'uptime': '<path d="M3 13l4 4 5-7 4 5 5-9"/>',
+  // operate — exec & control
+  'terminal': '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/>',
+  'ssh': '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 10l2.5 2L8 14"/>',
+  'play': '<path d="M7 5l12 7-12 7V5Z"/>',
+  'restart': '<path d="M21 4v6h-6"/><path d="M3.5 13a8.5 8.5 0 1 0 2-6.2L3 9"/>',
+  'power': '<path d="M12 3v9"/><path d="M6.4 6.4a9 9 0 1 0 11.2 0"/>',
+  'command': '<path d="M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6Z"/>',
+  'deploy': '<path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/>',
+  'scale': '<path d="M3 17l4-4 3 3 4-5 4 4"/><path d="M21 3h-5M21 3v5"/>',
+  // status & signal
+  'check-circle': '<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
+  'x-circle': '<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/>',
+  'alert-triangle': '<path d="m10.3 3.9-8.5 14.7A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-3.4L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
+  'clock': '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  'bell': '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10.5 21a1.8 1.8 0 0 0 3 0"/>',
+  'shield': '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6Z"/><path d="m9 12 2 2 4-4"/>',
+  'flame': '<path d="M12 3c1 4 5 5 5 9a5 5 0 0 1-10 0c0-2 1-3 2-4 0 1.5 1 2 1.5 2C10 8 12 6 12 3Z"/>',
+  'wifi-off': '<path d="M2 8.8a16 16 0 0 1 5-3M20 8a16 16 0 0 0-7-2.8M8.5 12.5a8 8 0 0 1 7 .3M12 20h.01M2 2l20 20"/>',
+  // actions & ui
+  'plus': '<path d="M12 5v14M5 12h14"/>',
+  'filter': '<path d="M3 5h18l-7 8v6l-4-2v-4Z"/>',
+  'settings': '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.2a1.6 1.6 0 0 0-2.7-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 4.6 15H4.4a2 2 0 1 1 0-4h.2a1.6 1.6 0 0 0 1.1-2.7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 11 4.6V4.4a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7h.2a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.3.9Z"/>',
+  'more': '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
+  'external': '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>',
+  'chevron': '<path d="m6 9 6 6 6-6"/>',
+  'refresh': '<path d="M21 4v6h-6M3 20v-6h6"/><path d="M19 9a8 8 0 0 0-14-3M5 15a8 8 0 0 0 14 3"/>',
+  'user': '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  'trash': '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  'copy': '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/>',
+}
