@@ -77,6 +77,7 @@ async fn main() -> Result<()> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
         .redirect(reqwest::redirect::Policy::none())
+        .user_agent(concat!("vantage-agent/", env!("CARGO_PKG_VERSION")))
         .build()?;
     let mut ingest_url = format!("{}/pub/ingest", cfg.hub_url);
 

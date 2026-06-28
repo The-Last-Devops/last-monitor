@@ -16,6 +16,11 @@ Each released version's section is used verbatim as the GitHub Release notes
   newer hub build waits a per-host jitter, then exits so k8s re-pulls the new image.
   No binary download — the update is a normal registry pull (no new RCE surface).
   `:main` and pinned `:X.Y.Z` never self-update; `AUTO_UPDATE=0` is a kill switch.
+  The **hub** on `:auto-update` also self-updates: it polls ghcr for the rolling
+  tag's digest and exits when it changes (k8s re-pulls), so the whole stack stays
+  current from one push — agents then follow the hub's new build id. CI always
+  rebuilds both hub and agent for the `auto` channel so their build ids never skew.
+- The agent now sends a branded `User-Agent: vantage-agent/<version>` when pushing.
 
 ## [2.0.2] — 2026-06-28
 

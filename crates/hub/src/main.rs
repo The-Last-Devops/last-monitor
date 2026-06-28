@@ -23,6 +23,7 @@ mod net_guard;
 mod notify;
 mod probe;
 mod rbac;
+mod selfupdate;
 mod spa;
 mod web;
 
@@ -60,6 +61,7 @@ async fn main() -> Result<()> {
     probe::spawn(state.clone());
     alert::spawn(state.clone());
     backup::spawn(state.clone());
+    selfupdate::spawn(); // no-op unless on the :auto-update channel under k8s
 
     use axum::routing::{delete, patch, post};
     let app = Router::new()
