@@ -9,12 +9,31 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-06-28
+
 ### Added
+- **Interactive SSH console (shell into a host from the browser).** Open a real
+  terminal to a monitored host, routed through the agent — no inbound access to the
+  host required. Security-first: it's **off by default** and opt-in on both sides (the
+  agent must run with `ALLOW_SHELL=1` **and** an owner enables shell on the host).
+  Opening a shell needs a dedicated **exec** capability (separate from "edit config")
+  plus a **step-up password**. **Each person uses their own SSH key and their own
+  account on the host** — the hub only stores your key for you, **encrypted with your
+  own password** (no server master key; it can't be read without you). Every session is
+  recorded to an immutable audit trail (on-screen output, never your keystrokes, so
+  typed passwords aren't captured). `sudo` works as your host account allows. _(Live
+  terminal resize and the audit-viewer UI are follow-ups.)_
 - **Auto-update is an explicit opt-in.** The Helm charts (hub + agent) take an
   `autoUpdate` flag (default `false` = pinned/manual); `true` switches to the
   `:auto-update` image and sets `AUTO_UPDATE=1`. The **Add System → Kubernetes** flow
   has an **Auto-update** toggle that adds `?autoupdate=1` to the rendered DaemonSet
   manifest. Not everyone wants auto-update, so it's off unless chosen.
+
+### Changed
+- **Stronger password policy.** New and changed passwords must be 12–128 characters,
+  mix at least three of {lowercase, uppercase, digit, symbol}, and avoid common or
+  predictable choices (was: a 6-character minimum). Existing sign-ins are unaffected;
+  the member forms show live guidance and the password generator meets the policy.
 
 ### Fixed
 - About page: when running a pre-release build ahead of the latest GitHub release it
