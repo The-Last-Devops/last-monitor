@@ -9,6 +9,14 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ## [Unreleased]
 
+### Added
+- **Opt-in auto-update for Kubernetes** via a new rolling image tag **`:auto-update`**
+  (the "auto" release channel). The hub advertises its build id in every `IngestAck`;
+  an agent running `:auto-update` under k8s (`imagePullPolicy: Always`) that sees a
+  newer hub build waits a per-host jitter, then exits so k8s re-pulls the new image.
+  No binary download — the update is a normal registry pull (no new RCE surface).
+  `:main` and pinned `:X.Y.Z` never self-update; `AUTO_UPDATE=0` is a kill switch.
+
 ## [2.0.2] — 2026-06-28
 
 ### Security
