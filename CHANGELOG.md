@@ -9,6 +9,19 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ## [Unreleased]
 
+## [2.1.1] — 2026-06-28
+
+### Added
+- **Grant shell access to members from the UI.** In the member editor, each namespace
+  where someone is an **owner** now has a **Shell access** toggle that grants/revokes
+  the console capability (previously only system admins could open a shell). A `shell`
+  chip marks members who have it.
+
+### Fixed
+- The member **reset-password** form now enforces the same strong policy as everywhere
+  else (12+ characters, mixed) instead of the old 6-character minimum, and its generator
+  produces a compliant password.
+
 ## [2.1.0] — 2026-06-28
 
 ### Added
