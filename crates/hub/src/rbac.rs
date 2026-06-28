@@ -75,6 +75,39 @@ pub async fn require_role(
     }
 }
 
+/// Authorizes shell/exec on a namespace's host. The user must be `Owner` of the
+/// namespace **and** hold the dedicated `can_exec` capability — exec is kept
+/// separate from "edit config" (see docs/exec-design.md). System admins bypass;
+/// read-only admins (`read_all`) never get exec. 403 otherwise.
+// Wired into the console/exec routes in Phase 3; defined now as the single place the
+// exec rule lives (mirrors require_role).
+#[allow(dead_code)]
+pub async fn require_exec(
+    state: &AppState,
+    user: &CurrentUser,
+    namespace_id: Uuid,
+) -> Result<(), StatusCode> {
+    if user.is_admin {
+        return Ok(());
+    }
+    // A read-only admin (read_all) is intentionally not exec-capable.
+    let row: Option<(String, bool)> = sqlx::query_as(
+        "SELECT role::text, can_exec FROM memberships WHERE user_id = $1 AND namespace_id = $2",
+    )
+    .bind(user.id)
+    .bind(namespace_id)
+    .fetch_optional(&state.config)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "exec authz lookup");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    match row {
+        Some((role, true)) if Role::from_db_str(&role) == Some(Role::Owner) => Ok(()),
+        _ => Err(StatusCode::FORBIDDEN),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
