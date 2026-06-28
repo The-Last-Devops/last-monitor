@@ -25,6 +25,7 @@ pub async fn connect() -> Result<AppState> {
         config,
         data,
         tunnels: crate::tunnel::TunnelRegistry::new(),
+        exec_tickets: crate::console::ExecTickets::new(),
     })
 }
 

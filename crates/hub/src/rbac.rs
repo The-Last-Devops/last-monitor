@@ -78,10 +78,8 @@ pub async fn require_role(
 /// Authorizes shell/exec on a namespace's host. The user must be `Owner` of the
 /// namespace **and** hold the dedicated `can_exec` capability — exec is kept
 /// separate from "edit config" (see docs/exec-design.md). System admins bypass;
-/// read-only admins (`read_all`) never get exec. 403 otherwise.
-// Wired into the console/exec routes in Phase 3; defined now as the single place the
-// exec rule lives (mirrors require_role).
-#[allow(dead_code)]
+/// read-only admins (`read_all`) never get exec. 403 otherwise. The single place the
+/// exec rule lives (mirrors require_role).
 pub async fn require_exec(
     state: &AppState,
     user: &CurrentUser,

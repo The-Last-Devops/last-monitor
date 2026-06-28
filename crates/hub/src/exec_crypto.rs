@@ -7,7 +7,6 @@
 //!
 //! Stored blob layout: `nonce(24) || ciphertext+tag`. `kdf_salt` is stored per
 //! credential (a dedicated salt — never the auth-hash salt).
-#![allow(dead_code)] // wired into the exec_credentials API in Phase 3b
 
 use anyhow::{anyhow, Result};
 use argon2::Argon2;

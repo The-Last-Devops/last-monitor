@@ -14,6 +14,7 @@ use crate::AppState;
 
 mod alerting;
 mod data;
+mod exec;
 mod keys;
 mod monitors;
 mod namespaces;
@@ -23,6 +24,7 @@ mod users;
 
 pub use alerting::*;
 pub use data::*;
+pub use exec::*;
 pub use keys::*;
 pub use monitors::*;
 pub use namespaces::*;

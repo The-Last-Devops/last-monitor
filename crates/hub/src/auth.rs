@@ -172,6 +172,22 @@ fn verify_password(password: &str, hash: &str) -> bool {
         .is_ok()
 }
 
+/// Verify a `password` against the stored hash of `user_id` (for step-up auth, e.g.
+/// before opening a shell). Returns `Ok(false)` on a mismatch or unknown user.
+pub async fn verify_user_password(
+    pool: &sqlx::PgPool,
+    user_id: Uuid,
+    password: &str,
+) -> Result<bool> {
+    let row: Option<(String,)> = sqlx::query_as("SELECT password_hash FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await?;
+    Ok(row
+        .map(|(h,)| verify_password(password, &h))
+        .unwrap_or(false))
+}
+
 // ---- handlers ---------------------------------------------------------------
 
 #[derive(Deserialize)]

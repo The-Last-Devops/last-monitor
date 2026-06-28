@@ -26,6 +26,10 @@ argon2 = "0.5"
 # AEAD for encrypting users' stored SSH keys at rest (XChaCha20-Poly1305 — random
 # 24-byte nonces, no nonce-reuse footgun). Key = argon2 KEK from the user's password.
 chacha20poly1305 = "0.10"
+# SSH client for the shell/exec bridge — runs over the agent TunnelStream to reach a
+# host's local sshd. Hub-only (the heavy side); the agent stays tiny.
+russh = "0.45"
+async-trait = "0.1" # russh's client::Handler is an #[async_trait]
 tower = "0.5"
 tower-http = { version = "0.6", features = ["fs", "trace"] }
 surge-ping = "0.8"

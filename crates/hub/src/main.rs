@@ -14,6 +14,7 @@ mod api;
 mod audit;
 mod auth;
 mod backup;
+mod console;
 mod data_admin;
 mod db;
 mod exec_crypto;
@@ -45,6 +46,8 @@ pub struct AppState {
     /// Live agent reverse-tunnels (shell/exec transport). Empty until agents with
     /// `ALLOW_SHELL=1` connect; see `tunnel.rs` / docs/exec-design.md.
     pub tunnels: tunnel::TunnelRegistry,
+    /// Pending console step-up tickets (short-lived, single-use). See `console.rs`.
+    pub exec_tickets: console::ExecTickets,
 }
 
 #[tokio::main]
@@ -68,7 +71,7 @@ async fn main() -> Result<()> {
     backup::spawn(state.clone());
     selfupdate::spawn(); // no-op unless on the :auto-update channel under k8s
 
-    use axum::routing::{delete, patch, post};
+    use axum::routing::{delete, patch, post, put};
     let app = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         // Everything machines hit (no human session) lives under /pub so a single
@@ -177,6 +180,21 @@ async fn main() -> Result<()> {
             "/api/systems/{id}",
             patch(api::patch_system).delete(api::delete_system),
         )
+        // shell/exec (docs/exec-design.md): per-host config, the caller's SSH cred,
+        // the step-up ticket, and the console WebSocket.
+        .route(
+            "/api/systems/{id}/shell",
+            get(api::get_shell).put(api::put_shell),
+        )
+        .route(
+            "/api/systems/{id}/ssh-cred",
+            put(api::put_ssh_cred).delete(api::delete_ssh_cred),
+        )
+        .route(
+            "/api/systems/{id}/console/ticket",
+            post(api::console_ticket),
+        )
+        .route("/api/systems/{id}/console", get(console::console_ws))
         .route(
             "/api/monitors/{id}",
             get(web::monitor_detail)
