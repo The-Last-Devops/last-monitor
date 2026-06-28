@@ -16,6 +16,7 @@ RUN npm run build
 
 # 2) cargo-chef base
 FROM rust:1-bookworm AS chef
+ENV CARGO_NET_RETRY=10
 RUN cargo install cargo-chef --locked
 WORKDIR /app
 

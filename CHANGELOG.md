@@ -31,6 +31,10 @@ Each released version's section is used verbatim as the GitHub Release notes
 - **Session cookie now sets the `Secure` flag** (set `INSECURE_COOKIES=1` to keep
   plain-http local dev working).
 
+### Ops
+- Image builds retry transient crate downloads (`CARGO_NET_RETRY=10`) — a flaky
+  `curl failed` while fetching a crate had failed one image job.
+
 ## [2.0.1] — 2026-06-27
 
 ### Changed
