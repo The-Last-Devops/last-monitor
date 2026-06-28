@@ -9,6 +9,7 @@ import { useAuth } from '../stores/auth'
 import Login from '../pages/Login.vue'
 import Systems from '../pages/Systems.vue'
 import SystemDetail from '../pages/SystemDetail.vue'
+import Console from '../pages/Console.vue'
 import Namespaces from '../pages/Namespaces.vue'
 import NamespaceDetail from '../pages/NamespaceDetail.vue'
 import Members from '../pages/Members.vue'
@@ -31,6 +32,7 @@ const routes = [
   { path: '/', name: 'systems', component: Systems },
   { path: '/attention', name: 'attention', component: Systems },
   { path: '/system/:id', name: 'system', component: SystemDetail },
+  { path: '/systems/:id/console', name: 'console', component: Console },
   { path: '/namespaces', name: 'namespaces', component: Namespaces },
   { path: '/namespace/:id', name: 'namespace', component: NamespaceDetail },
   { path: '/members', name: 'members', component: Members },

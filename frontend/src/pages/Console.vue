@@ -1,0 +1,252 @@
+<script setup>
+// Interactive SSH console for a host. Flow:
+//   1. GET .../shell — gate on can_exec / shell_enabled / credential / tunnel_online.
+//   2. Step-up: re-enter account password → POST .../console/ticket {password} → ticket.
+//   3. Open WS .../console?ticket=<id>, pipe xterm <-> binary stdout/stdin, JSON resize.
+// On close → "Session ended" + Reconnect (re-does the ticket step).
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { Terminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import '@xterm/xterm/css/xterm.css'
+import { api } from '../lib/api'
+
+const route = useRoute()
+const router = useRouter()
+const id = computed(() => route.params.id)
+const hostName = computed(() => route.query.name || `Host ${id.value}`)
+
+// shell precheck state
+const shell = ref(null)
+const loaded = ref(false)
+const loadErr = ref('')
+
+// ui phase: 'precheck' | 'blocked' | 'password' | 'connecting' | 'live' | 'ended'
+const phase = ref('precheck')
+const blockedReason = ref('') // human text when blocked
+const password = ref('')
+const pwErr = ref('')
+const submitting = ref(false)
+const endReason = ref('')
+
+// xterm
+const termEl = ref(null)
+let term = null
+let fit = null
+let ws = null
+let ro = null
+
+async function precheck() {
+  try {
+    shell.value = await api.get(`/api/systems/${id.value}/shell`)
+    loadErr.value = ''
+    const s = shell.value
+    if (!s.can_exec) { phase.value = 'blocked'; blockedReason.value = "You don't have shell access on this host." }
+    else if (!s.shell_enabled) { phase.value = 'blocked'; blockedReason.value = 'Shell is disabled for this host.' }
+    else if (!s.credential) { phase.value = 'blocked'; blockedReason.value = 'no-credential' }
+    else if (!s.tunnel_online) { phase.value = 'blocked'; blockedReason.value = 'Agent offline — the host is not reachable right now.' }
+    else { phase.value = 'password' }
+  } catch (e) {
+    loadErr.value = e.status === 403 ? "You don't have shell access on this host." : 'Failed to load shell settings.'
+    phase.value = 'blocked'
+    blockedReason.value = loadErr.value
+  } finally {
+    loaded.value = true
+  }
+}
+
+// xterm theme — pull literal colours from the live CSS-var tokens (xterm needs
+// concrete strings, same approach as the uPlot charts).
+function cssColor(name, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return v ? `rgb(${v})` : fallback
+}
+function termTheme() {
+  return {
+    background: cssColor('--bg', '#0B0E14'),
+    foreground: cssColor('--fg', '#E2E8F0'),
+    cursor: cssColor('--accent', '#34E1C4'),
+    cursorAccent: cssColor('--bg', '#0B0E14'),
+    selectionBackground: cssColor('--accent', '#34E1C4') + '40',
+  }
+}
+
+function sendResize() {
+  if (ws && ws.readyState === WebSocket.OPEN && term) {
+    ws.send(JSON.stringify({ resize: { cols: term.cols, rows: term.rows } }))
+  }
+}
+
+async function connect() {
+  pwErr.value = ''
+  if (!password.value) { pwErr.value = 'Enter your account password.'; return }
+  submitting.value = true
+  let ticket
+  try {
+    const res = await api.post(`/api/systems/${id.value}/console/ticket`, { password: password.value })
+    ticket = res.ticket
+  } catch (e) {
+    pwErr.value = statusMsg(e.status)
+    submitting.value = false
+    return
+  }
+  password.value = ''
+  submitting.value = false
+  phase.value = 'connecting'
+  await nextTick()
+  openSocket(ticket)
+}
+
+function statusMsg(status) {
+  if (status === 403) return "You don't have shell access on this host."
+  if (status === 400) return 'Could not start a session — shell disabled, no credential, wrong password, or the agent is offline.'
+  return `Failed to get a session (${status}).`
+}
+
+function openSocket(ticket) {
+  // (re)create the terminal fresh each connection
+  if (term) { term.dispose(); term = null }
+  ensureTerm()
+
+  const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const url = `${scheme}//${location.host}/api/systems/${id.value}/console?ticket=${encodeURIComponent(ticket)}`
+  ws = new WebSocket(url)
+  ws.binaryType = 'arraybuffer'
+
+  ws.onopen = () => {
+    phase.value = 'live'
+    nextTick(() => { try { fit?.fit() } catch {} ; sendResize(); term?.focus() })
+  }
+  ws.onmessage = (ev) => {
+    if (ev.data instanceof ArrayBuffer) term?.write(new Uint8Array(ev.data))
+    else if (typeof ev.data === 'string') term?.write(ev.data)
+  }
+  ws.onclose = (ev) => {
+    if (phase.value !== 'ended') {
+      endReason.value = ev.reason || (phase.value === 'connecting' ? 'Could not connect to the session.' : 'Session ended.')
+      phase.value = 'ended'
+    }
+    term?.writeln('\r\n\x1b[90m— ' + (endReason.value || 'Session ended.') + ' —\x1b[0m')
+  }
+  ws.onerror = () => {
+    if (phase.value === 'connecting') { endReason.value = 'Could not connect to the session.'; phase.value = 'ended' }
+  }
+}
+
+function ensureTerm() {
+  term = new Terminal({
+    cursorBlink: true,
+    fontSize: 13,
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+    theme: termTheme(),
+    scrollback: 5000,
+  })
+  fit = new FitAddon()
+  term.loadAddon(fit)
+  term.open(termEl.value)
+  try { fit.fit() } catch {}
+  // browser → hub: terminal input as Binary bytes
+  term.onData((data) => {
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(new TextEncoder().encode(data))
+  })
+  // refit + tell the hub on any size change
+  ro = new ResizeObserver(() => { try { fit?.fit() } catch {} ; sendResize() })
+  ro.observe(termEl.value)
+}
+
+function disconnect() {
+  endReason.value = 'Disconnected.'
+  phase.value = 'ended'
+  if (ws) { try { ws.close() } catch {} ; ws = null }
+}
+
+function reconnect() {
+  endReason.value = ''
+  // re-do the precheck (tunnel may have dropped) then the password step
+  loaded.value = false
+  phase.value = 'precheck'
+  precheck()
+}
+
+function cleanup() {
+  if (ro) { try { ro.disconnect() } catch {} ; ro = null }
+  if (ws) { try { ws.close() } catch {} ; ws = null }
+  if (term) { try { term.dispose() } catch {} ; term = null }
+}
+
+function onWinResize() { try { fit?.fit() } catch {} ; sendResize() }
+
+onMounted(() => { precheck(); window.addEventListener('resize', onWinResize) })
+onBeforeUnmount(() => { window.removeEventListener('resize', onWinResize); cleanup() })
+
+function back() { router.push(`/system/${id.value}`) }
+</script>
+
+<template>
+  <!-- Full-height console (h-[100dvh] per CLAUDE.md so mobile chrome doesn't hide the bottom).
+       Renders outside AppShell — a terminal wants the whole viewport. -->
+  <div class="flex h-[100dvh] flex-col bg-bg text-fg">
+    <!-- header bar -->
+    <div class="flex shrink-0 items-center gap-3 border-b border-line bg-surface px-4 py-2.5">
+      <button @click="back" class="rounded-lg p-1.5 text-muted hover:bg-surface2 hover:text-fg" v-tip="'Back to host'">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <svg class="h-4 w-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m4 17 6-6-6-6M12 19h8"/></svg>
+      <span class="truncate text-sm font-semibold">{{ hostName }}</span>
+      <span class="text-xs text-faint">console</span>
+      <span v-if="phase === 'live'" class="flex items-center gap-1.5 text-xs text-accent"><span class="h-1.5 w-1.5 rounded-full bg-accent"></span>Connected</span>
+      <span v-else-if="phase === 'ended'" class="flex items-center gap-1.5 text-xs text-faint"><span class="h-1.5 w-1.5 rounded-full bg-faint"></span>Ended</span>
+
+      <div class="ml-auto flex items-center gap-2">
+        <button v-if="phase === 'live'" @click="disconnect"
+          class="rounded-lg border border-line bg-surface2 px-3 py-1.5 text-xs text-muted hover:text-rose-400 hover:border-rose-400/50">Disconnect</button>
+        <button v-else-if="phase === 'ended'" @click="reconnect"
+          class="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accentfg hover:opacity-90">Reconnect</button>
+      </div>
+    </div>
+
+    <!-- body -->
+    <div class="relative min-h-0 flex-1">
+      <!-- precheck loader -->
+      <div v-if="phase === 'precheck'" class="flex h-full items-center justify-center">
+        <span class="text-sm text-muted">Loading…</span>
+      </div>
+
+      <!-- blocked states -->
+      <div v-else-if="phase === 'blocked'" class="flex h-full items-center justify-center p-6">
+        <div class="max-w-md rounded-xl border border-line bg-surface p-6 text-center">
+          <template v-if="blockedReason === 'no-credential'">
+            <p class="mb-1 text-sm font-semibold text-fg">No SSH credential set up</p>
+            <p class="mb-4 text-xs text-muted">Add your SSH key for this host before opening a console.</p>
+            <button @click="back" class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90">Go to Shell settings</button>
+          </template>
+          <template v-else>
+            <p class="text-sm text-muted">{{ blockedReason }}</p>
+            <button @click="back" class="mt-4 rounded-lg border border-line bg-surface2 px-4 py-2 text-sm text-fg hover:border-accent/50">Back to host</button>
+          </template>
+        </div>
+      </div>
+
+      <!-- step-up password modal -->
+      <div v-else-if="phase === 'password'" class="flex h-full items-center justify-center p-6">
+        <form @submit.prevent="connect" class="w-full max-w-sm rounded-xl border border-line bg-surface p-6">
+          <p class="mb-1 text-sm font-semibold text-fg">Confirm it's you</p>
+          <p class="mb-4 text-xs text-muted">Re-enter your account password to start an SSH session on <span class="text-fg">{{ hostName }}</span>.</p>
+          <input v-model="password" type="password" autocomplete="current-password" autofocus
+            placeholder="Account password"
+            class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
+          <p v-if="pwErr" class="mt-2 text-xs text-rose-400">{{ pwErr }}</p>
+          <div class="mt-4 flex justify-end gap-2.5">
+            <button type="button" @click="back" class="rounded-lg px-3 py-2 text-sm text-muted hover:text-fg">Cancel</button>
+            <button type="submit" :disabled="submitting" class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90 disabled:opacity-50">{{ submitting ? 'Connecting…' : 'Connect' }}</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- terminal (kept mounted for connecting/live/ended so xterm keeps its buffer) -->
+      <div v-show="['connecting', 'live', 'ended'].includes(phase)" class="h-full w-full bg-bg p-2">
+        <div ref="termEl" class="h-full w-full"></div>
+      </div>
+    </div>
+  </div>
+</template>

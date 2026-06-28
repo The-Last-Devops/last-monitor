@@ -9,6 +9,7 @@ import FleetCharts from '../components/FleetCharts.vue'
 import Gauge from '../components/Gauge.vue'
 import SystemMetaCard from '../components/SystemMetaCard.vue'
 import SystemAlertRules from '../components/SystemAlertRules.vue'
+import SystemShellCard from '../components/SystemShellCard.vue'
 import SystemRangePicker from '../components/SystemRangePicker.vue'
 import SystemChartPanel from '../components/SystemChartPanel.vue'
 import { encodeZoom, decodeZoom } from '../lib/zoom'
@@ -243,6 +244,9 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
 
     <!-- alert rules covering this host -->
     <SystemAlertRules v-if="meta && type !== 'container'" :rules="rules" :nsq="nsq" />
+
+    <!-- shell / SSH console settings (hosts/nodes only) -->
+    <SystemShellCard v-if="meta && ['node','host','docker'].includes(type)" :id="id" :name="name" />
 
     <!-- range (charts views) -->
     <SystemRangePicker v-if="['node','host','container','docker','containers'].includes(type)" :ranges="RANGES" :range="range" :res-of="resOf" :live="live" @set-range="setRange" />
