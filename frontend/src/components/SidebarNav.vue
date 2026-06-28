@@ -22,6 +22,11 @@ const namespaces = ref([]) // [{id,name}]
 // current route stays expanded so you always see where you are.
 const nsq = computed(() => (route.query.ns ? { ns: route.query.ns } : {}))
 const isAdmin = computed(() => !!auth.user?.is_admin)
+// Flat top-level nav (no children) — the new attention-first landing + war-room.
+const topLinks = [
+  { name: 'overview', label: 'Overview', icon: 'dashboard' },
+  { name: 'fleet', label: 'Fleet', icon: 'fleet' },
+]
 const groups = computed(() =>
   [
     {
@@ -141,6 +146,13 @@ async function logout() { await auth.logout(); router.push({ name: 'login' }) }
 
     <!-- nav -->
     <nav class="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">
+      <!-- flat top-level entries (no children): Overview + Fleet -->
+      <RouterLink v-for="t in topLinks" :key="t.name" :to="{ name: t.name, query: nsq }"
+        class="relative flex items-center gap-2.5 rounded-lg py-2 pl-3 pr-1 text-sm transition"
+        :class="route.name === t.name ? 'bg-surface2 font-semibold text-fg' : 'font-medium text-muted hover:bg-surface2 hover:text-fg'">
+        <span v-if="route.name === t.name" class="absolute -left-3 top-1.5 bottom-1.5 w-[3px] rounded-r bg-accent"></span>
+        <VIcon :name="t.icon" :size="18" class="shrink-0" /><span class="flex-1 truncate">{{ t.label }}</span>
+      </RouterLink>
       <div v-for="g in groups" :key="g.key">
         <div class="relative flex items-center rounded-lg text-sm transition"
           :class="groupActive(g) ? 'bg-surface2 font-semibold text-fg' : 'font-medium text-fg hover:bg-surface2'">

@@ -7,6 +7,8 @@ import { useAuth } from '../stores/auth'
 // make every navigation synchronous, so the new page paints in one frame. The
 // whole app is small enough (single-binary internal tool) that one bundle is fine.
 import Login from '../pages/Login.vue'
+import Overview from '../pages/Overview.vue'
+import FleetOverview from '../pages/FleetOverview.vue'
 import Systems from '../pages/Systems.vue'
 import SystemDetail from '../pages/SystemDetail.vue'
 import Console from '../pages/Console.vue'
@@ -30,6 +32,8 @@ import About from '../pages/About.vue'
 const routes = [
   { path: '/login', name: 'login', component: Login, meta: { public: true } },
   { path: '/', name: 'systems', component: Systems },
+  { path: '/overview', name: 'overview', component: Overview },
+  { path: '/fleet', name: 'fleet', component: FleetOverview },
   { path: '/attention', name: 'attention', component: Systems },
   { path: '/system/:id', name: 'system', component: SystemDetail },
   { path: '/systems/:id/console', name: 'console', component: Console },
