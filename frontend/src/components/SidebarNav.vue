@@ -66,6 +66,7 @@ const groups = computed(() =>
         { label: 'Data & retention', name: 'data', admin: true },
         { label: 'Backup', name: 'backup', admin: true },
         { label: 'API tokens', name: 'tokens' },
+        { label: 'SSH keys', name: 'ssh-keys' },
         { label: 'About', name: 'about' },
       ],
     },

@@ -27,6 +27,7 @@ import DataRetention from '../pages/DataRetention.vue'
 import Backup from '../pages/Backup.vue'
 import Audit from '../pages/Audit.vue'
 import ApiTokens from '../pages/ApiTokens.vue'
+import SshKeys from '../pages/SshKeys.vue'
 import About from '../pages/About.vue'
 
 const routes = [
@@ -54,6 +55,7 @@ const routes = [
   { path: '/backup', name: 'backup', component: Backup },
   { path: '/audit', name: 'audit', component: Audit },
   { path: '/tokens', name: 'tokens', component: ApiTokens },
+  { path: '/ssh-keys', name: 'ssh-keys', component: SshKeys },
   { path: '/about', name: 'about', component: About },
 ]
 

@@ -1,10 +1,13 @@
-//! Shell/exec API: per-host shell config, the caller's own SSH credential, and the
-//! step-up ticket that opens a console (docs/exec-design.md). Reads redact the key;
-//! the private key is only ever accepted (to seal) or unsealed transiently.
+//! Shell/exec API: per-host shell config, the caller's **account-level** SSH key
+//! library, and the step-up ticket that opens a console (docs/exec-design.md).
+//! Keys belong to the account (reusable across hosts), not the server. Reads redact
+//! keys; a private key is only ever accepted (to seal) or unsealed transiently.
 
 use super::*;
-use crate::console::ExecTicket;
+use crate::console::{ExecAuth, ExecTicket};
 use crate::exec_crypto;
+
+// ---- per-host shell config --------------------------------------------------
 
 /// Fetch the bits of a system row the shell endpoints need.
 async fn system_shell_row(
@@ -22,18 +25,13 @@ async fn system_shell_row(
 }
 
 #[derive(Serialize)]
-pub struct Credential {
-    ssh_user: String,
-    key_fingerprint: String,
-}
-
-#[derive(Serialize)]
 pub struct ShellStatus {
     shell_enabled: bool,
     ssh_port: i32,
     tunnel_online: bool,
     can_exec: bool,
-    credential: Option<Credential>,
+    /// Whether the caller has any SSH keys in their library (so the UI can offer key auth).
+    has_keys: bool,
 }
 
 /// GET /api/systems/:id/shell — status for the calling user (any namespace member).
@@ -46,24 +44,17 @@ pub async fn get_shell(
     rbac::require_role(&state, &user, ns, Role::Viewer).await?;
     let can_exec = rbac::require_exec(&state, &user, ns).await.is_ok();
     let tunnel_online = state.tunnels.has(key_id, &hostname).await;
-    let credential = sqlx::query_as::<_, (String, String)>(
-        "SELECT ssh_user, key_fingerprint FROM exec_credentials WHERE user_id = $1 AND system_id = $2",
-    )
-    .bind(user.id)
-    .bind(id)
-    .fetch_optional(&state.config)
-    .await
-    .map_err(internal)?
-    .map(|(ssh_user, key_fingerprint)| Credential {
-        ssh_user,
-        key_fingerprint,
-    });
+    let (key_count,): (i64,) = sqlx::query_as("SELECT count(*) FROM ssh_keys WHERE user_id = $1")
+        .bind(user.id)
+        .fetch_one(&state.config)
+        .await
+        .map_err(internal)?;
     Ok(Json(ShellStatus {
         shell_enabled,
         ssh_port,
         tunnel_online,
         can_exec,
-        credential,
+        has_keys: key_count > 0,
     }))
 }
 
@@ -95,97 +86,135 @@ pub async fn put_shell(
     Ok(StatusCode::NO_CONTENT)
 }
 
+// ---- account-level SSH key library -----------------------------------------
+
+#[derive(Serialize)]
+pub struct SshKeyRow {
+    id: Uuid,
+    name: String,
+    key_fingerprint: String,
+    created_at: String,
+}
+
+/// GET /api/ssh-keys — the caller's own key library (redacted: no private key).
+pub async fn list_ssh_keys(
+    State(state): State<AppState>,
+    user: CurrentUser,
+) -> Result<Json<Vec<SshKeyRow>>, StatusCode> {
+    let rows = sqlx::query_as::<_, (Uuid, String, String, String)>(
+        "SELECT id, name, key_fingerprint, created_at::text FROM ssh_keys \
+         WHERE user_id = $1 ORDER BY name",
+    )
+    .bind(user.id)
+    .fetch_all(&state.config)
+    .await
+    .map_err(internal)?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|(id, name, key_fingerprint, created_at)| SshKeyRow {
+                id,
+                name,
+                key_fingerprint,
+                created_at,
+            })
+            .collect(),
+    ))
+}
+
 #[derive(Deserialize)]
-pub struct PutCred {
-    ssh_user: String,
+pub struct CreateKey {
+    name: String,
     private_key: String,
+    /// The caller's account password — the KEK is derived from it (step-up to unseal
+    /// later uses the same password).
     password: String,
 }
 
-/// PUT /api/systems/:id/ssh-cred — store the caller's own SSH key for this host,
-/// encrypted under their password. Requires exec rights + the correct password (so
-/// the key can later be unsealed at step-up with that same password).
-pub async fn put_ssh_cred(
+/// POST /api/ssh-keys — add a key to the caller's library, sealed under their password.
+pub async fn create_ssh_key(
     State(state): State<AppState>,
     user: CurrentUser,
-    Path(id): Path<Uuid>,
-    Json(req): Json<PutCred>,
-) -> Result<Json<Credential>, StatusCode> {
-    let (ns, ..) = system_shell_row(&state, id).await?;
-    rbac::require_exec(&state, &user, ns).await?;
-
-    let ssh_user = req.ssh_user.trim().to_string();
-    // Linux usernames: 1–32 chars, no control/space/colon.
-    if ssh_user.is_empty()
-        || ssh_user.len() > 32
-        || ssh_user
-            .chars()
-            .any(|c| c.is_control() || c.is_whitespace() || c == ':')
-    {
+    Json(req): Json<CreateKey>,
+) -> Result<Json<SshKeyRow>, StatusCode> {
+    let name = req.name.trim().to_string();
+    if !valid_name(&name, 64) {
         return Err(StatusCode::BAD_REQUEST);
     }
-    // The password must be the caller's own login password (the KEK is derived from
-    // it; step-up will re-derive with the same password).
     if !crate::auth::verify_user_password(&state.config, user.id, &req.password)
         .await
         .map_err(internal)?
     {
         return Err(StatusCode::BAD_REQUEST);
     }
-    // Validate the key parses and derive its fingerprint.
     let key = russh::keys::decode_secret_key(&req.private_key, None)
         .map_err(|_| StatusCode::BAD_REQUEST)?;
     let fingerprint = key
         .clone_public_key()
         .map(|p| p.fingerprint())
         .map_err(|_| StatusCode::BAD_REQUEST)?;
-
     let salt = exec_crypto::gen_salt();
     let key_enc =
         exec_crypto::seal(&req.password, &salt, req.private_key.as_bytes()).map_err(internal)?;
 
-    sqlx::query(
-        "INSERT INTO exec_credentials (user_id, system_id, ssh_user, key_enc, kdf_salt, key_fingerprint) \
-         VALUES ($1, $2, $3, $4, $5, $6) \
-         ON CONFLICT (user_id, system_id) DO UPDATE SET \
-            ssh_user = $3, key_enc = $4, kdf_salt = $5, key_fingerprint = $6",
+    let row = sqlx::query_as::<_, (Uuid, String)>(
+        "INSERT INTO ssh_keys (user_id, name, key_enc, kdf_salt, key_fingerprint) \
+         VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at::text",
     )
     .bind(user.id)
-    .bind(id)
-    .bind(&ssh_user)
+    .bind(&name)
     .bind(&key_enc)
     .bind(&salt)
     .bind(&fingerprint)
-    .execute(&state.config)
+    .fetch_one(&state.config)
     .await
-    .map_err(internal)?;
+    .map_err(|e| {
+        // Duplicate name within the user's library → 409, not a 500.
+        if e.as_database_error()
+            .map(|d| d.is_unique_violation())
+            .unwrap_or(false)
+        {
+            StatusCode::CONFLICT
+        } else {
+            internal(e)
+        }
+    })?;
 
-    Ok(Json(Credential {
-        ssh_user,
+    Ok(Json(SshKeyRow {
+        id: row.0,
+        name,
         key_fingerprint: fingerprint,
+        created_at: row.1,
     }))
 }
 
-/// DELETE /api/systems/:id/ssh-cred — remove the caller's credential.
-pub async fn delete_ssh_cred(
+/// DELETE /api/ssh-keys/:id — remove one of the caller's keys.
+pub async fn delete_ssh_key(
     State(state): State<AppState>,
     user: CurrentUser,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {
-    let (ns, ..) = system_shell_row(&state, id).await?;
-    rbac::require_exec(&state, &user, ns).await?;
-    sqlx::query("DELETE FROM exec_credentials WHERE user_id = $1 AND system_id = $2")
-        .bind(user.id)
+    sqlx::query("DELETE FROM ssh_keys WHERE id = $1 AND user_id = $2")
         .bind(id)
+        .bind(user.id)
         .execute(&state.config)
         .await
         .map_err(internal)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
+// ---- console ticket (step-up) ----------------------------------------------
+
 #[derive(Deserialize)]
 pub struct TicketReq {
-    password: String,
+    ssh_user: String,
+    /// "password" — SSH password auth; "key" — publickey from the caller's library.
+    auth: String,
+    /// auth=password: the host SSH password (typed at connect, never stored).
+    ssh_password: Option<String>,
+    /// auth=key: the caller's account password, to unseal the chosen key.
+    account_password: Option<String>,
+    /// auth=key: which key from the caller's library.
+    key_id: Option<Uuid>,
 }
 
 #[derive(Serialize)]
@@ -193,8 +222,8 @@ pub struct TicketResp {
     ticket: String,
 }
 
-/// POST /api/systems/:id/console/ticket — step-up: verify password, unseal the key,
-/// mint a single-use console ticket. 400s describe the blocker.
+/// POST /api/systems/:id/console/ticket — step-up: validate the chosen auth, build a
+/// single-use console ticket. 400s describe the blocker.
 pub async fn console_ticket(
     State(state): State<AppState>,
     user: CurrentUser,
@@ -209,25 +238,52 @@ pub async fn console_ticket(
     if !state.tunnels.has(key_id, &hostname).await {
         return Err(StatusCode::BAD_REQUEST); // agent offline
     }
-    if !crate::auth::verify_user_password(&state.config, user.id, &req.password)
-        .await
-        .map_err(internal)?
+
+    let ssh_user = req.ssh_user.trim().to_string();
+    // Linux usernames: 1–32 chars, no control/space/colon.
+    if ssh_user.is_empty()
+        || ssh_user.len() > 32
+        || ssh_user
+            .chars()
+            .any(|c| c.is_control() || c.is_whitespace() || c == ':')
     {
         return Err(StatusCode::BAD_REQUEST);
     }
-    let cred = sqlx::query_as::<_, (String, Vec<u8>, Vec<u8>)>(
-        "SELECT ssh_user, key_enc, kdf_salt FROM exec_credentials WHERE user_id = $1 AND system_id = $2",
-    )
-    .bind(user.id)
-    .bind(id)
-    .fetch_optional(&state.config)
-    .await
-    .map_err(internal)?
-    .ok_or(StatusCode::BAD_REQUEST)?; // no credential
-    let (ssh_user, key_enc, kdf_salt) = cred;
-    let key_pem = exec_crypto::open(&req.password, &kdf_salt, &key_enc)
-        .map(|b| String::from_utf8_lossy(&b).into_owned())
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    let auth = match req.auth.as_str() {
+        "password" => {
+            let pw = req.ssh_password.unwrap_or_default();
+            if pw.is_empty() {
+                return Err(StatusCode::BAD_REQUEST);
+            }
+            ExecAuth::Password(pw)
+        }
+        "key" => {
+            let account_password = req.account_password.unwrap_or_default();
+            let key_id_sel = req.key_id.ok_or(StatusCode::BAD_REQUEST)?;
+            // The account password must be correct (it derives the KEK).
+            if !crate::auth::verify_user_password(&state.config, user.id, &account_password)
+                .await
+                .map_err(internal)?
+            {
+                return Err(StatusCode::BAD_REQUEST);
+            }
+            let (key_enc, kdf_salt) = sqlx::query_as::<_, (Vec<u8>, Vec<u8>)>(
+                "SELECT key_enc, kdf_salt FROM ssh_keys WHERE id = $1 AND user_id = $2",
+            )
+            .bind(key_id_sel)
+            .bind(user.id)
+            .fetch_optional(&state.config)
+            .await
+            .map_err(internal)?
+            .ok_or(StatusCode::BAD_REQUEST)?; // no such key for this user
+            let pem = exec_crypto::open(&account_password, &kdf_salt, &key_enc)
+                .map(|b| String::from_utf8_lossy(&b).into_owned())
+                .map_err(|_| StatusCode::BAD_REQUEST)?;
+            ExecAuth::Key(pem)
+        }
+        _ => return Err(StatusCode::BAD_REQUEST),
+    };
 
     let ticket = state
         .exec_tickets
@@ -236,7 +292,7 @@ pub async fn console_ticket(
             user_id: user.id,
             user_email: user.email.clone(),
             ssh_user,
-            key_pem,
+            auth,
             key_id,
             hostname,
             ssh_port: ssh_port.clamp(1, 65535) as u16,

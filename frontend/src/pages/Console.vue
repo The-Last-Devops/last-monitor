@@ -1,7 +1,8 @@
 <script setup>
 // Interactive SSH console for a host. Flow:
-//   1. GET .../shell — gate on can_exec / shell_enabled / credential / tunnel_online.
-//   2. Step-up: re-enter account password → POST .../console/ticket {password} → ticket.
+//   1. GET .../shell — gate on can_exec / shell_enabled / tunnel_online (no stored credential).
+//   2. Step-up: pick SSH user + auth method (host password, or a key from your library
+//      unsealed with your account password) → POST .../console/ticket → ticket.
 //   3. Open WS .../console?ticket=<id>, pipe xterm <-> binary stdout/stdin, JSON resize.
 // On close → "Session ended" + Reconnect (re-does the ticket step).
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
@@ -21,13 +22,40 @@ const shell = ref(null)
 const loaded = ref(false)
 const loadErr = ref('')
 
-// ui phase: 'precheck' | 'blocked' | 'password' | 'connecting' | 'live' | 'ended'
+// ui phase: 'precheck' | 'blocked' | 'auth' | 'connecting' | 'live' | 'ended'
 const phase = ref('precheck')
 const blockedReason = ref('') // human text when blocked
-const password = ref('')
-const pwErr = ref('')
-const submitting = ref(false)
 const endReason = ref('')
+
+// ---- step-up auth form ----
+const sshUser = ref('')
+const authMethod = ref('password') // 'password' | 'key'
+const sshPassword = ref('')         // host password (method=password)
+const accountPassword = ref('')     // account password to unseal a key (method=key)
+const keyId = ref(null)             // chosen key from the library (method=key)
+const keys = ref([])                // caller's key library, fetched when the modal opens
+const authErr = ref('')
+const submitting = ref(false)
+
+const keyOptions = computed(() =>
+  keys.value.map((k) => ({ value: k.id, label: `${k.name} (${k.key_fingerprint})` })),
+)
+const hasKeys = computed(() => keys.value.length > 0)
+const methodOptions = computed(() => [
+  { value: 'password', label: 'User + password' },
+  { value: 'key', label: hasKeys.value ? 'User + key' : 'User + key (no keys yet)' },
+])
+
+async function loadKeys() {
+  try {
+    keys.value = await api.get('/api/ssh-keys')
+  } catch {
+    keys.value = []
+  }
+  // default the key picker to the first key if any; if no keys, force password method
+  if (keys.value.length) { if (keyId.value == null) keyId.value = keys.value[0].id }
+  else if (authMethod.value === 'key') authMethod.value = 'password'
+}
 
 // xterm
 const termEl = ref(null)
@@ -43,9 +71,8 @@ async function precheck() {
     const s = shell.value
     if (!s.can_exec) { phase.value = 'blocked'; blockedReason.value = "You don't have shell access on this host." }
     else if (!s.shell_enabled) { phase.value = 'blocked'; blockedReason.value = 'Shell is disabled for this host.' }
-    else if (!s.credential) { phase.value = 'blocked'; blockedReason.value = 'no-credential' }
     else if (!s.tunnel_online) { phase.value = 'blocked'; blockedReason.value = 'Agent offline — the host is not reachable right now.' }
-    else { phase.value = 'password' }
+    else { phase.value = 'auth'; loadKeys() }
   } catch (e) {
     loadErr.value = e.status === 403 ? "You don't have shell access on this host." : 'Failed to load shell settings.'
     phase.value = 'blocked'
@@ -78,19 +105,31 @@ function sendResize() {
 }
 
 async function connect() {
-  pwErr.value = ''
-  if (!password.value) { pwErr.value = 'Enter your account password.'; return }
+  authErr.value = ''
+  if (!sshUser.value.trim()) { authErr.value = 'Enter the SSH user.'; return }
+  let body
+  if (authMethod.value === 'password') {
+    if (!sshPassword.value) { authErr.value = 'Enter the SSH host password.'; return }
+    body = { ssh_user: sshUser.value.trim(), auth: 'password', ssh_password: sshPassword.value }
+  } else {
+    if (!hasKeys.value) { authErr.value = 'Add a key in SSH keys first.'; return }
+    if (keyId.value == null) { authErr.value = 'Choose a key.'; return }
+    if (!accountPassword.value) { authErr.value = 'Enter your account password to unseal the key.'; return }
+    body = { ssh_user: sshUser.value.trim(), auth: 'key', key_id: keyId.value, account_password: accountPassword.value }
+  }
   submitting.value = true
   let ticket
   try {
-    const res = await api.post(`/api/systems/${id.value}/console/ticket`, { password: password.value })
+    const res = await api.post(`/api/systems/${id.value}/console/ticket`, body)
     ticket = res.ticket
   } catch (e) {
-    pwErr.value = statusMsg(e.status)
+    authErr.value = statusMsg(e.status)
     submitting.value = false
     return
   }
-  password.value = ''
+  // clear the typed secrets once consumed
+  sshPassword.value = ''
+  accountPassword.value = ''
   submitting.value = false
   phase.value = 'connecting'
   await nextTick()
@@ -99,7 +138,7 @@ async function connect() {
 
 function statusMsg(status) {
   if (status === 403) return "You don't have shell access on this host."
-  if (status === 400) return 'Could not start a session — shell disabled, no credential, wrong password, or the agent is offline.'
+  if (status === 400) return 'Could not start a session — check the SSH user, password/key, or the agent may be offline.'
   return `Failed to get a session (${status}).`
 }
 
@@ -215,27 +254,56 @@ function back() { router.push(`/system/${id.value}`) }
       <!-- blocked states -->
       <div v-else-if="phase === 'blocked'" class="flex h-full items-center justify-center p-6">
         <div class="max-w-md rounded-xl border border-line bg-surface p-6 text-center">
-          <template v-if="blockedReason === 'no-credential'">
-            <p class="mb-1 text-sm font-semibold text-fg">No SSH credential set up</p>
-            <p class="mb-4 text-xs text-muted">Add your SSH key for this host before opening a console.</p>
-            <button @click="back" class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90">Go to Shell settings</button>
-          </template>
-          <template v-else>
-            <p class="text-sm text-muted">{{ blockedReason }}</p>
-            <button @click="back" class="mt-4 rounded-lg border border-line bg-surface2 px-4 py-2 text-sm text-fg hover:border-accent/50">Back to host</button>
-          </template>
+          <p class="text-sm text-muted">{{ blockedReason }}</p>
+          <button @click="back" class="mt-4 rounded-lg border border-line bg-surface2 px-4 py-2 text-sm text-fg hover:border-accent/50">Back to host</button>
         </div>
       </div>
 
-      <!-- step-up password modal -->
-      <div v-else-if="phase === 'password'" class="flex h-full items-center justify-center p-6">
+      <!-- step-up auth modal: SSH user + (host password | key from library) -->
+      <div v-else-if="phase === 'auth'" class="flex h-full items-center justify-center p-6">
         <form @submit.prevent="connect" class="w-full max-w-sm rounded-xl border border-line bg-surface p-6">
-          <p class="mb-1 text-sm font-semibold text-fg">Confirm it's you</p>
-          <p class="mb-4 text-xs text-muted">Re-enter your account password to start an SSH session on <span class="text-fg">{{ hostName }}</span>.</p>
-          <input v-model="password" type="password" autocomplete="current-password" autofocus
-            placeholder="Account password"
-            class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
-          <p v-if="pwErr" class="mt-2 text-xs text-rose-400">{{ pwErr }}</p>
+          <p class="mb-1 text-sm font-semibold text-fg">Connect to {{ hostName }}</p>
+          <p class="mb-4 text-xs text-muted">Choose how to authenticate this SSH session. Nothing typed here is stored.</p>
+
+          <label class="block">
+            <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-faint">SSH user</span>
+            <input v-model="sshUser" autofocus placeholder="e.g. ubuntu, root"
+              class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
+          </label>
+
+          <div class="mt-3">
+            <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-faint">Auth method</span>
+            <UiSelect v-model="authMethod" block :options="methodOptions" />
+          </div>
+
+          <!-- password method -->
+          <label v-if="authMethod === 'password'" class="mt-3 block">
+            <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-faint">SSH host password</span>
+            <input v-model="sshPassword" type="password" autocomplete="off"
+              class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none" />
+          </label>
+
+          <!-- key method -->
+          <template v-else>
+            <div v-if="!hasKeys" class="mt-3 rounded-lg border border-line bg-surface2 p-3 text-xs text-muted">
+              You have no SSH keys yet.
+              <router-link :to="{ name: 'ssh-keys' }" class="text-accent hover:underline">Add a key in SSH keys</router-link>.
+            </div>
+            <template v-else>
+              <div class="mt-3">
+                <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-faint">Key</span>
+                <UiSelect v-model="keyId" block :options="keyOptions" placeholder="Choose a key…" />
+              </div>
+              <label class="mt-3 block">
+                <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-faint">Account password</span>
+                <input v-model="accountPassword" type="password" autocomplete="current-password"
+                  class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none" />
+                <span class="mt-1 block text-[11px] text-faint">Unseals your chosen key — it can't be read without you.</span>
+              </label>
+            </template>
+          </template>
+
+          <p v-if="authErr" class="mt-2 text-xs text-rose-400">{{ authErr }}</p>
           <div class="mt-4 flex justify-end gap-2.5">
             <button type="button" @click="back" class="rounded-lg px-3 py-2 text-sm text-muted hover:text-fg">Cancel</button>
             <button type="submit" :disabled="submitting" class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90 disabled:opacity-50">{{ submitting ? 'Connecting…' : 'Connect' }}</button>

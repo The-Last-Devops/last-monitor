@@ -186,10 +186,12 @@ async fn main() -> Result<()> {
             "/api/systems/{id}/shell",
             get(api::get_shell).put(api::put_shell),
         )
+        // account-level SSH key library (per user, reusable across hosts)
         .route(
-            "/api/systems/{id}/ssh-cred",
-            put(api::put_ssh_cred).delete(api::delete_ssh_cred),
+            "/api/ssh-keys",
+            get(api::list_ssh_keys).post(api::create_ssh_key),
         )
+        .route("/api/ssh-keys/{id}", delete(api::delete_ssh_key))
         .route(
             "/api/systems/{id}/console/ticket",
             post(api::console_ticket),

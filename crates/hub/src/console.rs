@@ -34,15 +34,25 @@ use uuid::Uuid;
 use crate::auth::CurrentUser;
 use crate::{rbac, AppState};
 
-/// A step-up ticket: holds the unsealed key + connection target for one console
+/// How the user chose to authenticate to the host's sshd for this session.
+/// Both variants hold a transient secret that lives only inside the ticket (≤ TTL)
+/// and this task's memory.
+pub enum ExecAuth {
+    /// SSH password auth — the host password the user typed at connect.
+    Password(String),
+    /// SSH publickey auth — the user's private key, already unsealed (PEM).
+    Key(String),
+}
+
+/// A step-up ticket: holds the connection target + chosen auth for one console
 /// session. Single-use and short-lived.
 pub struct ExecTicket {
     pub system_id: Uuid,
     pub user_id: Uuid,
     pub user_email: String,
     pub ssh_user: String,
-    pub key_pem: String, // decrypted private key (sensitive; lives ≤ TTL)
-    pub key_id: Uuid,    // the system's agent api-key id (tunnel routing)
+    pub auth: ExecAuth,
+    pub key_id: Uuid, // the system's agent api-key id (tunnel routing)
     pub hostname: String,
     pub ssh_port: u16,
     pub created: Instant,
@@ -234,16 +244,22 @@ async fn bridge(
         Ok(h) => h,
         Err(e) => fail!(format!("SSH connect failed: {e}")),
     };
-    let key = match russh::keys::decode_secret_key(&t.key_pem, None) {
-        Ok(k) => k,
-        Err(e) => fail!(format!("Could not load your SSH key: {e}")),
+    let authed = match &t.auth {
+        ExecAuth::Password(pw) => handle.authenticate_password(&t.ssh_user, pw.clone()).await,
+        ExecAuth::Key(pem) => match russh::keys::decode_secret_key(pem, None) {
+            Ok(k) => {
+                handle
+                    .authenticate_publickey(&t.ssh_user, Arc::new(k))
+                    .await
+            }
+            Err(e) => fail!(format!("Could not load your SSH key: {e}")),
+        },
     };
-    match handle
-        .authenticate_publickey(&t.ssh_user, Arc::new(key))
-        .await
-    {
+    match authed {
         Ok(true) => {}
-        Ok(false) => fail!("SSH authentication rejected (key not accepted by the host)"),
+        Ok(false) => {
+            fail!("SSH authentication rejected by the host (wrong password or key not authorized)")
+        }
         Err(e) => fail!(format!("SSH authentication error: {e}")),
     }
 

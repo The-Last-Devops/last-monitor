@@ -37,13 +37,19 @@ SSH keys are **per user, not per system/shared**. Anyone who can shell into a ho
 has their **own OS account** on that host (their pubkey in its `authorized_keys`);
 the hub only provides the transport and **stores their private key for them**. So:
 
-- The credential is per `(user, system)`: their account name + their encrypted key.
-- The key is encrypted under a **key derived from the user's own password** (argon2
-  over a dedicated `kdf_salt`, *not* the auth-hash salt). The step-up password (re-
-  entered to open a console) is exactly what unlocks it: decrypt in RAM → SSH → wipe.
+- **Keys belong to the ACCOUNT, not the server.** Each user keeps a *library* of named
+  keys (`ssh_keys`, per user), reusable across every host. A host only stores
+  `shell_enabled` + `ssh_port`.
+- **At connect the user chooses the auth method:** (1) **password** — the host SSH
+  password, typed at connect and never stored; or (2) **key** — pick one key from their
+  library, unsealed with their account password. `russh` does `authenticate_password`
+  or `authenticate_publickey` accordingly.
+- Each key is encrypted under a **key derived from the user's own password** (argon2
+  over a dedicated `kdf_salt`, *not* the auth-hash salt). The step-up password unlocks
+  it: decrypt in RAM → SSH → wipe.
 - **No server master key.** The hub cannot decrypt *anyone's* key without that user
   actively supplying their password — a DB/env leak alone reveals nothing.
-- Password reset/forgot ⇒ the user's stored keys become undecryptable; they re-upload
+- Password reset/forgot ⇒ the user's stored keys become undecryptable; they re-add
   (only their own — there is no shared key to lose).
 - Tier 1 still: hub sees the plaintext key in RAM *at use time* (it runs the SSH
   client). True "server never sees the key" is impossible without a browser SSH
@@ -76,8 +82,8 @@ rule lives.
 
 Shell is **off by default** and must be enabled on **both** sides:
 1. **Agent side:** deployed with `ALLOW_SHELL=1` (Tier 1) / `ALLOW_HOST_EXEC=1` (Tier 2).
-2. **Hub side:** the system has `shell_enabled = true`, and the user has stored their
-   own SSH credential for it (`exec_credentials`).
+2. **Hub side:** the system has `shell_enabled = true`; the user authenticates at
+   connect with their own SSH account + host password, or a key from their library.
 
 If an attacker owns only the hub, agents not deployed with the flag refuse the tunnel.
 
@@ -113,9 +119,9 @@ those bytes (store a `‹masked›` marker, not the keystrokes).
 ## Implementation phases
 
 1. **Foundations (safe, no exec):** migrations `0017_exec.sql` (`memberships.can_exec`,
-   `systems.shell_enabled`/`ssh_port`, `exec_sessions` + `exec_transcript` append-only)
-   and `0018_exec_per_user_keys.sql` (per-user `exec_credentials`, drops the shared
-   per-system key columns); `rbac::require_exec`. AEAD + argon2-KEK helper. Hub-only deps.
+   `systems.shell_enabled`/`ssh_port`, `exec_sessions` + `exec_transcript` append-only),
+   `0018` (interim per-(user,system) creds), `0019_ssh_keys.sql` (drop that; account-level
+   `ssh_keys` library); `rbac::require_exec`. AEAD + argon2-KEK helper. Hub-only deps.
 2. **Agent reverse tunnel (forward-only):** `ALLOW_SHELL`, outbound WS to `/pub/tunnel`,
    stream mux, dial `127.0.0.1:ssh_port`. Agent never execs.
 3. **Hub SSH client + PTY bridge:** `russh` through the tunnel, PTY → browser WS
