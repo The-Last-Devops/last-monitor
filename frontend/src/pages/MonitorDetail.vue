@@ -1,18 +1,30 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AppShell from '../components/AppShell.vue'
 import PageLoader from '../components/PageLoader.vue'
 import { minLoad } from '../lib/minLoad'
 import UplotChart from '../components/UplotChart.vue'
-import MonitorMetaCard from '../components/MonitorMetaCard.vue'
 import MonitorHeartbeatBar from '../components/MonitorHeartbeatBar.vue'
 import MonitorIncidentsList from '../components/MonitorIncidentsList.vue'
 import MonitorDebugCard from '../components/MonitorDebugCard.vue'
 import { api } from '../lib/api'
+import { confirm } from '../lib/confirm'
 
 const route = useRoute()
+const router = useRouter()
 const id = route.params.id
+
+const KINDS = {
+  http: 'HTTP(s)', keyword: 'HTTP keyword', tcp: 'TCP port', ping: 'Ping', postgres: 'PostgreSQL',
+  mysql: 'MySQL', mongodb: 'MongoDB', redis: 'Redis', rabbitmq: 'RabbitMQ', dns: 'DNS', tls: 'TLS cert', push: 'Push',
+}
+const KIND_ICON = {
+  http: 'globe', keyword: 'globe', tls: 'shield', dns: 'globe', ping: 'wifi-off',
+  tcp: 'network', postgres: 'service', mysql: 'service', mongodb: 'service', redis: 'service',
+  rabbitmq: 'service', push: 'pulse',
+}
+const kindIcon = (k) => KIND_ICON[k] || 'service'
 
 const m = ref(null)
 const hb = ref({ t: [], latency: [], up: [] })
@@ -73,8 +85,15 @@ const status = computed(() => {
   return 'pending'
 })
 const statusLabel = { up: 'Up', down: 'Down', paused: 'Paused', pending: 'Pending' }
-const statusColor = { up: 'text-accent', down: 'text-red-500', paused: 'text-faint', pending: 'text-muted' }
-const dotColor = { up: 'bg-accent', down: 'bg-red-500', paused: 'bg-faint', pending: 'bg-faint' }
+const statusTone = { up: 'ok', down: 'down', paused: 'muted', pending: 'pending' }
+
+const nsq2 = computed(() => (route.query.ns ? { ns: route.query.ns } : {}))
+function openEdit() { router.push({ name: 'monitor-edit', params: { id }, query: nsq2.value }) }
+async function removeMonitor() {
+  if (!m.value) return
+  if (!(await confirm({ title: 'Delete service?', message: `"${m.value.name}" and its check history are removed permanently. This cannot be undone.`, danger: true, confirmText: 'Delete' }))) return
+  try { await api.del(`/api/monitors/${id}`); router.push({ name: 'monitors', query: nsq2.value }) } catch (e) { alert(`Failed (${e.status}).`) }
+}
 
 function dur(iso) {
   if (!iso) return '—'
@@ -129,40 +148,71 @@ onUnmounted(() => timer && clearInterval(timer))
       </nav>
     </template>
 
-    <div v-if="err" class="rounded-xl border border-line bg-surface p-6 text-center text-rose-400">{{ err }}</div>
+    <div v-if="err" class="rounded-xl border border-line bg-surface p-6 text-center text-down">{{ err }}</div>
     <PageLoader v-else-if="!m" />
     <div v-else class="space-y-5">
-      <!-- header -->
-      <MonitorMetaCard :m="m" :status="status" :status-label="statusLabel" :status-color="statusColor" :dot-color="dotColor" :dur="dur" :push-url="pushUrl" />
+      <!-- hero header -->
+      <section class="rounded-xl border border-line bg-surface p-4 sm:p-5">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <span class="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-line bg-surface2"
+            :class="status === 'down' ? 'text-down' : status === 'pending' ? 'text-pending' : status === 'paused' ? 'text-faint' : 'text-accent'">
+            <VIcon :name="kindIcon(m.kind)" :size="24" />
+          </span>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <h1 class="truncate font-mono text-h1 text-fg">{{ m.name }}</h1>
+              <StatePill :tone="statusTone[status]" :label="statusLabel[status]" />
+            </div>
+            <p class="mt-1 text-sm text-muted">
+              {{ m.namespace }} · {{ KINDS[m.kind] || m.kind }} · check every {{ m.interval_secs }}s
+              <span v-if="status === 'up' || status === 'down'"> · since {{ dur(m.since) }} ago</span>
+            </p>
+            <p class="mt-1 min-w-0 truncate font-mono text-xs text-faint" v-tip="m.kind === 'push' ? pushUrl : m.target">{{ m.kind === 'push' ? pushUrl : m.target }}</p>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <button @click="openEdit" class="flex items-center gap-1.5 rounded-lg border border-line bg-surface2 px-3 py-1.5 text-sm font-medium text-fg hover:border-accent/50"><VIcon name="settings" :size="16" /> Edit</button>
+            <button @click="removeMonitor" class="flex items-center gap-1.5 rounded-lg border border-down/35 px-3 py-1.5 text-sm font-medium text-down hover:bg-down/10"><VIcon name="trash" :size="16" /> Delete</button>
+          </div>
+        </div>
+      </section>
 
-      <!-- uptime cards -->
-      <div class="grid grid-cols-3 gap-3">
-        <div v-for="u in [{ k: 'uptime_24h', l: '24 hours' }, { k: 'uptime_7d', l: '7 days' }, { k: 'uptime_30d', l: '30 days' }]" :key="u.k"
-          class="rounded-xl border border-line bg-surface p-4">
-          <div class="text-[11px] uppercase tracking-wider text-faint">Uptime · {{ u.l }}</div>
-          <div class="mt-1 text-2xl font-semibold tabular-nums" :class="m[u.k] == null ? 'text-faint' : m[u.k] >= 99 ? 'text-accent' : m[u.k] >= 95 ? 'text-amber-400' : 'text-red-400'">{{ pct(m[u.k]) }}</div>
+      <!-- KPI strip -->
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div v-for="u in [{ k: 'uptime_24h', l: 'Uptime · 24h' }, { k: 'uptime_7d', l: 'Uptime · 7d' }, { k: 'uptime_30d', l: 'Uptime · 30d' }]" :key="u.k"
+          class="rounded-xl border border-line bg-surface px-4 py-3">
+          <div class="text-micro uppercase tracking-wider text-faint">{{ u.l }}</div>
+          <div class="mt-1 font-mono text-metric tabular-nums" :class="m[u.k] == null ? 'text-faint' : m[u.k] >= 99 ? 'text-ok' : m[u.k] >= 95 ? 'text-warn' : 'text-down'">{{ pct(m[u.k]) }}</div>
+        </div>
+        <div class="rounded-xl border border-line bg-surface px-4 py-3">
+          <div class="text-micro uppercase tracking-wider text-faint">Latency</div>
+          <div class="mt-1 font-mono text-metric tabular-nums text-fg">{{ m.latency_ms != null ? m.latency_ms : '—' }}<span v-if="m.latency_ms != null" class="text-base font-normal text-faint"> ms</span></div>
+          <div class="mt-0.5 text-micro text-faint">most recent check</div>
         </div>
       </div>
 
       <!-- alert rules covering this service -->
-      <div class="rounded-xl border border-line bg-surface p-4">
-        <div class="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-faint">
-          Alert rules <span class="rounded-full bg-surface2 px-2 py-0.5 text-[10px]">{{ rules.length }}</span>
+      <div class="overflow-hidden rounded-xl border border-line bg-surface">
+        <div class="flex items-center gap-2 border-b border-line2 bg-head px-4 py-2.5">
+          <VIcon name="bell" :size="16" class="text-faint" />
+          <h2 class="text-xs font-extrabold uppercase tracking-wide text-fg">Alert rules</h2>
+          <span class="rounded-pill bg-surface2 px-2 py-0.5 text-micro text-muted">{{ rules.length }}</span>
         </div>
-        <p v-if="!rules.length" class="text-xs text-faint">No alert rules cover this service. <RouterLink :to="{ name: 'alerts', query: nsq }" class="text-accent hover:underline">Add one</RouterLink>.</p>
-        <div v-else class="flex flex-wrap gap-2">
-          <RouterLink v-for="r in rules" :key="r.id" :to="{ name: 'alerts', query: { ...nsq, rule: r.id } }"
-            class="inline-flex items-center gap-2 rounded-lg border border-line bg-surface2 px-3 py-1.5 text-xs hover:border-accent/50">
-            <span class="h-1.5 w-1.5 rounded-full" :class="r.firing === true ? 'bg-red-500' : r.firing === false ? 'bg-accent' : 'bg-faint'"></span>
-            <span class="text-fg">{{ r.scope_kind === 'all_services' ? 'All services in namespace' : 'This service' }}</span>
-            <span v-if="!r.enabled" class="text-faint">· off</span>
-          </RouterLink>
+        <div class="p-4">
+          <p v-if="!rules.length" class="text-sm text-faint">No alert rules cover this service. <RouterLink :to="{ name: 'alerts', query: nsq }" class="text-accent hover:underline">Add one</RouterLink>.</p>
+          <div v-else class="flex flex-wrap gap-2">
+            <RouterLink v-for="r in rules" :key="r.id" :to="{ name: 'alerts', query: { ...nsq, rule: r.id } }"
+              class="inline-flex items-center gap-2 rounded-lg border border-line bg-surface2 px-3 py-1.5 text-xs hover:border-accent/50">
+              <span class="h-1.5 w-1.5 rounded-full" :class="r.firing === true ? 'bg-down' : r.firing === false ? 'bg-ok' : 'bg-faint'"></span>
+              <span class="text-fg">{{ r.scope_kind === 'all_services' ? 'All services in namespace' : 'This service' }}</span>
+              <span v-if="!r.enabled" class="text-faint">· off</span>
+            </RouterLink>
+          </div>
         </div>
       </div>
 
       <!-- range + charts -->
       <div class="flex items-center gap-2">
-        <h2 class="text-sm font-semibold text-fg">History</h2>
+        <h2 class="text-h2 text-fg">History</h2>
         <div class="ml-auto flex gap-1">
           <button v-for="r in RANGES" :key="r.v" @click="range = r.v"
             class="rounded-md border px-2.5 py-1 text-xs" :class="range === r.v ? 'border-accent/60 bg-accent/10 text-accent' : 'border-line bg-surface2 text-muted hover:text-fg'">{{ r.label }}</button>
@@ -173,10 +223,15 @@ onUnmounted(() => timer && clearInterval(timer))
       <MonitorHeartbeatBar :up="hb.up" />
 
       <!-- latency chart -->
-      <div class="rounded-xl border border-line bg-surface p-4">
-        <div class="mb-2 text-[11px] uppercase tracking-wider text-faint">Response time</div>
-        <UplotChart v-if="hb.t.length" :time="hb.t" :series="latencySeries" unit="ms" :height="180" :span-seconds="spanSeconds" :sync-key="'mon:' + id" />
-        <p v-else class="text-xs text-faint">No latency data in this range yet.</p>
+      <div class="overflow-hidden rounded-xl border border-line bg-surface">
+        <div class="flex items-center gap-2 border-b border-line2 bg-head px-4 py-2.5">
+          <VIcon name="latency" :size="16" class="text-faint" />
+          <h2 class="text-xs font-extrabold uppercase tracking-wide text-fg">Response time</h2>
+        </div>
+        <div class="p-4">
+          <UplotChart v-if="hb.t.length" :time="hb.t" :series="latencySeries" unit="ms" :height="180" :span-seconds="spanSeconds" :sync-key="'mon:' + id" />
+          <p v-else class="text-sm text-faint">No latency data in this range yet.</p>
+        </div>
       </div>
 
       <!-- down history / incidents -->
