@@ -8,6 +8,7 @@ import UiSelect from './components/UiSelect.vue'
 import DataTable from './components/DataTable.vue'
 import StatePill from './components/StatePill.vue'
 import VIcon from './components/VIcon.vue'
+import UtilBar from './components/UtilBar.vue'
 import './style.css'
 
 const app = createApp(App)
@@ -18,5 +19,6 @@ app.component('UiSelect', UiSelect) // themed dropdown (replaces native <select>
 app.component('DataTable', DataTable) // Rancher-style sortable/selectable table
 app.component('StatePill', StatePill) // status pill (ok/warn/down/info/muted)
 app.component('VIcon', VIcon) // themed icon — <VIcon name="server" :size="16"/>
+app.component('UtilBar', UtilBar) // threshold-coloured utilisation bar
 app.use(router)
 app.mount('#app')

@@ -3,7 +3,7 @@
 // bulk-action toolbar, a built-in filter box, hover rows, and themed contrast.
 // Custom cells via scoped slots named `cell-<key>`; the toolbar's left side via
 // the `toolbar` slot (replaced by the `bulk` slot when rows are selected).
-import { ref, computed, watchEffect } from 'vue'
+import { ref, computed, watchEffect, useSlots } from 'vue'
 
 const props = defineProps({
   // [{ key, label, sortable, align: 'left'|'right'|'center', width, mono, nowrap, class }]
@@ -19,6 +19,9 @@ const props = defineProps({
   empty: { type: String, default: 'Nothing here yet.' },
   emptyFiltered: { type: String, default: 'Nothing matches your filter.' },
   initialSort: { type: Object, default: null }, // { key, dir: 'asc'|'desc' }
+  // Ops table: (row) => 'down' | 'warn' | null — washes the row + adds a left rail so
+  // an incident reads before you parse a pill. Severity always beats selection colour.
+  rowTone: { type: Function, default: null },
 })
 const emit = defineEmits(['row-click'])
 const selected = defineModel('selected', { default: () => [] }) // array of row keys
@@ -64,8 +67,19 @@ function clearSel() { selected.value = [] }
 const headCb = ref(null)
 watchEffect(() => { if (headCb.value) headCb.value.indeterminate = someSel.value })
 
-const colCount = computed(() => props.columns.length + (props.selectable ? 1 : 0))
+const colCount = computed(() => props.columns.length + (props.selectable ? 1 : 0) + (slots['row-actions'] ? 1 : 0))
 const alignCls = (a) => (a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left')
+
+// ---- severity / row tone (ops table) ----
+const slots = useSlots()
+const toneOf = (row) => (props.rowTone ? props.rowTone(row) : null)
+function rowCls(row) {
+  const tone = toneOf(row)
+  if (tone === 'down') return 'bg-down/12 shadow-[inset_3px_0_0_rgb(var(--down))]'
+  if (tone === 'warn') return 'bg-warn/12 shadow-[inset_3px_0_0_rgb(var(--warn))]'
+  if (selected.value.includes(props.rowKey(row))) return 'bg-accent/[0.14] shadow-[inset_3px_0_0_rgb(var(--accent))]'
+  return ''
+}
 </script>
 
 <template>
@@ -99,14 +113,15 @@ const alignCls = (a) => (a === 'right' ? 'text-right' : a === 'center' ? 'text-c
               :style="c.width ? { width: c.width } : null">
               {{ c.label }}<span v-if="c.sortable && sortKey === c.key" class="ml-1 text-accent">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
+            <th v-if="$slots['row-actions']" class="border-b border-line2 bg-head px-3.5 py-2.5"></th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading"><td :colspan="colCount" class="px-4 py-12 text-center text-sm text-muted">Loading…</td></tr>
           <tr v-else-if="!sorted.length"><td :colspan="colCount" class="px-4 py-12 text-center text-sm text-muted">{{ q.trim() ? emptyFiltered : empty }}</td></tr>
           <tr v-for="row in sorted" :key="rowKey(row)"
-            class="border-b border-line last:border-0 hover:bg-hover"
-            :class="[selected.includes(rowKey(row)) ? 'bg-accent/[0.14] shadow-[inset_3px_0_0_rgb(var(--accent))]' : '', clickable ? 'cursor-pointer' : '']"
+            class="group border-b border-line last:border-0 hover:bg-hover"
+            :class="[rowCls(row), clickable ? 'cursor-pointer' : '']"
             @click="clickable && emit('row-click', row)">
             <td v-if="selectable" class="px-3 py-2.5" @click.stop>
               <input type="checkbox" :checked="selected.includes(rowKey(row))" @change="toggleRow(rowKey(row))" class="h-[15px] w-[15px] cursor-pointer align-middle accent-[rgb(var(--accent))]" />
@@ -114,6 +129,12 @@ const alignCls = (a) => (a === 'right' ? 'text-right' : a === 'center' ? 'text-c
             <td v-for="c in columns" :key="c.key" class="px-3.5 py-2.5 text-sm text-fg"
               :class="[alignCls(c.align), c.mono ? 'font-mono tabular-nums' : '', c.nowrap !== false ? 'whitespace-nowrap' : '', c.class]">
               <slot :name="`cell-${c.key}`" :row="row" :value="row[c.key]">{{ row[c.key] ?? '—' }}</slot>
+            </td>
+            <td v-if="$slots['row-actions']" class="px-3.5 py-2.5 text-right" @click.stop>
+              <div class="flex justify-end gap-1.5 transition-opacity"
+                :class="toneOf(row) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'">
+                <slot name="row-actions" :row="row" />
+              </div>
             </td>
           </tr>
         </tbody>
