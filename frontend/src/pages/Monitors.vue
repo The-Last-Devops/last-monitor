@@ -177,7 +177,7 @@ onUnmounted(() => clearInterval(timer))
         <p v-if="!shownEvents.length" class="rounded-xl border border-line bg-surface p-5 text-center text-xs text-muted">No status changes recorded recently.</p>
         <div v-else class="overflow-x-auto rounded-xl border border-line bg-surface">
           <table class="w-full text-xs">
-            <thead><tr class="border-b border-line-strong bg-headbg text-left text-[10px] uppercase tracking-wider text-muted">
+            <thead><tr class="border-b border-line2 bg-head text-left text-[10px] uppercase tracking-wider text-muted">
               <th class="px-3 py-1.5 font-semibold">Status</th>
               <th class="px-3 py-1.5 font-semibold">Service</th>
               <th class="px-3 py-1.5 font-semibold">When</th>

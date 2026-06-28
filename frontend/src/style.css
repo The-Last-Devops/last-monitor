@@ -2,36 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Theme tokens as RGB triplets (so Tailwind's <alpha-value> works). */
+/* Theme tokens as RGB triplets (so Tailwind's <alpha-value> works) — kept in sync
+   with the design system (frontend-spec/tokens.css). :root = dark; .light overrides.
+   Names match the gallery: line2 (was line-strong), head (was headbg), + cap /
+   pending / track. --hover stays an app-specific row-hover triplet. */
 :root {
   --bg: 11 14 20;        /* #0B0E14 */
   --surface: 16 21 31;   /* #10151F */
   --surface2: 20 26 38;  /* #141A26 */
-  --line: 30 38 50;      /* #1E2632 */
-  --line-strong: 40 50 66; /* #283242 — header underline / table outline */
-  --hover: 22 29 43;     /* #161D2B — row hover */
-  --headbg: 14 19 28;    /* #0E131C — table header strip */
-  --fg: 226 232 240;     /* slate-200 */
-  --muted: 169 182 200;  /* slightly brighter than slate-400 for table density */
-  --faint: 124 138 156;  /* readable tertiary on dark */
+  --head: 14 19 28;      /* #0E131C — header / toolbar strip */
+  --line: 30 38 50;      /* #1E2632 — hairlines */
+  --line2: 40 50 66;     /* #283242 — stronger dividers / outline */
+  --fg: 226 232 240;     /* #E2E8F0 primary text */
+  --muted: 169 182 200;  /* #A9B6C8 secondary */
+  --faint: 124 138 156;  /* #7C8A9C tertiary */
+  --cap: 93 107 125;     /* #5D6B7D faintest labels */
   --accent: 52 225 196;  /* #34E1C4 teal */
-  --accentfg: 6 35 31;
-  --ok: 52 211 153; --warn: 251 191 36; --down: 248 113 113; /* state text (dark) */
+  --accentfg: 6 35 31;   /* #06231F text on accent */
+  --ok: 52 211 153; --warn: 251 191 36; --down: 248 113 113; --pending: 96 165 250; /* state */
+  --track: 30 38 50;     /* #1E2632 bar tracks */
+  --hover: 22 29 43;     /* #161D2B — row hover */
+  --logobg: 52 225 196; --logostroke: 8 35 31; /* logo tile + knockout */
 }
 .light {
-  --bg: 246 247 249;     /* #F6F7F9 — clean cool gray page */
+  --bg: 246 247 249;     /* #F6F7F9 */
   --surface: 255 255 255;
   --surface2: 241 243 246;
-  --line: 228 231 236;   /* #E4E7EC — soft row separators */
-  --line-strong: 209 214 221; /* #D1D6DD — header underline / outline */
-  --hover: 243 246 248;  /* #F3F6F8 — row hover */
-  --headbg: 250 251 252; /* #FAFBFC — table header strip */
-  --fg: 14 23 38;        /* #0E1726 — near-black, high contrast */
-  --muted: 70 86 107;    /* #46566B — strong secondary text */
-  --faint: 100 115 134;  /* #647386 — tertiary/labels */
+  --head: 250 251 252;   /* #FAFBFC */
+  --line: 228 231 236;   /* #E4E7EC */
+  --line2: 209 214 221;  /* #D1D6DD */
+  --fg: 14 23 38;        /* #0E1726 */
+  --muted: 70 86 107;    /* #46566B */
+  --faint: 100 115 134;  /* #647386 */
+  --cap: 138 151 166;    /* #8A97A6 */
   --accent: 13 148 136;  /* teal-600 */
   --accentfg: 255 255 255;
-  --ok: 21 163 74; --warn: 194 137 11; --down: 220 38 38; /* state text (light, darker for contrast) */
+  --ok: 21 163 74; --warn: 194 137 11; --down: 220 38 38; --pending: 37 99 235;
+  --track: 228 231 236;
+  --hover: 243 246 248;  /* #F3F6F8 */
+  --logobg: 13 148 136; --logostroke: 255 255 255;
 }
 
 @layer base {

@@ -81,7 +81,7 @@ const alignCls = (a) => (a === 'right' ? 'text-right' : a === 'center' ? 'text-c
       <span class="flex-1"></span>
       <div v-if="filterable" class="relative">
         <svg class="absolute left-2.5 top-2 h-4 w-4 text-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <input v-model="q" :placeholder="filterPlaceholder" class="w-56 rounded-lg border border-line-strong bg-bg py-1.5 pl-8 pr-3 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
+        <input v-model="q" :placeholder="filterPlaceholder" class="w-56 rounded-lg border border-line2 bg-bg py-1.5 pl-8 pr-3 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
       </div>
     </div>
 
@@ -90,11 +90,11 @@ const alignCls = (a) => (a === 'right' ? 'text-right' : a === 'center' ? 'text-c
       <table class="w-full border-collapse">
         <thead>
           <tr>
-            <th v-if="selectable" class="w-9 border-b border-line-strong bg-headbg px-3 py-2.5">
+            <th v-if="selectable" class="w-9 border-b border-line2 bg-head px-3 py-2.5">
               <input ref="headCb" type="checkbox" :checked="allSel" @change="toggleAll" class="h-[15px] w-[15px] cursor-pointer align-middle accent-[rgb(var(--accent))]" />
             </th>
             <th v-for="c in columns" :key="c.key" @click="toggleSort(c)"
-              class="select-none border-b border-line-strong bg-headbg px-3.5 py-2.5 text-xs font-semibold text-muted"
+              class="select-none border-b border-line2 bg-head px-3.5 py-2.5 text-xs font-semibold text-muted"
               :class="[alignCls(c.align), c.sortable ? 'cursor-pointer hover:text-fg' : '', c.nowrap !== false ? 'whitespace-nowrap' : '']"
               :style="c.width ? { width: c.width } : null">
               {{ c.label }}<span v-if="c.sortable && sortKey === c.key" class="ml-1 text-accent">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
