@@ -24,15 +24,32 @@ Agent (when `ALLOW_SHELL=1`) holds one outbound WebSocket to the hub
 hub opens a muxed stream; the agent **dials `127.0.0.1:<ssh_port>` (default 22)
 and pipes bytes** — it never spawns a shell, so the agent gains only "forward to
 one local port", not arbitrary exec. The hub runs the SSH client (`russh`),
-authenticates to the host's sshd with a stored, encrypted key, requests a PTY,
-and bridges to xterm.js in the browser.
+authenticates to the host's sshd with the **logged-in user's own** key, requests a
+PTY, and bridges to xterm.js in the browser.
 
 - **k8s works here for free:** the daemonset runs `hostNetwork: true`, so the
   agent's `127.0.0.1:22` *is the node's sshd*. No extra privilege needed.
 - Auth/authz/audit reuse the host's own SSH + OS user model.
-- Hub holds host SSH creds → encrypted at rest, never logged, never in a read path.
-  (Future: hub as short-lived SSH CA to avoid long-lived keys.)
 - Requires sshd on the host/node (VMs and most k8s nodes have it).
+
+#### Credential model — per-user keys (load-bearing)
+SSH keys are **per user, not per system/shared**. Anyone who can shell into a host
+has their **own OS account** on that host (their pubkey in its `authorized_keys`);
+the hub only provides the transport and **stores their private key for them**. So:
+
+- The credential is per `(user, system)`: their account name + their encrypted key.
+- The key is encrypted under a **key derived from the user's own password** (argon2
+  over a dedicated `kdf_salt`, *not* the auth-hash salt). The step-up password (re-
+  entered to open a console) is exactly what unlocks it: decrypt in RAM → SSH → wipe.
+- **No server master key.** The hub cannot decrypt *anyone's* key without that user
+  actively supplying their password — a DB/env leak alone reveals nothing.
+- Password reset/forgot ⇒ the user's stored keys become undecryptable; they re-upload
+  (only their own — there is no shared key to lose).
+- Tier 1 still: hub sees the plaintext key in RAM *at use time* (it runs the SSH
+  client). True "server never sees the key" is impossible without a browser SSH
+  client (WASM) — out of scope.
+- Future: derive the KEK from a **WebAuthn PRF** secret (passkey/biometric) instead of
+  the password; until then biometrics serve only as a step-up *authorizer*.
 
 ### Tier 2 — agent-mediated `nsenter` host-exec (OPT-IN, privileged) — DEFERRED
 For minimal nodes with no sshd. Agent already has `hostPID: true`, so PID 1 is the
@@ -59,7 +76,8 @@ rule lives.
 
 Shell is **off by default** and must be enabled on **both** sides:
 1. **Agent side:** deployed with `ALLOW_SHELL=1` (Tier 1) / `ALLOW_HOST_EXEC=1` (Tier 2).
-2. **Hub side:** the system's config has `shell_enabled = true` + SSH connection set.
+2. **Hub side:** the system has `shell_enabled = true`, and the user has stored their
+   own SSH credential for it (`exec_credentials`).
 
 If an attacker owns only the hub, agents not deployed with the flag refuse the tunnel.
 
@@ -83,19 +101,21 @@ those bytes (store a `‹masked›` marker, not the keystrokes).
 - **Immutable audit:** every session records who / system / namespace / start / end /
   client IP / status **and the full PTY transcript**, append-only, surfaced in an
   Audit UI. No transcript → no shell.
-- **No root by default:** Tier 1 runs as the configured SSH user; Tier 2 (root) is a
+- **No root by default:** Tier 1 runs as the user's own SSH account; Tier 2 (root) is a
   distinct privileged opt-in.
 - **Session limits:** idle timeout, max duration, concurrent-session cap, and an
   admin "kill any live session" control.
-- **Secrets:** SSH keys encrypted at rest (AEAD, hub master key from env), redacted in
-  every read path, never logged.
+- **Secrets:** each user's SSH key encrypted at rest (AEAD under their own
+  password-derived KEK — no server master key), redacted in every read path, never
+  logged, only ever decrypted transiently with the user's step-up password.
 - **TLS required** for the browser↔hub and agent↔hub channels.
 
 ## Implementation phases
 
-1. **Foundations (safe, no exec):** migration `0017_exec.sql` — `memberships.can_exec`,
-   `systems` SSH columns + `shell_enabled`, `exec_sessions` + `exec_transcript`
-   (append-only) tables; `rbac::require_exec`; AEAD secret helper. Hub-only deps.
+1. **Foundations (safe, no exec):** migrations `0017_exec.sql` (`memberships.can_exec`,
+   `systems.shell_enabled`/`ssh_port`, `exec_sessions` + `exec_transcript` append-only)
+   and `0018_exec_per_user_keys.sql` (per-user `exec_credentials`, drops the shared
+   per-system key columns); `rbac::require_exec`. AEAD + argon2-KEK helper. Hub-only deps.
 2. **Agent reverse tunnel (forward-only):** `ALLOW_SHELL`, outbound WS to `/pub/tunnel`,
    stream mux, dial `127.0.0.1:ssh_port`. Agent never execs.
 3. **Hub SSH client + PTY bridge:** `russh` through the tunnel, PTY → browser WS
