@@ -9,6 +9,8 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ## [Unreleased]
 
+## [2.0.3] — 2026-06-28
+
 ### Added
 - **Opt-in auto-update for Kubernetes** via a new rolling image tag **`:auto-update`**
   (the "auto" release channel). The hub advertises its build id in every `IngestAck`;
