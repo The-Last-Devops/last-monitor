@@ -8,6 +8,7 @@ import MemberAccessChips from '../components/MemberAccessChips.vue'
 import { api } from '../lib/api'
 import { confirm } from '../lib/confirm'
 import { useCached } from '../lib/cache'
+import { passwordProblem, passwordOk } from '../lib/password'
 import { useAuth } from '../stores/auth'
 
 const auth = useAuth()
@@ -78,9 +79,11 @@ function openAdd() {
   addErr.value = ''; created.value = null; addOpen.value = true
 }
 function genResetPw() {
-  const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  const a = new Uint32Array(16); crypto.getRandomValues(a)
-  resetPw.value = Array.from(a, (n) => chars[n % chars.length]).join('')
+  const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*-_=+'
+  do {
+    const a = new Uint32Array(18); crypto.getRandomValues(a)
+    resetPw.value = Array.from(a, (n) => chars[n % chars.length]).join('')
+  } while (!passwordOk(resetPw.value))
 }
 // ASCII email, no whitespace/odd characters — mirrors the server's check.
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/
@@ -108,16 +111,23 @@ async function removeUser(u) {
 const editing = ref(null)
 const editRole = ref('user')
 const editNs = ref({}) // namespace_id -> role ('' = no access)
+const editNsExec = ref({}) // namespace_id -> can_exec (shell access)
 const editErr = ref('')
 const resetPw = ref('')
 
 async function openEdit(u) {
   editErr.value = ''; resetPw.value = ''
   editRole.value = sysOf(u)
-  const map = {}
-  try { for (const m of await api.get(`/api/users/${u.id}/memberships`)) map[m.namespace_id] = m.role } catch {}
+  const map = {}, execMap = {}
+  try {
+    for (const m of await api.get(`/api/users/${u.id}/memberships`)) {
+      map[m.namespace_id] = m.role
+      execMap[m.namespace_id] = !!m.can_exec
+    }
+  } catch {}
   const full = {}; for (const n of namespaces.value) full[n.id] = map[n.id] || ''
   editNs.value = full
+  editNsExec.value = execMap
   editing.value = u
 }
 function closeEdit() { editing.value = null }
@@ -133,12 +143,22 @@ async function setNsRole(n, role) {
     if (role) await api.post(`/api/namespaces/${n.id}/members`, { email: editing.value.email, role })
     else await api.del(`/api/namespaces/${n.id}/members/${editing.value.id}`)
     editNs.value[n.id] = role
+    if (!role) editNsExec.value[n.id] = false // dropping membership drops exec
+    await loadUsers()
+  } catch (e) { editErr.value = `Failed (${e.status}).` }
+}
+async function setNsExec(n, val) {
+  editErr.value = ''
+  try {
+    await api.put(`/api/namespaces/${n.id}/members/${editing.value.id}/exec`, { can_exec: val })
+    editNsExec.value[n.id] = val
     await loadUsers()
   } catch (e) { editErr.value = `Failed (${e.status}).` }
 }
 async function doResetPw() {
   editErr.value = ''
-  if (resetPw.value.length < 6) { editErr.value = 'Password must be 6+ characters.'; return }
+  const problem = passwordProblem(resetPw.value)
+  if (problem) { editErr.value = problem; return }
   try { await api.patch(`/api/users/${editing.value.id}`, { password: resetPw.value }); resetPw.value = ''; editErr.value = '✓ Password updated.' }
   catch (e) { editErr.value = `Failed (${e.status}).` }
 }
@@ -227,9 +247,9 @@ onMounted(async () => {
 
     <!-- Edit member slide-over -->
     <MemberRoleEditor v-if="editing" :member="editing" :sys="SYS" :ns-roles="NS_ROLES"
-      :namespaces="namespaces" :edit-ns="editNs" :error="editErr" :initials="initials"
+      :namespaces="namespaces" :edit-ns="editNs" :edit-ns-exec="editNsExec" :error="editErr" :initials="initials"
       v-model:edit-role="editRole" v-model:reset-pw="resetPw"
-      @close="closeEdit" @save-sys-role="saveSysRole" @set-ns-role="setNsRole"
+      @close="closeEdit" @save-sys-role="saveSysRole" @set-ns-role="setNsRole" @set-ns-exec="setNsExec"
       @gen-password="genResetPw" @reset-password="doResetPw" />
   </AppShell>
 </template>

@@ -10,6 +10,7 @@ defineProps({
   namespaces: { type: Array, default: () => [] },
   editRole: { type: String, required: true },
   editNs: { type: Object, required: true }, // namespace_id -> role ('' = no access)
+  editNsExec: { type: Object, default: () => ({}) }, // namespace_id -> can_exec (shell)
   resetPw: { type: String, default: '' },
   error: { type: String, default: '' },
   initials: { type: Function, required: true },
@@ -19,6 +20,7 @@ const emit = defineEmits([
   'update:editRole',
   'save-sys-role',
   'set-ns-role', // (namespace, role)
+  'set-ns-exec', // (namespace, can_exec)
   'update:resetPw',
   'gen-password',
   'reset-password',
@@ -48,10 +50,18 @@ const emit = defineEmits([
           <p v-if="editRole !== 'user'" class="rounded-lg border border-line bg-surface2/40 px-3 py-2.5 text-xs text-muted">{{ editRole === 'admin' ? 'Admins have full access to every namespace.' : 'Read-only admins can view every namespace.' }}</p>
           <div v-else-if="!namespaces.length" class="text-xs text-faint">No namespaces exist yet.</div>
           <div v-else class="divide-y divide-line/60">
-            <div v-for="n in namespaces" :key="n.id" class="flex items-center gap-3 py-2.5">
-              <span class="flex-1 truncate text-sm" :class="editNs[n.id] ? 'text-fg' : 'text-faint'">{{ n.name }}</span>
-              <UiSelect :model-value="editNs[n.id]" @update:model-value="(v) => emit('set-ns-role', n, v)" class="shrink-0"
-                :options="[{ value: '', label: '— no access' }, ...nsRoles.map((r) => ({ value: r.v, label: r.label }))]" />
+            <div v-for="n in namespaces" :key="n.id" class="py-2.5">
+              <div class="flex items-center gap-3">
+                <span class="flex-1 truncate text-sm" :class="editNs[n.id] ? 'text-fg' : 'text-faint'">{{ n.name }}</span>
+                <UiSelect :model-value="editNs[n.id]" @update:model-value="(v) => emit('set-ns-role', n, v)" class="shrink-0"
+                  :options="[{ value: '', label: '— no access' }, ...nsRoles.map((r) => ({ value: r.v, label: r.label }))]" />
+              </div>
+              <!-- Shell/exec is a separate grant, and only meaningful for owners. -->
+              <label v-if="editNs[n.id] === 'owner'" class="mt-2 flex items-center gap-2 pl-0.5 text-xs text-muted">
+                <input type="checkbox" class="h-3.5 w-3.5 accent-accent" :checked="!!editNsExec[n.id]"
+                  @change="emit('set-ns-exec', n, $event.target.checked)" />
+                <span>Shell access <span class="text-faint">— open an interactive console on this namespace's hosts</span></span>
+              </label>
             </div>
           </div>
         </div>

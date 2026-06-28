@@ -389,4 +389,34 @@ pub async fn delete_member(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[derive(Deserialize)]
+pub struct SetExec {
+    pub can_exec: bool,
+}
+
+/// PUT /api/namespaces/:id/members/:user_id/exec — owners (and admins) grant/revoke
+/// the shell/exec capability for a member. Only takes effect for `owner` members
+/// (see rbac::require_exec). 404 if the member isn't in the namespace.
+pub async fn set_member_exec(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Path((ns, target)): Path<(Uuid, Uuid)>,
+    Json(req): Json<SetExec>,
+) -> Result<StatusCode, StatusCode> {
+    rbac::require_role(&state, &user, ns, Role::Owner).await?;
+    let res = sqlx::query(
+        "UPDATE memberships SET can_exec = $3 WHERE namespace_id = $1 AND user_id = $2",
+    )
+    .bind(ns)
+    .bind(target)
+    .bind(req.can_exec)
+    .execute(&state.config)
+    .await
+    .map_err(internal)?;
+    if res.rows_affected() == 0 {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
 // ---- status pages -----------------------------------------------------------

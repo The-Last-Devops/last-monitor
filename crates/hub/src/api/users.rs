@@ -160,6 +160,9 @@ pub struct UserMembership {
     pub namespace_id: Uuid,
     pub namespace: String,
     pub role: String,
+    /// Dedicated shell/exec capability (separate from the role). Only meaningful
+    /// for `owner` (see rbac::require_exec).
+    pub can_exec: bool,
 }
 
 /// GET /api/users/:id/memberships — admins list a user's per-namespace roles
@@ -172,8 +175,8 @@ pub async fn user_memberships(
     if !user.is_admin {
         return Err(StatusCode::FORBIDDEN);
     }
-    let rows: Vec<(Uuid, String, String)> = sqlx::query_as(
-        "SELECT n.id, n.name, m.role::text FROM memberships m \
+    let rows: Vec<(Uuid, String, String, bool)> = sqlx::query_as(
+        "SELECT n.id, n.name, m.role::text, m.can_exec FROM memberships m \
          JOIN namespaces n ON n.id = m.namespace_id WHERE m.user_id = $1 ORDER BY n.name",
     )
     .bind(id)
@@ -182,10 +185,11 @@ pub async fn user_memberships(
     .map_err(internal)?;
     Ok(Json(
         rows.into_iter()
-            .map(|(namespace_id, namespace, role)| UserMembership {
+            .map(|(namespace_id, namespace, role, can_exec)| UserMembership {
                 namespace_id,
                 namespace,
                 role,
+                can_exec,
             })
             .collect(),
     ))

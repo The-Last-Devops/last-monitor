@@ -225,6 +225,10 @@ async fn main() -> Result<()> {
             "/api/namespaces/{id}/members/{user_id}",
             delete(api::delete_member),
         )
+        .route(
+            "/api/namespaces/{id}/members/{user_id}/exec",
+            put(api::set_member_exec),
+        )
         // read views (scoped to caller)
         .route("/api/systems", get(web::list_systems))
         .route("/api/fleet", get(web::fleet))
