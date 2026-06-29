@@ -248,13 +248,13 @@ const detailLink = (s) => {
       <!-- hero -->
       <section class="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div class="rounded-xl border border-line bg-surface p-4">
-          <div class="text-xs uppercase tracking-wider text-muted">Systems online</div>
+          <div class="text-xs uppercase tracking-wider text-faint">Systems online</div>
           <div class="mt-1.5 font-mono text-metric text-fg">{{ hero.online }}<span class="text-sm text-faint"> / {{ hero.total }}</span></div>
           <div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.total ? (hero.online / hero.total) * 100 : 0) + '%' }"></div></div>
         </div>
-        <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs uppercase tracking-wider text-muted">Avg disk</div><div class="mt-1.5 font-mono text-metric text-fg">{{ hero.disk ?? '—' }}%</div><div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.disk || 0) + '%' }"></div></div></div>
-        <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs uppercase tracking-wider text-muted">Avg CPU</div><div class="mt-1.5 font-mono text-metric text-fg">{{ hero.cpu ?? '—' }}%</div><div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.cpu || 0) + '%' }"></div></div></div>
-        <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs uppercase tracking-wider text-muted">Avg memory</div><div class="mt-1.5 font-mono text-metric text-fg">{{ hero.mem ?? '—' }}%</div><div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.mem || 0) + '%' }"></div></div></div>
+        <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs uppercase tracking-wider text-faint">Avg disk</div><div class="mt-1.5 font-mono text-metric text-fg">{{ hero.disk ?? '—' }}%</div><div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.disk || 0) + '%' }"></div></div></div>
+        <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs uppercase tracking-wider text-faint">Avg CPU</div><div class="mt-1.5 font-mono text-metric text-fg">{{ hero.cpu ?? '—' }}%</div><div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.cpu || 0) + '%' }"></div></div></div>
+        <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs uppercase tracking-wider text-faint">Avg memory</div><div class="mt-1.5 font-mono text-metric text-fg">{{ hero.mem ?? '—' }}%</div><div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.mem || 0) + '%' }"></div></div></div>
       </section>
 
       <!-- needs attention: a single compact list, icons show what's wrong -->
