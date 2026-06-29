@@ -9,6 +9,33 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ## [Unreleased]
 
+## [2.3.6] — 2026-06-29
+
+### Added
+- **Two-factor authentication.** Opt-in from **Settings → Security**:
+  - **Authenticator app (TOTP)** — scan a QR (or enter the setup key) with Google
+    Authenticator / 1Password / Authy; sign-in then asks for a 6-digit code. One-time
+    **backup codes** are issued for recovery.
+  - **Passkeys (WebAuthn)** — register Touch ID / Windows Hello / a security key and
+    assert it at sign-in. Add/remove multiple passkeys.
+  - Sign-in offers a passkey and/or a code; either satisfies the second factor.
+
+### Changed
+- **Settings → Security** is now a focused single-open accordion (Password, Two-factor,
+  Passkeys, SSH keys), full-width.
+- The **Services** page mirrors Infrastructure: overview KPIs first, then a toolbar with
+  search on the left and **Add service** on the right.
+- The **login page** shows the brand mark and explains *why* a sign-in failed (API
+  unreachable, timeout, 5xx, plus the server's message) — it's an internal console.
+- Long, time-growing lists are capped + scroll + paginated (recent events, alert events,
+  service down-history); the **Audit** table is more compact and no longer overflows.
+
+### Security / Fixed
+- The **SSH console** warns before you close the tab or navigate away while a session is
+  live, and no longer falsely shows "Shell is disabled". A reachable host over a critical
+  threshold reads as **Critical** (not **Down**, which now means unreachable).
+- A long-lived browser tab is told when a newer build is deployed (reload banner).
+
 ## [2.3.5] — 2026-06-29
 
 ### Security
