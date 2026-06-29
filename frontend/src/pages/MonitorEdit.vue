@@ -122,60 +122,71 @@ onMounted(async () => {
   <AppShell :breadcrumb="[{ label: 'Services', to: { name: 'monitors', query: route.query.ns ? { ns: route.query.ns } : {} } }, { label: isEdit ? f.name : 'New service' }]">
     <PageLoader v-if="!loaded" />
     <template v-else>
-      <form @submit.prevent="submit" class="mx-auto w-full max-w-3xl space-y-4 rounded-2xl border border-line bg-surface p-5">
-        <div class="flex flex-wrap items-end gap-3">
-          <label class="text-xs text-faint">Type<UiSelect v-model="f.kind" block :disabled="isEdit" class="mt-1" :options="KINDS.map((k) => ({ value: k.v, label: k.label }))" /></label>
-          <label class="text-xs text-faint">Name<input v-model="f.name" placeholder="My service" class="mt-1 block w-64 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" /></label>
-          <label v-if="!isEdit" class="text-xs text-faint">Namespace<UiSelect v-model="f.nsId" block class="mt-1" :options="namespaces.map((n) => ({ value: n.id, label: n.name }))" /></label>
-        </div>
-        <label v-if="f.kind !== 'push'" class="block text-xs text-faint">Target<input v-model="f.target" :placeholder="KINDS.find((k) => k.v === f.kind)?.ph" class="mt-1 block w-full rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" /></label>
-        <p v-else class="rounded-lg border border-line bg-surface2/40 px-3 py-2 text-xs text-muted">Passive check — a push URL is generated after you create it. Have your job call it on schedule; if no call arrives within the interval, it goes Down.</p>
-        <label v-if="f.kind === 'tls'" class="block w-56 text-xs text-faint">Warn when expiring within (days)<input v-model.number="f.cert_warn_days" type="number" min="1" class="mt-1 block w-full rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none" /></label>
-
-        <div class="flex flex-wrap gap-3">
-          <label class="text-xs text-faint">Interval (s)<input v-model.number="f.interval_secs" type="number" min="5" class="mt-1 block w-24 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none" /></label>
-          <label class="text-xs text-faint">Timeout (s)<input v-model.number="f.timeout_secs" type="number" min="1" class="mt-1 block w-24 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none" /></label>
-          <label class="text-xs text-faint">Retries<input v-model.number="f.retries" type="number" min="0" class="mt-1 block w-24 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none" /></label>
-          <label class="flex items-center gap-2 self-end pb-2 text-sm text-fg"><input v-model="f.upside_down" type="checkbox" class="h-4 w-4" />Upside-down</label>
-        </div>
-
-        <div v-if="f.kind === 'keyword'" class="flex flex-wrap items-end gap-3">
-          <label class="flex-1 text-xs text-faint">Keyword<input v-model="f.keyword" class="mt-1 block w-full rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none" /></label>
-          <label class="flex items-center gap-2 pb-2 text-sm text-fg"><input v-model="f.keyword_invert" type="checkbox" class="h-4 w-4" />Invert (fail if present)</label>
-        </div>
-        <label v-if="f.kind === 'redis'" class="block w-72 text-xs text-faint">Password (optional)<input v-model="f.password" type="password" class="mt-1 block w-full rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none" /></label>
-        <label v-if="f.kind === 'dns'" class="block w-72 text-xs text-faint">Expected IP (optional, substring)<input v-model="f.expected_ip" placeholder="1.2.3.4" class="mt-1 block w-full rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" /></label>
-
-        <details v-if="isHttp(f.kind)" open class="rounded-lg border border-line bg-surface2/40 p-3">
-          <summary class="cursor-pointer text-xs uppercase tracking-wider text-faint">HTTP options</summary>
-          <div class="mt-3 space-y-3">
-            <div class="flex flex-wrap gap-3">
-              <label class="text-xs text-faint">Method<UiSelect v-model="f.method" block class="mt-1" :options="['GET', 'POST', 'PUT', 'HEAD', 'DELETE', 'PATCH']" /></label>
-              <label class="text-xs text-faint">Accepted status<input v-model="f.accepted_status" placeholder="200-299,301" class="mt-1 block w-40 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" /></label>
-              <label class="text-xs text-faint">Max redirects<input v-model.number="f.max_redirects" type="number" min="0" class="mt-1 block w-24 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none" /></label>
-              <label class="flex items-center gap-2 self-end pb-2 text-sm text-fg"><input v-model="f.ignore_tls" type="checkbox" class="h-4 w-4" />Ignore TLS errors</label>
-            </div>
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label class="block text-xs text-faint">Headers (one per line, <code>Key: Value</code>)<textarea v-model="f.headersText" rows="5" class="mt-1 block w-full rounded-lg border border-line bg-surface px-3 py-2 font-mono text-xs text-fg focus:border-accent/60 focus:outline-none"></textarea></label>
-              <label class="block text-xs text-faint">Body<textarea v-model="f.body" rows="5" class="mt-1 block w-full rounded-lg border border-line bg-surface px-3 py-2 font-mono text-xs text-fg focus:border-accent/60 focus:outline-none"></textarea></label>
-            </div>
-            <div class="flex flex-wrap items-end gap-3">
-              <label class="text-xs text-faint">Auth<UiSelect v-model="f.authType" block class="mt-1" :options="[['none', 'None'], ['basic', 'Basic'], ['bearer', 'Bearer']]" /></label>
-              <template v-if="f.authType === 'basic'">
-                <label class="text-xs text-faint">Username<input v-model="f.authUser" class="mt-1 block rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none" /></label>
-                <label class="text-xs text-faint">Password<input v-model="f.authPass" type="password" class="mt-1 block rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none" /></label>
-              </template>
-              <label v-else-if="f.authType === 'bearer'" class="flex-1 text-xs text-faint">Token<input v-model="f.authToken" class="mt-1 block w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none" /></label>
-            </div>
+      <form @submit.prevent="submit" class="mx-auto w-full max-w-[720px] space-y-6 rounded-2xl border border-line bg-surface p-6">
+        <!-- Basics: name is the headline field, then type/namespace, then target -->
+        <section class="space-y-3">
+          <div class="flex items-center gap-1.5 text-micro font-bold uppercase tracking-wider text-faint"><VIcon name="service" :size="13" />Basics</div>
+          <label class="block text-xs text-muted">Name<input v-model="f.name" placeholder="My service" class="mt-1 block w-full rounded-lg border border-line2 bg-surface2 px-3 py-3 text-base font-medium text-fg placeholder:text-faint focus:border-accent/55 focus:outline-none" /></label>
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label class="block text-xs text-muted">Type<UiSelect v-model="f.kind" block :disabled="isEdit" class="mt-1" :options="KINDS.map((k) => ({ value: k.v, label: k.label }))" /></label>
+            <label v-if="!isEdit" class="block text-xs text-muted">Namespace<UiSelect v-model="f.nsId" block class="mt-1" :options="namespaces.map((n) => ({ value: n.id, label: n.name }))" /></label>
           </div>
-        </details>
+          <label v-if="f.kind !== 'push'" class="block text-xs text-muted">Target<input v-model="f.target" :placeholder="KINDS.find((k) => k.v === f.kind)?.ph" class="mt-1 block w-full rounded-lg border border-line2 bg-surface2 px-3 py-2 font-mono text-sm text-fg placeholder:text-faint focus:border-accent/55 focus:outline-none" /></label>
+          <p v-else class="rounded-lg border border-line2 bg-surface2/40 px-3 py-2 text-xs text-muted">Passive check — a push URL is generated after you create it. Have your job call it on schedule; if no call arrives within the interval, it goes Down.</p>
+          <div v-if="f.kind === 'keyword'" class="flex flex-wrap items-end gap-3">
+            <label class="flex-1 text-xs text-muted">Keyword<input v-model="f.keyword" class="mt-1 block w-full rounded-lg border border-line2 bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/55 focus:outline-none" /></label>
+            <label class="flex items-center gap-2 pb-2 text-sm text-fg"><input v-model="f.keyword_invert" type="checkbox" class="h-4 w-4" />Invert (fail if present)</label>
+          </div>
+          <label v-if="f.kind === 'redis'" class="block text-xs text-muted">Password (optional)<input v-model="f.password" type="password" class="mt-1 block w-full rounded-lg border border-line2 bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/55 focus:outline-none" /></label>
+          <label v-if="f.kind === 'dns'" class="block text-xs text-muted">Expected IP (optional, substring)<input v-model="f.expected_ip" placeholder="1.2.3.4" class="mt-1 block w-full rounded-lg border border-line2 bg-surface2 px-3 py-2 font-mono text-sm text-fg placeholder:text-faint focus:border-accent/55 focus:outline-none" /></label>
+          <label v-if="f.kind === 'tls'" class="block text-xs text-muted">Warn when expiring within (days)<input v-model.number="f.cert_warn_days" type="number" min="1" class="mt-1 block w-full rounded-lg border border-line2 bg-surface2 px-3 py-2 font-mono text-sm text-fg focus:border-accent/55 focus:outline-none" /></label>
+        </section>
 
-        <div class="flex flex-wrap gap-3">
-          <label class="flex-1 text-xs text-faint">Tags (comma-separated)<input v-model="f.tags" placeholder="prod, api" class="mt-1 block w-full rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" /></label>
-          <label class="flex-1 text-xs text-faint">Description<input v-model="f.description" class="mt-1 block w-full rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/60 focus:outline-none" /></label>
-        </div>
+        <!-- Schedule -->
+        <section class="space-y-3 border-t border-line pt-6">
+          <div class="flex items-center gap-1.5 text-micro font-bold uppercase tracking-wider text-faint"><VIcon name="clock" :size="13" />Schedule</div>
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <label class="block text-xs text-muted">Interval (s)<input v-model.number="f.interval_secs" type="number" min="5" class="mt-1 block w-full rounded-lg border border-line2 bg-surface2 px-3 py-2 font-mono text-sm text-fg focus:border-accent/55 focus:outline-none" /></label>
+            <label class="block text-xs text-muted">Timeout (s)<input v-model.number="f.timeout_secs" type="number" min="1" class="mt-1 block w-full rounded-lg border border-line2 bg-surface2 px-3 py-2 font-mono text-sm text-fg focus:border-accent/55 focus:outline-none" /></label>
+            <label class="block text-xs text-muted">Retries<input v-model.number="f.retries" type="number" min="0" class="mt-1 block w-full rounded-lg border border-line2 bg-surface2 px-3 py-2 font-mono text-sm text-fg focus:border-accent/55 focus:outline-none" /></label>
+          </div>
+          <label class="flex items-center gap-2 text-sm text-fg"><input v-model="f.upside_down" type="checkbox" class="h-4 w-4" />Upside-down</label>
+        </section>
 
-        <div class="flex items-center gap-3 border-t border-line pt-4">
+        <!-- HTTP options -->
+        <section v-if="isHttp(f.kind)" class="space-y-3 border-t border-line pt-6">
+          <div class="flex items-center gap-1.5 text-micro font-bold uppercase tracking-wider text-faint"><VIcon name="globe" :size="13" />HTTP options</div>
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <label class="block text-xs text-muted">Method<UiSelect v-model="f.method" block class="mt-1" :options="['GET', 'POST', 'PUT', 'HEAD', 'DELETE', 'PATCH']" /></label>
+            <label class="block text-xs text-muted">Accepted status<input v-model="f.accepted_status" placeholder="200-299,301" class="mt-1 block w-full rounded-lg border border-line2 bg-surface2 px-3 py-2 font-mono text-sm text-fg placeholder:text-faint focus:border-accent/55 focus:outline-none" /></label>
+            <label class="block text-xs text-muted">Max redirects<input v-model.number="f.max_redirects" type="number" min="0" class="mt-1 block w-full rounded-lg border border-line2 bg-surface2 px-3 py-2 font-mono text-sm text-fg focus:border-accent/55 focus:outline-none" /></label>
+          </div>
+          <label class="flex items-center gap-2 text-sm text-fg"><input v-model="f.ignore_tls" type="checkbox" class="h-4 w-4" />Ignore TLS errors</label>
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label class="block text-xs text-muted">Headers (one per line, <code>Key: Value</code>)<textarea v-model="f.headersText" rows="5" class="mt-1 block w-full rounded-lg border border-line2 bg-surface2 px-3 py-2 font-mono text-xs text-fg focus:border-accent/55 focus:outline-none"></textarea></label>
+            <label class="block text-xs text-muted">Body<textarea v-model="f.body" rows="5" class="mt-1 block w-full rounded-lg border border-line2 bg-surface2 px-3 py-2 font-mono text-xs text-fg focus:border-accent/55 focus:outline-none"></textarea></label>
+          </div>
+          <div class="flex flex-wrap items-end gap-3">
+            <label class="text-xs text-muted">Auth<UiSelect v-model="f.authType" block class="mt-1" :options="[['none', 'None'], ['basic', 'Basic'], ['bearer', 'Bearer']]" /></label>
+            <template v-if="f.authType === 'basic'">
+              <label class="text-xs text-muted">Username<input v-model="f.authUser" class="mt-1 block rounded-lg border border-line2 bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/55 focus:outline-none" /></label>
+              <label class="text-xs text-muted">Password<input v-model="f.authPass" type="password" class="mt-1 block rounded-lg border border-line2 bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/55 focus:outline-none" /></label>
+            </template>
+            <label v-else-if="f.authType === 'bearer'" class="flex-1 text-xs text-muted">Token<input v-model="f.authToken" class="mt-1 block w-full rounded-lg border border-line2 bg-surface2 px-3 py-2 font-mono text-sm text-fg focus:border-accent/55 focus:outline-none" /></label>
+          </div>
+        </section>
+
+        <!-- Meta -->
+        <section class="space-y-3 border-t border-line pt-6">
+          <div class="flex items-center gap-1.5 text-micro font-bold uppercase tracking-wider text-faint"><VIcon name="filter" :size="13" />Meta</div>
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label class="block text-xs text-muted">Tags (comma-separated)<input v-model="f.tags" placeholder="prod, api" class="mt-1 block w-full rounded-lg border border-line2 bg-surface2 px-3 py-2 text-sm text-fg placeholder:text-faint focus:border-accent/55 focus:outline-none" /></label>
+            <label class="block text-xs text-muted">Description<input v-model="f.description" class="mt-1 block w-full rounded-lg border border-line2 bg-surface2 px-3 py-2 text-sm text-fg focus:border-accent/55 focus:outline-none" /></label>
+          </div>
+        </section>
+
+        <!-- Footer -->
+        <div class="flex items-center gap-3 border-t border-line pt-5">
           <button type="submit" :disabled="saving" class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90 disabled:opacity-50">{{ saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create service' }}</button>
           <button type="button" @click="back" class="text-sm text-muted hover:text-fg">Cancel</button>
           <span v-if="formErr" class="text-xs text-down">{{ formErr }}</span>
