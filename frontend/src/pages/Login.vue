@@ -93,12 +93,7 @@ async function usePasskey() {
   <div class="flex min-h-screen items-center justify-center px-6">
     <div class="w-full max-w-sm">
       <div class="mb-8 flex items-center justify-center gap-2.5">
-        <span class="vantage-logo grid h-9 w-9 place-items-center rounded-lg">
-          <svg viewBox="0 0 64 64" class="h-[22px] w-[22px]" fill="none" stroke="#08231F" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M7 43 L21 21 L35 43" />
-            <rect x="42" y="37.5" width="14" height="6" rx="1.8" fill="#08231F" stroke="none" />
-          </svg>
-        </span>
+        <VLogo :size="36" />
         <span class="text-xl font-semibold tracking-tight text-fg">Vantage</span>
       </div>
 

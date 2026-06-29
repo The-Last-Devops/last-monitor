@@ -96,12 +96,7 @@ function openGroup(g) {
 <template>
   <aside :class="['fixed inset-y-0 left-0 z-40 flex h-[100dvh] w-60 shrink-0 flex-col border-r border-line bg-surface transition-transform md:sticky md:top-0 md:translate-x-0', drawer ? '' : '-translate-x-full']">
     <RouterLink :to="{ name: 'systems', query: nsq }" class="flex items-center gap-2.5 px-5 py-4 transition-opacity hover:opacity-80" v-tip="`Home`">
-      <span class="vantage-logo grid h-6 w-6 place-items-center rounded-md">
-        <svg viewBox="0 0 64 64" class="h-[15px] w-[15px]" fill="none" stroke="#08231F" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M7 43 L21 21 L35 43"/>
-          <rect x="42" y="37.5" width="14" height="6" rx="1.8" fill="#08231F" stroke="none"/>
-        </svg>
-      </span>
+      <VLogo :size="24" />
       <span class="text-base font-semibold tracking-tight text-fg">Vantage</span>
     </RouterLink>
 

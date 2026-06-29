@@ -49,7 +49,7 @@ onMounted(async () => {
   <AppShell title="About">
     <div class="space-y-5">
       <div class="flex items-center gap-3">
-        <span class="vantage-logo inline-block h-10 w-10 rounded-lg"></span>
+        <VLogo :size="40" />
         <div>
           <div class="text-lg font-semibold text-fg">Vantage</div>
           <div class="text-sm text-muted">Self-hosted DevOps control plane — monitor, alert &amp; operate servers, clusters, services &amp; cloud</div>
