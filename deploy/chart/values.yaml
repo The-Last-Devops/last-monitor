@@ -8,8 +8,9 @@ image:
   pullPolicy: Always     # rolling tags are mutable → Always so a redeploy pulls the new build
   # For private GHCR packages: kubectl create secret docker-registry ghcr ... then:
   pullSecrets: []        # e.g. [ghcr]
-# Auto-update: when true, run the :auto-update hub image — it self-restarts when a
-# newer build is published (k8s re-pulls) and agents follow. Default false = manual.
+# Auto-update: when true, run the :auto-update hub image — when a newer build is
+# published the hub triggers a rolling redeploy of itself (new pod up → old pod drains,
+# zero downtime; needs the ServiceAccount this chart creates). Default false = manual.
 autoUpdate: false
 
 # First admin: leave password empty to create the admin on first login (the UI
