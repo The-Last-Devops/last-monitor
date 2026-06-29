@@ -9,6 +9,12 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ## [Unreleased]
 
+## [2.3.1] — 2026-06-29
+
+### Fixed
+- The header no longer appears empty on pages that show their own hero (e.g. **Fleet**) —
+  the top bar always names the current page now (every route provides a title fallback).
+
 ## [2.3.0] — 2026-06-29
 
 ### Changed
