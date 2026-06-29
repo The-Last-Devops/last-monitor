@@ -51,6 +51,11 @@ c=$(curl -s -o /dev/null -w '%{http_code}' -H 'content-type: application/json' \
   -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"totp_code\":\"$CODE\"}" "$HUB/api/auth/login")
 [ "$c" = 200 ] || { echo "FAIL: login+code $c"; exit 1; }; say "200"
 
+echo "6b) reuse the SAME code → rejected (replay defense)"
+c=$(curl -s -o /dev/null -w '%{http_code}' -H 'content-type: application/json' \
+  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"totp_code\":\"$CODE\"}" "$HUB/api/auth/login")
+[ "$c" = 401 ] || { echo "FAIL: replayed TOTP code not rejected ($c)"; exit 1; }; say "replay rejected (401)"
+
 echo "7) login with a BACKUP code → success (one-time)"
 c=$(curl -s -o /dev/null -w '%{http_code}' -H 'content-type: application/json' \
   -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"totp_code\":\"$BACKUP\"}" "$HUB/api/auth/login")

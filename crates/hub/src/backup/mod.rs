@@ -31,10 +31,16 @@ use axum::http::StatusCode;
 
 /// Config tables in FK-safe (parent → child) order. Transient tables (sessions,
 /// audit_log, monitor_debug) are intentionally excluded.
+// Parent → child order (restore inserts in this order, deletes in reverse) so FKs
+// hold. Auth artifacts (api_pats / ssh_keys / webauthn_credentials) MUST be here or a
+// restore silently destroys every PAT, SSH key and passkey when `users` is replaced.
 pub(crate) const CONFIG_TABLES: &[&str] = &[
     "users",
     "namespaces",
     "memberships",
+    "api_pats",
+    "ssh_keys",
+    "webauthn_credentials",
     "api_keys",
     "systems",
     "monitors",
@@ -42,6 +48,7 @@ pub(crate) const CONFIG_TABLES: &[&str] = &[
     "alerts",
     "alert_state",
     "status_pages",
+    "app_settings",
 ];
 /// Append-only metrics hypertables (rollups are continuous aggregates — they
 /// rematerialize from these, so they're not dumped).

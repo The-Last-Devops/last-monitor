@@ -102,11 +102,31 @@ pub async fn ensure(
     if let (Some(enc), Some(salt)) = (enc, salt) {
         return unwrap(&enc, kid.as_deref(), password, &salt, secrets);
     }
-    // mint
+    // mint, but guard against a concurrent provision (two step-ups / login racing):
+    // only write if still unset, and if we lost the race, unwrap the winner's row so
+    // we never return a master key that wasn't persisted (which would orphan keys).
     let master = exec_crypto::gen_master_key();
     let salt = exec_crypto::gen_salt();
     let (enc, kid) = wrap(&master, password, &salt, secrets)?;
-    store(pool, user_id, &enc, &salt, kid.as_deref()).await?;
+    let rows = sqlx::query(
+        "UPDATE users SET master_key_enc = $2, master_key_salt = $3, app_kid = $4 \
+         WHERE id = $1 AND master_key_enc IS NULL",
+    )
+    .bind(user_id)
+    .bind(&enc)
+    .bind(&salt)
+    .bind(kid.as_deref())
+    .execute(pool)
+    .await?
+    .rows_affected();
+    if rows == 0 {
+        // someone else provisioned first — load + unwrap their key with the same password
+        let (enc, salt, kid) = load(pool, user_id).await?;
+        let (enc, salt) = enc
+            .zip(salt)
+            .ok_or_else(|| anyhow!("master key vanished after a concurrent provision"))?;
+        return unwrap(&enc, kid.as_deref(), password, &salt, secrets);
+    }
     Ok(master)
 }
 

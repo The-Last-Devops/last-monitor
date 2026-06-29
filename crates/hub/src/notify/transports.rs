@@ -268,6 +268,9 @@ async fn send_email(cfg: &Value, n: &Notification) -> anyhow::Result<()> {
 
     let host = sreq(cfg, "email", "host")?;
     let port: u16 = s(cfg, "port").and_then(|p| p.parse().ok()).unwrap_or(587);
+    // SSRF guard: the SMTP host is editor-supplied — block loopback/link-local/internal
+    // targets just like the HTTP transports, so a channel can't port-scan the network.
+    crate::net_guard::check_host(host, port)?;
     let from = sreq(cfg, "email", "from")?;
     let to = sreq(cfg, "email", "to")?;
 

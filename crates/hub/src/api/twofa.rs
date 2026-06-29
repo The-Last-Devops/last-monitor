@@ -244,18 +244,29 @@ pub async fn is_enabled(pool: &sqlx::PgPool, user_id: Uuid) -> Result<bool, sqlx
 /// Verify a login `code` for `user_id`: a current TOTP code, or an unused backup code
 /// (which is then consumed). Returns Ok(true) on success.
 pub async fn verify_login(state: &AppState, user_id: Uuid, code: &str) -> Result<bool, StatusCode> {
-    let (enc, kid, backups): (Option<Vec<u8>>, Option<String>, Option<String>) = sqlx::query_as(
-        "SELECT totp_secret_enc, totp_kid, totp_backup_codes FROM users WHERE id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&state.config)
-    .await
-    .map_err(internal)?;
+    let (enc, kid, backups, last_step): (Option<Vec<u8>>, Option<String>, Option<String>, i64) =
+        sqlx::query_as(
+            "SELECT totp_secret_enc, totp_kid, totp_backup_codes, totp_last_step FROM users WHERE id = $1",
+        )
+        .bind(user_id)
+        .fetch_one(&state.config)
+        .await
+        .map_err(internal)?;
 
-    // 1) a live TOTP code
+    // 1) a live TOTP code — accept only if its step is newer than the last accepted
+    //    one (replay defense), then record the step.
     if let Some(secret) = enc.and_then(|b| open_secret(state, &b, kid.as_deref())) {
-        if totp::verify(&secret, code, now_secs()) {
-            return Ok(true);
+        if let Some(step) = totp::verify_step(&secret, code, now_secs()) {
+            if step as i64 > last_step {
+                sqlx::query("UPDATE users SET totp_last_step = $2 WHERE id = $1")
+                    .bind(user_id)
+                    .bind(step as i64)
+                    .execute(&state.config)
+                    .await
+                    .map_err(internal)?;
+                return Ok(true);
+            }
+            // else: code already used this step → reject (fall through to backup codes)
         }
     }
     // 2) a one-time backup code — consume it on match

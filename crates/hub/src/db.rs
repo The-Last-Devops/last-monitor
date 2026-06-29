@@ -39,6 +39,7 @@ pub async fn connect() -> Result<AppState> {
         exec_tickets: crate::console::ExecTickets::new(),
         app_secrets: std::sync::Arc::new(app_secrets),
         passkey: std::sync::Arc::new(crate::passkey::PasskeyState::from_env()),
+        login_throttle: std::sync::Arc::new(crate::auth::LoginThrottle::new()),
     })
 }
 

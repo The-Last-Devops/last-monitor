@@ -23,6 +23,65 @@ use crate::AppState;
 pub(crate) const SESSION_COOKIE: &str = "session";
 const SESSION_DAYS: i64 = 30;
 
+// ---- login brute-force throttle (per-account, in-memory) --------------------
+
+use std::collections::HashMap;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+const MAX_FAILS: u32 = 5; // free attempts before lockout kicks in
+const BASE_LOCK_SECS: u64 = 30; // first lockout; doubles per extra failure, capped
+const MAX_LOCK_SECS: u64 = 900; // 15 min cap
+const STALE_AFTER: Duration = Duration::from_secs(3600); // forget idle entries
+
+#[derive(Default)]
+struct Attempt {
+    fails: u32,
+    locked_until: Option<Instant>,
+    seen: Option<Instant>,
+}
+
+/// Per-account failure counter with escalating lockout. Resets on success. Keyed by
+/// lowercased email so it throttles password AND 2FA-code guessing for that account.
+#[derive(Default)]
+pub struct LoginThrottle {
+    inner: Mutex<HashMap<String, Attempt>>,
+}
+
+impl LoginThrottle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// Is this account currently locked out?
+    pub fn locked(&self, key: &str) -> bool {
+        let m = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        m.get(key)
+            .and_then(|a| a.locked_until)
+            .is_some_and(|until| until > Instant::now())
+    }
+    /// Record a failed attempt; lock the account once it crosses the threshold.
+    pub fn fail(&self, key: &str) {
+        let mut m = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let now = Instant::now();
+        m.retain(|_, a| a.seen.is_some_and(|s| now.duration_since(s) < STALE_AFTER));
+        let a = m.entry(key.to_string()).or_default();
+        a.fails += 1;
+        a.seen = Some(now);
+        if a.fails >= MAX_FAILS {
+            let over = (a.fails - MAX_FAILS).min(5);
+            let secs = (BASE_LOCK_SECS << over).min(MAX_LOCK_SECS);
+            a.locked_until = Some(now + Duration::from_secs(secs));
+        }
+    }
+    /// Clear the counter after a successful login.
+    pub fn ok(&self, key: &str) {
+        self.inner
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(key);
+    }
+}
+
 /// Whether to set the `Secure` attribute on the session cookie. Defaults to
 /// `true` so the session token never travels over plaintext HTTP. Local dev
 /// runs the hub on http://localhost:8080, where a hard `Secure` would stop
@@ -209,6 +268,12 @@ pub async fn login(
     jar: CookieJar,
     Json(req): Json<LoginReq>,
 ) -> Result<(CookieJar, Json<serde_json::Value>), StatusCode> {
+    // Brute-force throttle (per-account, in-memory). Blocks online guessing of the
+    // password AND the 6-digit TOTP / backup codes after repeated failures.
+    let key = req.email.trim().to_lowercase();
+    if state.login_throttle.locked(&key) {
+        return Err(StatusCode::TOO_MANY_REQUESTS);
+    }
     let user: Option<(Uuid, String, String, bool, bool)> = sqlx::query_as(
         "SELECT id, email, password_hash, is_admin, read_all FROM users WHERE email = $1",
     )
@@ -217,8 +282,12 @@ pub async fn login(
     .await
     .map_err(internal)?;
 
-    let (id, email, password_hash, is_admin, read_all) = user.ok_or(StatusCode::UNAUTHORIZED)?;
+    let Some((id, email, password_hash, is_admin, read_all)) = user else {
+        state.login_throttle.fail(&key); // throttle even unknown emails (no enumeration)
+        return Err(StatusCode::UNAUTHORIZED);
+    };
     if !verify_password(&req.password, &password_hash) {
+        state.login_throttle.fail(&key);
         return Err(StatusCode::UNAUTHORIZED);
     }
 
@@ -235,6 +304,7 @@ pub async fn login(
             // passkey assertion
             let cred = serde_json::from_value(cred_json).map_err(|_| StatusCode::BAD_REQUEST)?;
             if !crate::api::finish_login(&state, id, cred).await? {
+                state.login_throttle.fail(&key);
                 return Err(StatusCode::UNAUTHORIZED);
             }
         } else if let Some(code) = req
@@ -245,6 +315,7 @@ pub async fn login(
         {
             // TOTP / backup code
             if !totp_on || !crate::api::verify_login(&state, id, code).await? {
+                state.login_throttle.fail(&key);
                 return Err(StatusCode::UNAUTHORIZED);
             }
         } else {
@@ -270,6 +341,7 @@ pub async fn login(
         tracing::warn!(error = %e, user = %email, "master key provisioning on login failed");
     }
 
+    state.login_throttle.ok(&key); // clear the failure counter on a full success
     let jar = mint_session(&state, jar, id).await?;
     let me = CurrentUser {
         id,

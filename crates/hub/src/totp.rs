@@ -77,20 +77,21 @@ pub fn format_code(code: u32) -> String {
 /// step and one step either side (±30s) to tolerate clock drift. Constant-ish: we
 /// always check all three steps. `input` may contain spaces.
 pub fn verify(secret: &[u8], input: &str, now: u64) -> bool {
+    verify_step(secret, input, now).is_some()
+}
+
+/// Like [`verify`] but returns the matching 30s step (so callers can enforce that a
+/// code is never accepted twice — reject any step <= the last accepted one).
+pub fn verify_step(secret: &[u8], input: &str, now: u64) -> Option<u64> {
     let cleaned: String = input.chars().filter(|c| c.is_ascii_digit()).collect();
     if cleaned.len() != DIGITS as usize {
-        return false;
+        return None;
     }
-    let Ok(want) = cleaned.parse::<u32>() else {
-        return false;
-    };
+    let want = cleaned.parse::<u32>().ok()?;
     let step = now / STEP;
-    let mut ok = false;
-    for s in [step.wrapping_sub(1), step, step + 1] {
-        // bitwise-or so we don't early-return (reduce timing signal)
-        ok |= code_at(secret, s) == want;
-    }
-    ok
+    [step.wrapping_sub(1), step, step + 1]
+        .into_iter()
+        .find(|&s| code_at(secret, s) == want)
 }
 
 /// Build the `otpauth://totp/...` URI an authenticator app scans/imports.

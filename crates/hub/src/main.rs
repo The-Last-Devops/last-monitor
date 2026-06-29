@@ -56,6 +56,8 @@ pub struct AppState {
     pub app_secrets: std::sync::Arc<exec_crypto::AppSecrets>,
     /// WebAuthn/passkey relying party + ceremony state (None if disabled). See `passkey.rs`.
     pub passkey: std::sync::Arc<Option<passkey::PasskeyState>>,
+    /// Per-account login brute-force throttle (in-memory). See `auth.rs`.
+    pub login_throttle: std::sync::Arc<auth::LoginThrottle>,
 }
 
 #[tokio::main]
