@@ -86,14 +86,14 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
         <svg v-else class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
       </button>
 
-      <!-- version pill — subtle by default; amber only when a newer release is out -->
+      <!-- version pill — green when on the latest release, amber when an update is out -->
       <RouterLink v-if="ver.current" :to="{ name: 'about' }"
-        v-tip="ver.isOutdated ? `Update available: ${ver.latestTag} — you have v${ver.current}` : `You're on v${ver.current}`"
+        v-tip="ver.isOutdated ? `Update available: ${ver.latestTag} — you have v${ver.current}` : `You're on v${ver.current} (latest)`"
         class="hidden items-center gap-1.5 rounded-pill border px-2.5 py-0.5 font-mono text-xs transition-colors sm:inline-flex"
         :class="ver.isOutdated
           ? 'border-warn/40 bg-warn/10 text-warn hover:bg-warn/20'
-          : 'border-line text-faint hover:border-line2 hover:text-muted'">
-        <span v-if="ver.isOutdated" class="h-1.5 w-1.5 rounded-full bg-warn"></span>
+          : 'border-ok/40 bg-ok/10 text-ok hover:bg-ok/20'">
+        <span class="h-1.5 w-1.5 rounded-full" :class="ver.isOutdated ? 'bg-warn' : 'bg-ok'"></span>
         v{{ ver.current }}
       </RouterLink>
 

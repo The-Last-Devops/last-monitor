@@ -9,6 +9,23 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ## [Unreleased]
 
+## [2.3.4] — 2026-06-29
+
+### Changed
+- **The SSH console now opens in a new browser tab and lives inside the app frame**
+  (the sidebar and header stay visible) instead of taking over the whole screen, so
+  you can keep a dashboard open in the original tab while you work in the terminal.
+- **The terminal opens at its real, fitted size and tracks live resizes**, so `htop`,
+  `top`, and other full-screen TUIs fill the whole window instead of a cramped 80×24 box.
+- **Open a console straight from the host page** — an "SSH" button now sits next to the
+  host's Up/Down status (shown when you have shell access and the agent's tunnel is live).
+- **Dropped the per-host enable/disable shell toggle** — the shell is always available;
+  the host's Shell card now just shows the SSH port and tunnel status.
+
+### Fixed
+- The version badge in the header is green when you're on the latest release (and amber
+  when an update is out), instead of a plain grey pill.
+
 ## [2.3.3] — 2026-06-29
 
 ### Fixed
