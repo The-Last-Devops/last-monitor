@@ -24,6 +24,18 @@ const modalOpen = ref(false)
 const form = ref({ name: '', private_key: '', password: '' })
 const creating = ref(false)
 const err = ref('')
+const keyFile = ref(null)
+
+// Read a chosen key file into the textarea (the file never leaves the browser until
+// you submit; it's sealed under your password server-side like a pasted key).
+function onKeyFile(e) {
+  const f = e.target.files?.[0]
+  if (!f) return
+  const r = new FileReader()
+  r.onload = () => { form.value.private_key = String(r.result || '').trim() }
+  r.readAsText(f)
+  e.target.value = '' // allow re-picking the same file
+}
 
 function openNew() {
   form.value = { name: '', private_key: '', password: '' }
@@ -117,14 +129,22 @@ onMounted(load)
         <form @submit.prevent="create" class="space-y-4 p-5">
           <label class="block">
             <span class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-faint">Name</span>
-            <input v-model="form.name" placeholder="e.g. laptop-ed25519, prod-deploy" class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
+            <input v-model="form.name" placeholder="e.g. laptop-ed25519, prod-deploy"
+              autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true"
+              class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
           </label>
-          <label class="block">
-            <span class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-faint">Private key</span>
+          <div class="block">
+            <div class="mb-1.5 flex items-center gap-2">
+              <span class="text-[11px] font-semibold uppercase tracking-wide text-faint">Private key</span>
+              <button type="button" @click="keyFile?.click()" class="ml-auto inline-flex items-center gap-1 rounded-md border border-line2 bg-surface2 px-2 py-1 text-[11px] text-muted hover:text-fg">
+                <VIcon name="copy" :size="12" /> Upload file
+              </button>
+              <input ref="keyFile" type="file" class="hidden" @change="onKeyFile" />
+            </div>
             <textarea v-model="form.private_key" rows="6" spellcheck="false"
-              placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+              placeholder="Paste your private key, or use Upload file&#10;-----BEGIN OPENSSH PRIVATE KEY-----"
               class="w-full rounded-lg border border-line bg-surface2 px-3 py-2 font-mono text-xs text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none"></textarea>
-          </label>
+          </div>
           <label class="block">
             <span class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-faint">Account password</span>
             <input v-model="form.password" type="password" autocomplete="current-password"

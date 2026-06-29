@@ -15,7 +15,8 @@ import { api } from '../lib/api'
 const route = useRoute()
 const router = useRouter()
 const id = computed(() => route.params.id)
-const hostName = computed(() => route.query.name || `Host ${id.value}`)
+const resolvedName = ref('') // host name looked up from /api/systems (precheck)
+const hostName = computed(() => route.query.name || resolvedName.value || `Host ${String(id.value).slice(0, 8)}…`)
 
 // shell precheck state
 const shell = ref(null)
@@ -68,6 +69,10 @@ async function precheck() {
   try {
     shell.value = await api.get(`/api/systems/${id.value}/shell`)
     loadErr.value = ''
+    // resolve the host's display name (the route only carries its id)
+    if (!route.query.name && !resolvedName.value) {
+      try { const sys = await api.get('/api/systems'); resolvedName.value = sys.find((s) => s.id === id.value)?.name || '' } catch {}
+    }
     const s = shell.value
     if (!s.can_exec) { phase.value = 'blocked'; blockedReason.value = "You don't have shell access on this host." }
     else if (!s.shell_enabled) { phase.value = 'blocked'; blockedReason.value = 'Shell is disabled for this host.' }
@@ -268,6 +273,7 @@ function back() { router.push(`/system/${id.value}`) }
           <label class="block">
             <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-faint">SSH user</span>
             <input v-model="sshUser" autofocus placeholder="e.g. ubuntu, root"
+              autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true"
               class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
           </label>
 
