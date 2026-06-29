@@ -40,7 +40,8 @@ const menuStyle = computed(() => ({
 
 function place() {
   const r = btn.value.getBoundingClientRect()
-  const want = Math.min(264, norm.value.length * 38 + 12)
+  // Show the whole list when it fits; cap at 80vh so a long list still scrolls.
+  const want = Math.min(window.innerHeight * 0.8, norm.value.length * 38 + 12)
   const spaceBelow = window.innerHeight - r.bottom
   const up = spaceBelow < want + 12 && r.top > spaceBelow
   pos.value = {
@@ -132,7 +133,7 @@ onBeforeUnmount(() => {
     <Teleport to="body">
       <div
         v-if="open" ref="menu" :style="menuStyle"
-        class="z-[80] max-h-[264px] overflow-auto rounded-xl border border-line bg-surface p-1.5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.7)]"
+        class="z-[80] max-h-[80vh] overflow-auto rounded-xl border border-line bg-surface p-1.5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.7)]"
         :class="align === 'right' && 'origin-top-right'"
       >
         <button
