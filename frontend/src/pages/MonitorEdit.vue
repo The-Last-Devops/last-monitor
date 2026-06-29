@@ -122,7 +122,7 @@ onMounted(async () => {
   <AppShell :breadcrumb="[{ label: 'Services', to: { name: 'monitors', query: route.query.ns ? { ns: route.query.ns } : {} } }, { label: isEdit ? f.name : 'New service' }]">
     <PageLoader v-if="!loaded" />
     <template v-else>
-      <form @submit.prevent="submit" class="max-w-3xl space-y-4 rounded-2xl border border-line bg-surface p-5">
+      <form @submit.prevent="submit" class="mx-auto w-full max-w-3xl space-y-4 rounded-2xl border border-line bg-surface p-5">
         <div class="flex flex-wrap items-end gap-3">
           <label class="text-xs text-faint">Type<UiSelect v-model="f.kind" block :disabled="isEdit" class="mt-1" :options="KINDS.map((k) => ({ value: k.v, label: k.label }))" /></label>
           <label class="text-xs text-faint">Name<input v-model="f.name" placeholder="My service" class="mt-1 block w-64 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" /></label>

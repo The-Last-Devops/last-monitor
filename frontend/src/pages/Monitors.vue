@@ -153,24 +153,23 @@ onUnmounted(() => clearInterval(timer))
     <div v-else class="space-y-5">
       <p v-if="err" class="rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-sm text-down">{{ err }}</p>
 
-      <!-- KPI strip -->
-      <div v-if="!downOnly" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div class="rounded-xl border border-line bg-surface px-4 py-3">
+      <!-- summary strip: one thin row of 4 figures; a zero figure is dimmed -->
+      <div v-if="!downOnly" class="grid grid-cols-2 overflow-hidden rounded-xl border border-line bg-surface sm:grid-cols-4 sm:divide-x sm:divide-line">
+        <div class="px-4 py-2.5">
           <div class="text-micro uppercase tracking-wider text-faint">Services up</div>
-          <div class="mt-1 font-mono text-metric text-ok">{{ stats.up }} <span class="text-base font-normal text-faint">/ {{ stats.active }} up</span></div>
+          <div class="mt-0.5 font-mono text-h1 text-ok">{{ stats.up }}<span class="text-sm font-normal text-faint"> / {{ stats.active }}</span></div>
         </div>
-        <div class="rounded-xl border px-4 py-3" :class="stats.down ? 'border-down/30 bg-down/12' : 'border-line bg-surface'">
+        <div class="px-4 py-2.5">
           <div class="text-micro uppercase tracking-wider text-faint">Down</div>
-          <div class="mt-1 font-mono text-metric" :class="stats.down ? 'text-down' : 'text-muted'">{{ stats.down }}</div>
+          <div class="mt-0.5 font-mono text-h1" :class="stats.down ? 'text-down' : 'text-cap'">{{ stats.down }}</div>
         </div>
-        <div class="rounded-xl border px-4 py-3" :class="stats.warn ? 'border-warn/30 bg-warn/12' : 'border-line bg-surface'">
+        <div class="px-4 py-2.5">
           <div class="text-micro uppercase tracking-wider text-faint">Pending</div>
-          <div class="mt-1 font-mono text-metric" :class="stats.warn ? 'text-warn' : 'text-muted'">{{ stats.warn }}</div>
+          <div class="mt-0.5 font-mono text-h1" :class="stats.warn ? 'text-warn' : 'text-cap'">{{ stats.warn }}</div>
         </div>
-        <div class="rounded-xl border border-line bg-surface px-4 py-3">
-          <div class="text-micro uppercase tracking-wider text-faint">Avg uptime</div>
-          <div class="mt-1 font-mono text-metric" :class="stats.avg == null ? 'text-faint' : stats.avg >= 99 ? 'text-ok' : stats.avg >= 90 ? 'text-warn' : 'text-down'">{{ stats.avg == null ? '—' : stats.avg + '%' }}</div>
-          <div class="mt-0.5 text-micro text-faint">over the last 24h</div>
+        <div class="px-4 py-2.5">
+          <div class="text-micro uppercase tracking-wider text-faint">Avg uptime 24h</div>
+          <div class="mt-0.5 font-mono text-h1" :class="stats.avg == null ? 'text-cap' : stats.avg >= 99 ? 'text-ok' : stats.avg >= 90 ? 'text-warn' : 'text-down'">{{ stats.avg == null ? '—' : stats.avg + '%' }}</div>
         </div>
       </div>
 
@@ -186,8 +185,8 @@ onUnmounted(() => clearInterval(timer))
         </button>
       </div>
 
-      <!-- table + events side panel -->
-      <div class="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_340px]">
+      <!-- table + events: stacked by default, side rail only when wide enough -->
+      <div class="grid grid-cols-1 gap-5 min-[1080px]:grid-cols-[1fr_330px]">
         <DataTable v-model:selected="selectedIds" :columns="columns" :rows="filteredRows" :row-key="(r) => r.id"
           :row-tone="rowTone" selectable clickable @row-click="openDetail" :filterable="false"
           :empty="downOnly ? 'Nothing down. 🎉' : 'No services yet.'">

@@ -37,7 +37,9 @@ watch(() => props.title, (t) => { document.title = t ? `${t} — Vantage` : 'Van
         <span class="ml-auto"></span>
         <slot name="actions" />
       </div>
-      <main class="flex-1 p-4 sm:p-6"><slot /></main>
+      <main class="flex-1 p-4 sm:p-6">
+        <div class="mx-auto w-full max-w-[1440px]"><slot /></div>
+      </main>
     </div>
   </div>
 </template>

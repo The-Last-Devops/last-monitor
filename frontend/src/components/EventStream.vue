@@ -35,15 +35,13 @@ watch(() => props.events, () => { if (page.value > pages.value) page.value = 1 }
     </div>
     <p v-if="!events.length" class="px-4 py-8 text-center text-sm text-muted">No status changes recorded recently.</p>
     <template v-else>
-      <ul class="max-h-[70vh] divide-y divide-line overflow-y-auto">
-        <li v-for="(e, i) in shown" :key="start + i" class="flex items-center gap-3 px-4 py-2.5 hover:bg-hover">
-          <StatePill :tone="e.up ? 'ok' : 'down'" :label="e.up ? 'Up' : 'Down'" />
+      <ul class="max-h-[430px] divide-y divide-line overflow-y-auto">
+        <li v-for="(e, i) in shown" :key="start + i" class="flex items-start gap-3 px-4 py-2.5 hover:bg-hover">
+          <StatePill :tone="e.up ? 'ok' : 'down'" :label="e.up ? 'Up' : 'Down'" class="mt-0.5 shrink-0" />
           <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-2">
-              <RouterLink v-if="showService" :to="{ name: 'monitor', params: { id: e.monitor_id } }"
-                class="truncate font-mono text-sm text-fg hover:text-accent" @click.stop>{{ e.name }}</RouterLink>
-              <span class="truncate text-sm text-muted">{{ evMessage(e) }}</span>
-            </div>
+            <RouterLink v-if="showService" :to="{ name: 'monitor', params: { id: e.monitor_id } }"
+              class="block font-mono text-sm text-fg hover:text-accent" @click.stop>{{ e.name }}</RouterLink>
+            <div class="text-sm text-muted break-words">{{ evMessage(e) }}</div>
             <div class="mt-0.5 flex items-center gap-1.5 text-micro font-mono tabular-nums text-faint">
               <span>{{ evTime(e.at) }}</span>
               <span>·</span>

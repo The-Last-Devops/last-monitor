@@ -157,7 +157,7 @@ onMounted(async () => {
   <AppShell :breadcrumb="[{ label: 'Rules', to: { name: 'alerts', query: route.query.ns ? { ns: route.query.ns } : {} } }, { label: editId ? 'Edit rule' : 'New rule' }]">
     <PageLoader v-if="!loaded" />
     <template v-else>
-      <div class="grid gap-4 lg:grid-cols-[1fr_320px]">
+      <div class="mx-auto grid w-full max-w-4xl gap-4 lg:grid-cols-[1fr_320px]">
         <!-- form -->
         <div class="overflow-hidden rounded-2xl border border-line bg-surface">
           <!-- 1. source -->
