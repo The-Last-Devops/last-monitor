@@ -108,9 +108,9 @@ const sections = computed(() => [
     title: 'Hosts',
     items: [
       { label: 'Hosts', value: host.value.total, sub: `${host.value.up} up`, icon: 'server', to: { name: 'systems', query: nsq.value }, good: host.value.total > 0 && host.value.down === 0 && host.value.crit === 0 && host.value.warn === 0 },
-      { label: 'Down', value: host.value.down, icon: 'wifi-off', to: { name: 'attention', query: nsq.value }, bad: host.value.down > 0, color: 'down' },
-      { label: 'Critical', value: host.value.crit, icon: 'alert-triangle', to: { name: 'attention', query: nsq.value }, bad: host.value.crit > 0, color: 'crit' },
-      { label: 'Warning', value: host.value.warn, icon: 'alert-triangle', to: { name: 'attention', query: nsq.value }, bad: host.value.warn > 0, color: 'warn' },
+      { label: 'Down', value: host.value.down, icon: 'wifi-off', to: { name: 'attention', query: { ...nsq.value, status: 'down' } }, bad: host.value.down > 0, color: 'down' },
+      { label: 'Critical', value: host.value.crit, icon: 'alert-triangle', to: { name: 'attention', query: { ...nsq.value, status: 'crit' } }, bad: host.value.crit > 0, color: 'crit' },
+      { label: 'Warning', value: host.value.warn, icon: 'alert-triangle', to: { name: 'attention', query: { ...nsq.value, status: 'warn' } }, bad: host.value.warn > 0, color: 'warn' },
     ],
   },
   {

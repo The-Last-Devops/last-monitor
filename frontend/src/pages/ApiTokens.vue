@@ -67,12 +67,12 @@ onMounted(load)
 
       <div class="overflow-hidden rounded-xl border border-line bg-surface">
         <table class="w-full text-sm">
-          <thead><tr class="border-b border-line text-left text-[11px] uppercase tracking-wider text-faint">
-            <th class="px-4 py-3 font-medium">Name</th>
-            <th class="px-4 py-3 font-medium">Token</th>
-            <th class="px-4 py-3 font-medium">Created</th>
-            <th class="px-4 py-3 font-medium">Last used</th>
-            <th class="px-4 py-3 font-medium">Expires</th>
+          <thead><tr class="border-b border-line2 bg-head text-left text-xs uppercase tracking-wide text-fg">
+            <th class="px-4 py-3 font-extrabold">Name</th>
+            <th class="px-4 py-3 font-extrabold">Token</th>
+            <th class="px-4 py-3 font-extrabold">Created</th>
+            <th class="px-4 py-3 font-extrabold">Last used</th>
+            <th class="px-4 py-3 font-extrabold">Expires</th>
             <th class="px-4 py-3"></th>
           </tr></thead>
           <tbody>

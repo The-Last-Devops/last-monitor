@@ -109,13 +109,13 @@ const filtered = computed(() => !!(q.value.trim() || method.value || status.valu
         <div class="overflow-hidden rounded-xl border border-line bg-surface">
           <div class="overflow-x-auto">
             <table class="w-full table-fixed text-xs">
-              <thead><tr class="border-b border-line text-left text-[10px] uppercase tracking-wider text-faint">
-                <th class="w-[150px] px-3 py-2 font-medium">When</th>
-                <th class="w-[180px] px-3 py-2 font-medium">User</th>
-                <th class="w-[150px] px-3 py-2 font-medium">Action</th>
-                <th class="w-[160px] px-3 py-2 font-medium">Object</th>
-                <th class="px-3 py-2 font-medium">Endpoint</th>
-                <th class="w-[64px] px-3 py-2 font-medium text-right">Result</th>
+              <thead><tr class="border-b border-line2 bg-head text-left text-xs uppercase tracking-wide text-fg">
+                <th class="w-[150px] px-3 py-2 font-extrabold">When</th>
+                <th class="w-[180px] px-3 py-2 font-extrabold">User</th>
+                <th class="w-[150px] px-3 py-2 font-extrabold">Action</th>
+                <th class="w-[160px] px-3 py-2 font-extrabold">Object</th>
+                <th class="px-3 py-2 font-extrabold">Endpoint</th>
+                <th class="w-[64px] px-3 py-2 font-extrabold text-right">Result</th>
               </tr></thead>
               <tbody>
                 <tr v-if="!rows.length"><td colspan="6" class="px-3 py-10 text-center text-muted">{{ filtered ? 'No actions match these filters.' : 'No actions logged yet.' }}</td></tr>

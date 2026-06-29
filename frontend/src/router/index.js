@@ -40,7 +40,7 @@ const routes = [
   { path: '/overview', name: 'overview', component: Overview, meta: { title: 'Overview' } },
   { path: '/fleet', name: 'fleet', component: FleetOverview, meta: { title: 'Fleet' } },
   { path: '/metrics', name: 'metrics', component: FleetMetrics, meta: { title: 'Metrics' } },
-  { path: '/attention', name: 'attention', component: Systems, meta: { title: 'Needs attention' } },
+  { path: '/attention', name: 'attention', component: Systems, meta: { title: 'Issues' } },
   { path: '/system/:id', name: 'system', component: SystemDetail, meta: { title: 'Host' } },
   { path: '/systems/:id/console', name: 'console', component: Console, meta: { title: 'Console' } },
   { path: '/namespaces', name: 'namespaces', component: Namespaces, meta: { title: 'Namespaces' } },

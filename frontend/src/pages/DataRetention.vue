@@ -50,10 +50,10 @@ async function save(tier) {
           </div>
           <div class="overflow-hidden rounded-xl border border-line bg-surface">
             <table class="w-full text-sm">
-              <thead><tr class="border-b border-line text-left text-[11px] uppercase tracking-wider text-faint">
-                <th class="px-4 py-3 font-medium">Table</th>
-                <th class="px-4 py-3 font-medium text-right">Rows</th>
-                <th class="px-4 py-3 font-medium text-right">Size</th>
+              <thead><tr class="border-b border-line2 bg-head text-left text-xs uppercase tracking-wide text-fg">
+                <th class="px-4 py-3 font-extrabold">Table</th>
+                <th class="px-4 py-3 font-extrabold text-right">Rows</th>
+                <th class="px-4 py-3 font-extrabold text-right">Size</th>
               </tr></thead>
               <tbody>
                 <tr v-for="t in stats.tables" :key="t.name" class="border-b border-line/60 last:border-0">
@@ -72,9 +72,9 @@ async function save(tier) {
           <p class="text-xs text-faint">How long each tier is kept before TimescaleDB drops it. Lower = less disk. The <b>raw</b> tier is the high-resolution realtime data (kept in <b>hours</b>, 24h by default) — it bounds how far back the detailed per-second charts reach; older ranges read from the rollups.</p>
           <div class="overflow-hidden rounded-xl border border-line bg-surface">
             <table class="w-full text-sm">
-              <thead><tr class="border-b border-line text-left text-[11px] uppercase tracking-wider text-faint">
-                <th class="px-4 py-3 font-medium">Tier</th>
-                <th class="px-4 py-3 font-medium">Keep for</th>
+              <thead><tr class="border-b border-line2 bg-head text-left text-xs uppercase tracking-wide text-fg">
+                <th class="px-4 py-3 font-extrabold">Tier</th>
+                <th class="px-4 py-3 font-extrabold">Keep for</th>
                 <th class="px-4 py-3"></th>
               </tr></thead>
               <tbody>

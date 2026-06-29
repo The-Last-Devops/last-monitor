@@ -35,7 +35,8 @@ const nsMonitors = computed(() =>
   selectedNs.value.length ? monitors.value.filter((m) => selectedNs.value.includes(m.namespace)) : monitors.value,
 )
 const shown = computed(() => (downOnly.value ? nsMonitors.value.filter((m) => m.enabled && m.up === false) : nsMonitors.value))
-const upPct = (m) => (m.recent && m.recent.length ? Math.round((m.recent.filter(Boolean).length / m.recent.length) * 100) : null)
+// Uptime % over the last 24h, computed server-side (null if no beats in window).
+const upPct = (m) => (m.uptime_24h == null ? null : Math.round(m.uptime_24h))
 // How much wall-clock the recent-beats window covers (count × interval).
 const windowSecs = (m) => (m.recent?.length || 0) * (m.interval_secs || 60)
 
@@ -80,7 +81,7 @@ const filteredRows = computed(() => {
 })
 const columns = [
   { key: 'name', label: 'Service', sortable: true, nowrap: false },
-  { key: 'uptime', label: 'Uptime', sortable: true, width: '128px' },
+  { key: 'uptime', label: 'Uptime 24h', sortable: true, width: '128px' },
   { key: 'latency_ms', label: 'Latency', sortable: true, align: 'right', width: '120px' },
   { key: 'history', label: 'Trend', width: '160px' },
 ]
@@ -169,7 +170,7 @@ onUnmounted(() => clearInterval(timer))
         <div class="rounded-xl border border-line bg-surface px-4 py-3">
           <div class="text-micro uppercase tracking-wider text-faint">Avg uptime</div>
           <div class="mt-1 font-mono text-metric" :class="stats.avg == null ? 'text-faint' : stats.avg >= 99 ? 'text-ok' : stats.avg >= 90 ? 'text-warn' : 'text-down'">{{ stats.avg == null ? '—' : stats.avg + '%' }}</div>
-          <div class="mt-0.5 text-micro text-faint">over recent checks</div>
+          <div class="mt-0.5 text-micro text-faint">over the last 24h</div>
         </div>
       </div>
 
@@ -210,7 +211,7 @@ onUnmounted(() => clearInterval(timer))
           </template>
           <template #cell-uptime="{ row }">
             <span class="font-mono text-sm tabular-nums" :class="row.uptime == null ? 'text-faint' : row.uptime >= 99 ? 'text-ok' : row.uptime >= 90 ? 'text-warn' : 'text-down'"
-              v-tip="row.recent?.length ? `${row.uptime}% over the last ${row.recent.length} checks (~${fmtDur(windowSecs(row))})` : 'No checks yet'">{{ row.uptime == null ? 'N/A' : row.uptime + '%' }}</span>
+              v-tip="row.uptime == null ? 'No checks in the last 24h' : `${row.uptime}% uptime over the last 24 hours`">{{ row.uptime == null ? 'N/A' : row.uptime + '%' }}</span>
           </template>
           <template #cell-latency_ms="{ row }">
             <UtilBar v-if="row.latency_ms != null" :value="row.latency_ms" :max="1000" width="w-12"><span class="font-mono text-sm tabular-nums text-fg">{{ row.latency_ms }} ms</span></UtilBar>

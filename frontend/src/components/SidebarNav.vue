@@ -32,7 +32,7 @@ const groups = computed(() =>
       owns: ['system'],
       children: [
         { label: 'All', name: 'systems', icon: 'server', owns: ['system'] },
-        { label: 'Needs attention', name: 'attention', icon: 'alert-triangle' },
+        { label: 'Issues', name: 'attention', icon: 'alert-triangle' },
       ],
     },
     {

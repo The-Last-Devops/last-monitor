@@ -20,6 +20,8 @@ pub struct MonitorRow {
     pub latency_ms: Option<i32>,
     pub last_check: Option<chrono::DateTime<chrono::Utc>>,
     pub message: Option<String>,
+    /// Uptime % over the last 24 hours (avg of up-beats). None if no beats yet.
+    pub uptime_24h: Option<f64>,
     /// Last ~40 heartbeats (oldest→newest) for the row's mini uptime bar.
     pub recent: Vec<bool>,
 }
@@ -93,6 +95,25 @@ pub async fn list_monitors(
         recent.entry(mid).or_default().push(up);
     }
 
+    // 24h uptime % per monitor — avg of up-beats over the last 24 hours, in ONE
+    // grouped query (mirrors the detail page's fixed-window figures).
+    let uptime_rows: Vec<(Uuid, Option<f64>)> = sqlx::query_as(
+        "SELECT monitor_id, avg((up)::int)::float8 * 100 \
+         FROM heartbeats WHERE monitor_id = ANY($1) AND time > now() - interval '24 hours' \
+         GROUP BY monitor_id",
+    )
+    .bind(&ids)
+    .fetch_all(&state.data)
+    .await
+    .map_err(internal)?;
+    let mut uptime_24h: std::collections::HashMap<Uuid, f64> =
+        std::collections::HashMap::with_capacity(uptime_rows.len());
+    for (mid, pct) in uptime_rows {
+        if let Some(p) = pct {
+            uptime_24h.insert(mid, p);
+        }
+    }
+
     let mut rows = Vec::with_capacity(monitors.len());
     for (id, name, kind, target, namespace, interval_secs, enabled, config) in monitors {
         let (last_check, up, latency_ms, message) = match latest.remove(&id) {
@@ -118,6 +139,7 @@ pub async fn list_monitors(
             latency_ms,
             last_check,
             message,
+            uptime_24h: uptime_24h.remove(&id),
             recent: recent.remove(&id).unwrap_or_default(),
         });
     }

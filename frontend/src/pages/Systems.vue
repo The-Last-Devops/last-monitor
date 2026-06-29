@@ -64,9 +64,17 @@ const shortName = (n) => (n && n.length > 12 ? n.slice(0, 12) + '…' : n)
 const preds = computed(() => parseQuery(q.value))
 // "Needs attention" sub-view (/attention) narrows everything to abnormal hosts.
 const attnMode = computed(() => route.name === 'attention')
+// Optional ?status= focuses the sub-view on one severity (down/crit/warn).
+const SEV_OF_STATUS = { down: 3, crit: 2, warn: 1 }
+const attnStatus = computed(() => SEV_OF_STATUS[route.query.status] ?? null)
+// Page heading/title: reflect the focused status when one is set, else "Issues".
+const ATTN_LABEL = { down: 'Down', crit: 'Critical', warn: 'Warning' }
+const attnTitle = computed(() => (attnMode.value ? ATTN_LABEL[route.query.status] || 'Issues' : 'Infrastructure'))
 const visible = computed(() => {
   let list = servers.value.filter((s) => inNs(s) && preds.value.every((p) => matchPred(s, p)))
-  if (attnMode.value) list = list.filter((s) => sevOf(s) > 0)
+  if (attnMode.value) {
+    list = attnStatus.value != null ? list.filter((s) => sevOf(s) === attnStatus.value) : list.filter((s) => sevOf(s) > 0)
+  }
   return list
 })
 function sortList(list, st) {
@@ -243,7 +251,7 @@ const detailLink = (s) => {
 </script>
 
 <template>
-  <AppShell :title="attnMode ? 'Needs attention' : 'Infrastructure'">
+  <AppShell :title="attnTitle">
     <div class="space-y-5">
       <!-- hero -->
       <section class="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -268,7 +276,7 @@ const detailLink = (s) => {
       <section v-if="attnMode && attnHosts.length" class="overflow-hidden rounded-xl border border-warn/30 bg-warn/5">
         <div class="flex items-center gap-2 px-4 py-3">
           <svg class="h-4 w-4 text-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
-          <h2 class="text-sm font-semibold text-fg">Needs attention</h2>
+          <h2 class="text-sm font-semibold text-fg">{{ attnTitle }}</h2>
           <span class="rounded-full bg-surface2 px-2 py-0.5 text-xs text-muted">{{ attnHosts.length }} hosts</span>
         </div>
         <div class="flex flex-wrap gap-2 border-t border-line/60 p-3">
@@ -333,17 +341,17 @@ const detailLink = (s) => {
         <div class="mb-2 flex items-center gap-2"><h2 class="text-sm font-semibold text-fg">Hosts</h2><span class="rounded-full bg-surface2 px-2 py-0.5 text-xs text-muted">{{ rows.length }}</span></div>
         <div class="overflow-x-auto rounded-xl border border-line">
           <table class="w-full min-w-[1040px] text-sm">
-            <thead class="border-b border-line bg-surface text-left text-xs uppercase tracking-wider text-muted"><tr>
+            <thead class="border-b border-line2 bg-head text-left text-xs uppercase tracking-wide text-fg"><tr>
               <th class="w-8 px-3 py-2.5"><input type="checkbox" :checked="rows.length && rows.every((s)=>selected.has(s.id))" @change="toggleAll(rows)" class="h-4 w-4 accent-accent" /></th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('name')">Host{{ arrow('name') }}</th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('ns')">Namespace{{ arrow('ns') }}</th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('type')">Type{{ arrow('type') }}</th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('cluster')">Cluster{{ arrow('cluster') }}</th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('status')">Status{{ arrow('status') }}</th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('cpu')">CPU{{ arrow('cpu') }}</th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('mem')">Memory{{ arrow('mem') }}</th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('disk')">Disk{{ arrow('disk') }}</th>
-              <th class="cursor-pointer select-none px-4 py-2.5 font-medium hover:text-fg" @click="sortBy('agent')">Agent{{ arrow('agent') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-extrabold hover:text-fg" @click="sortBy('name')">Host{{ arrow('name') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-extrabold hover:text-fg" @click="sortBy('ns')">Namespace{{ arrow('ns') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-extrabold hover:text-fg" @click="sortBy('type')">Type{{ arrow('type') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-extrabold hover:text-fg" @click="sortBy('cluster')">Cluster{{ arrow('cluster') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-extrabold hover:text-fg" @click="sortBy('status')">Status{{ arrow('status') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-extrabold hover:text-fg" @click="sortBy('cpu')">CPU{{ arrow('cpu') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-extrabold hover:text-fg" @click="sortBy('mem')">Memory{{ arrow('mem') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-extrabold hover:text-fg" @click="sortBy('disk')">Disk{{ arrow('disk') }}</th>
+              <th class="cursor-pointer select-none px-4 py-2.5 font-extrabold hover:text-fg" @click="sortBy('agent')">Agent{{ arrow('agent') }}</th>
             </tr></thead>
             <tbody>
               <template v-for="s in rows" :key="s.id">
@@ -354,7 +362,7 @@ const detailLink = (s) => {
                       <button v-if="s.kind === 'docker'" @click="toggleDocker(s)" class="text-muted hover:text-accent"><svg class="h-4 w-4 transition-transform" :class="expanded.has(s.id) ? 'rotate-90' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></button>
                       <span v-else class="w-4 shrink-0"></span>
                       <span class="h-2 w-2 shrink-0 rounded-full" v-tip="online(s) ? 'online' : 'offline'" :style="{ background: colorOf[s.name] }"></span>
-                      <RouterLink :to="detailLink(s)" class="text-fg hover:text-accent">{{ s.name }}</RouterLink>
+                      <RouterLink :to="detailLink(s)" class="font-mono text-fg hover:text-accent">{{ s.name }}</RouterLink>
                     </div>
                   </td>
                   <td class="px-4 py-3"><button @click="setFilter('ns', s.namespace)" v-tip="`Filter ns:${s.namespace}`" class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted hover:text-accent">{{ s.namespace || '—' }}</button></td>
@@ -368,7 +376,7 @@ const detailLink = (s) => {
                 </tr>
                 <tr v-for="c in (containers[s.id] || [])" v-show="s.kind === 'docker' && expanded.has(s.id)" :key="s.id + ':' + c.name" class="vantage-row border-b border-line bg-bg/40">
                   <td></td>
-                  <td class="px-4 py-2"><RouterLink :to="`/system/${s.id}?type=container&name=${encodeURIComponent(c.name)}&parent=${encodeURIComponent(s.name)}&ptype=docker`" class="flex items-center gap-2 pl-10 text-sm text-fg hover:text-accent"><span class="text-faint">└</span>{{ c.name }}</RouterLink></td>
+                  <td class="px-4 py-2"><RouterLink :to="`/system/${s.id}?type=container&name=${encodeURIComponent(c.name)}&parent=${encodeURIComponent(s.name)}&ptype=docker`" class="flex items-center gap-2 pl-10 font-mono text-sm text-fg hover:text-accent"><span class="text-faint">└</span>{{ c.name }}</RouterLink></td>
                   <td class="px-4 py-2 text-faint">—</td>
                   <td class="px-4 py-2"><span class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-faint">container</span></td>
                   <td class="px-4 py-2 text-faint">—</td>

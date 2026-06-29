@@ -99,10 +99,10 @@ onMounted(load)
       <div class="overflow-hidden rounded-xl border border-line bg-surface">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
-            <thead><tr class="border-b border-line text-left text-[11px] uppercase tracking-wider text-faint">
-              <th class="px-4 py-3 font-medium">Name</th>
-              <th class="px-4 py-3 font-medium">Fingerprint</th>
-              <th class="px-4 py-3 font-medium">Added</th>
+            <thead><tr class="border-b border-line2 bg-head text-left text-xs uppercase tracking-wide text-fg">
+              <th class="px-4 py-3 font-extrabold">Name</th>
+              <th class="px-4 py-3 font-extrabold">Fingerprint</th>
+              <th class="px-4 py-3 font-extrabold">Added</th>
               <th class="px-4 py-3"></th>
             </tr></thead>
             <tbody>

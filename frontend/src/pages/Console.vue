@@ -5,9 +5,10 @@
 //      unsealed with your account password) → POST .../console/ticket → ticket.
 //   3. Open WS .../console?ticket=<id>, pipe xterm <-> binary stdout/stdin, JSON resize.
 // On close → "Session ended" + Reconnect (re-does the ticket step).
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { confirm } from '../lib/confirm'
+import { useUi } from '../stores/ui'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -16,6 +17,15 @@ import { api } from '../lib/api'
 
 const route = useRoute()
 const router = useRouter()
+const ui = useUi()
+// Re-skin a live terminal when the light/dark theme toggles — xterm reads its
+// colours once at init, so reapply the CSS-var-derived theme on every change.
+watch(
+  () => ui.light,
+  () => {
+    if (term) term.options.theme = termTheme()
+  },
+)
 const id = computed(() => route.params.id)
 // preserve the namespace selection on the breadcrumb links
 const nsq = computed(() => (route.query.ns ? { ns: route.query.ns } : {}))

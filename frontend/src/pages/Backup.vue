@@ -141,7 +141,7 @@ onMounted(() => { if (isAdmin.value) { loadS3(); listS3(); loadSchedule() } })
 
         <div v-if="s3keys.length" class="mt-2 overflow-hidden rounded-lg border border-line">
           <table class="w-full text-sm">
-            <thead><tr class="border-b border-line text-left text-[11px] uppercase tracking-wider text-faint"><th class="px-3 py-2 font-medium">Backup object</th><th class="px-3 py-2"></th></tr></thead>
+            <thead><tr class="border-b border-line2 bg-head text-left text-xs uppercase tracking-wide text-fg"><th class="px-3 py-2 font-extrabold">Backup object</th><th class="px-3 py-2"></th></tr></thead>
             <tbody>
               <tr v-for="k in s3keys" :key="k" class="border-b border-line/60 last:border-0 hover:bg-surface2/40">
                 <td class="px-3 py-2 font-mono text-xs text-muted">{{ k }}</td>
