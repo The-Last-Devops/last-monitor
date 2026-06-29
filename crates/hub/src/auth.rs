@@ -214,6 +214,15 @@ pub async fn login(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
+    // Provision the user's SSH-key master key on first login post-upgrade (we have
+    // the plaintext password here). Best-effort — never block login on it.
+    if let Err(e) =
+        crate::masterkey::provision_if_missing(&state.config, &state.app_secrets, id, &req.password)
+            .await
+    {
+        tracing::warn!(error = %e, user = %email, "master key provisioning on login failed");
+    }
+
     let jar = mint_session(&state, jar, id).await?;
     Ok((
         jar,

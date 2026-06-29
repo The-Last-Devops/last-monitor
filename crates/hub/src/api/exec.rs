@@ -13,9 +13,9 @@ use crate::exec_crypto;
 async fn system_shell_row(
     state: &AppState,
     id: Uuid,
-) -> Result<(Uuid, Uuid, String, bool, i32), StatusCode> {
-    sqlx::query_as::<_, (Uuid, Uuid, String, bool, i32)>(
-        "SELECT namespace_id, key_id, hostname, shell_enabled, ssh_port FROM systems WHERE id = $1",
+) -> Result<(Uuid, Uuid, String, i32), StatusCode> {
+    sqlx::query_as::<_, (Uuid, Uuid, String, i32)>(
+        "SELECT namespace_id, key_id, hostname, ssh_port FROM systems WHERE id = $1",
     )
     .bind(id)
     .fetch_optional(&state.config)
@@ -26,7 +26,6 @@ async fn system_shell_row(
 
 #[derive(Serialize)]
 pub struct ShellStatus {
-    shell_enabled: bool,
     ssh_port: i32,
     tunnel_online: bool,
     can_exec: bool,
@@ -40,7 +39,7 @@ pub async fn get_shell(
     user: CurrentUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ShellStatus>, StatusCode> {
-    let (ns, key_id, hostname, shell_enabled, ssh_port) = system_shell_row(&state, id).await?;
+    let (ns, key_id, hostname, ssh_port) = system_shell_row(&state, id).await?;
     rbac::require_role(&state, &user, ns, Role::Viewer).await?;
     let can_exec = rbac::require_exec(&state, &user, ns).await.is_ok();
     let tunnel_online = state.tunnels.has(key_id, &hostname).await;
@@ -50,7 +49,6 @@ pub async fn get_shell(
         .await
         .map_err(internal)?;
     Ok(Json(ShellStatus {
-        shell_enabled,
         ssh_port,
         tunnel_online,
         can_exec,
@@ -60,11 +58,11 @@ pub async fn get_shell(
 
 #[derive(Deserialize)]
 pub struct PutShell {
-    shell_enabled: bool,
     ssh_port: i32,
 }
 
-/// PUT /api/systems/:id/shell — owner toggles the host-level shell opt-in + port.
+/// PUT /api/systems/:id/shell — owner sets the host's SSH port. (The shell is always
+/// available; there is no enable/disable flag — see migration 0021.)
 pub async fn put_shell(
     State(state): State<AppState>,
     user: CurrentUser,
@@ -76,9 +74,8 @@ pub async fn put_shell(
     if !(1..=65535).contains(&req.ssh_port) {
         return Err(StatusCode::BAD_REQUEST);
     }
-    sqlx::query("UPDATE systems SET shell_enabled = $2, ssh_port = $3 WHERE id = $1")
+    sqlx::query("UPDATE systems SET ssh_port = $2 WHERE id = $1")
         .bind(id)
-        .bind(req.shell_enabled)
         .bind(req.ssh_port)
         .execute(&state.config)
         .await
@@ -206,8 +203,18 @@ pub async fn create_ssh_key(
             "Encode failed.".to_string(),
         )
     })?;
-    let salt = exec_crypto::gen_salt();
-    let key_enc = exec_crypto::seal(&req.password, &salt, &sealed).map_err(|_| {
+    // Seal under the user's master key (provisioned if this is their first key).
+    let master =
+        crate::masterkey::ensure(&state.config, &state.app_secrets, user.id, &req.password)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "master key for ssh-key seal");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Server error.".to_string(),
+                )
+            })?;
+    let key_enc = exec_crypto::seal_with_key(&master, &sealed).map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             "Encryption failed.".to_string(),
@@ -215,13 +222,12 @@ pub async fn create_ssh_key(
     })?;
 
     let row = sqlx::query_as::<_, (Uuid, String)>(
-        "INSERT INTO ssh_keys (user_id, name, key_enc, kdf_salt, key_fingerprint) \
-         VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at::text",
+        "INSERT INTO ssh_keys (user_id, name, key_enc, key_fingerprint, enc_ver) \
+         VALUES ($1, $2, $3, $4, 2) RETURNING id, created_at::text",
     )
     .bind(user.id)
     .bind(&name)
     .bind(&key_enc)
-    .bind(&salt)
     .bind(&fingerprint)
     .fetch_one(&state.config)
     .await
@@ -290,10 +296,10 @@ pub async fn console_ticket(
     Path(id): Path<Uuid>,
     Json(req): Json<TicketReq>,
 ) -> Result<Json<TicketResp>, StatusCode> {
-    let (ns, key_id, hostname, _shell_enabled, ssh_port) = system_shell_row(&state, id).await?;
+    let (ns, key_id, hostname, ssh_port) = system_shell_row(&state, id).await?;
     rbac::require_exec(&state, &user, ns).await?;
-    // (shell is always available now; access is gated by require_exec + step-up + the
-    // host's own SSH auth — the per-host enable/disable toggle was removed.)
+    // (shell is always available; access is gated by require_exec + step-up + the
+    // host's own SSH auth — the per-host enable/disable toggle was removed in 0021.)
     if !state.tunnels.has(key_id, &hostname).await {
         return Err(StatusCode::BAD_REQUEST); // agent offline
     }
@@ -327,17 +333,55 @@ pub async fn console_ticket(
             {
                 return Err(StatusCode::BAD_REQUEST);
             }
-            let (key_enc, kdf_salt) = sqlx::query_as::<_, (Vec<u8>, Vec<u8>)>(
-                "SELECT key_enc, kdf_salt FROM ssh_keys WHERE id = $1 AND user_id = $2",
-            )
-            .bind(key_id_sel)
-            .bind(user.id)
-            .fetch_optional(&state.config)
-            .await
-            .map_err(internal)?
-            .ok_or(StatusCode::BAD_REQUEST)?; // no such key for this user
-            let raw = exec_crypto::open(&account_password, &kdf_salt, &key_enc)
-                .map_err(|_| StatusCode::BAD_REQUEST)?;
+            let (key_enc, kdf_salt, enc_ver) =
+                sqlx::query_as::<_, (Vec<u8>, Option<Vec<u8>>, i16)>(
+                    "SELECT key_enc, kdf_salt, enc_ver FROM ssh_keys WHERE id = $1 AND user_id = $2",
+                )
+                .bind(key_id_sel)
+                .bind(user.id)
+                .fetch_optional(&state.config)
+                .await
+                .map_err(internal)?
+                .ok_or(StatusCode::BAD_REQUEST)?; // no such key for this user
+
+            let raw = if enc_ver >= 2 {
+                // sealed under the user's master key
+                let master = crate::masterkey::ensure(
+                    &state.config,
+                    &state.app_secrets,
+                    user.id,
+                    &account_password,
+                )
+                .await
+                .map_err(internal)?;
+                exec_crypto::open_with_key(&master, &key_enc)
+                    .map_err(|_| StatusCode::BAD_REQUEST)?
+            } else {
+                // legacy: sealed directly under the password KEK. Open it, then transparently
+                // re-seal under the master key so it's never opened the old way again.
+                let salt = kdf_salt.ok_or(StatusCode::BAD_REQUEST)?;
+                let raw = exec_crypto::open(&account_password, &salt, &key_enc)
+                    .map_err(|_| StatusCode::BAD_REQUEST)?;
+                if let Ok(master) = crate::masterkey::ensure(
+                    &state.config,
+                    &state.app_secrets,
+                    user.id,
+                    &account_password,
+                )
+                .await
+                {
+                    if let Ok(new_enc) = exec_crypto::seal_with_key(&master, &raw) {
+                        let _ = sqlx::query(
+                            "UPDATE ssh_keys SET key_enc = $2, enc_ver = 2, kdf_salt = NULL WHERE id = $1",
+                        )
+                        .bind(key_id_sel)
+                        .bind(&new_enc)
+                        .execute(&state.config)
+                        .await;
+                    }
+                }
+                raw
+            };
             // New keys seal a JSON {pem, passphrase}; older ones sealed the raw PEM.
             match serde_json::from_slice::<SealedKey>(&raw) {
                 Ok(sk) => ExecAuth::Key {

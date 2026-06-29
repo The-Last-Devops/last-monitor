@@ -112,6 +112,49 @@ Open **http://localhost:8080**. On first run you create the admin account (or se
 For **production** — Docker with published images, or **Kubernetes** via the Helm chart —
 see the [deploy guide](deploy/README.md).
 
+## SSH key encryption (`EXEC_APP_SECRET`)
+
+Users' stored SSH private keys are protected with **envelope encryption**. Each user has
+one random **master key** that seals their keys; the master key is itself wrapped in two
+layers:
+
+1. **inner — the user's password** (argon2id). The hub can unwrap a master key only while
+   the user supplies their password (at login / console step-up). Changing a password only
+   re-wraps the master key, so the user's keys keep working — no bulk re-encryption.
+2. **outer — the application secret** `EXEC_APP_SECRET` (kept in env / a secrets manager,
+   **never in the database**). A database leak therefore can't unwrap anything, even with a
+   guessed password.
+
+Set a high-entropy secret in production (omit it in dev → only the password layer applies,
+and the hub logs a warning):
+
+```bash
+EXEC_APP_SECRET="$(openssl rand -base64 32)"   # 32 random bytes; store it safely!
+```
+
+> ⚠️ **Back up `EXEC_APP_SECRET`.** If you lose it, every user's master key (and thus their
+> SSH keys) becomes undecryptable. Keep it in a secrets manager, not only in the DB host.
+
+### Rotating the application secret
+
+Rotation re-wraps only the **outer** layer of each master key — no user passwords are
+needed. Run the hub binary's one-shot subcommand with both the new and old secret set:
+
+```bash
+EXEC_APP_SECRET="<NEW secret>" \
+EXEC_APP_SECRET_OLD="<previous secret>" \
+CONFIG_DATABASE_URL=… DATA_DATABASE_URL=… \
+  vantage-hub rotate-app-secret          # or: bash scripts/rotate-app-secret.sh
+```
+
+It re-wraps every user to the new secret and prints how many were updated. Once it succeeds,
+drop `EXEC_APP_SECRET_OLD` and restart the hub with only the new `EXEC_APP_SECRET`. (The same
+command also **enables** the secret for the first time on an existing deployment.)
+
+> An **admin password reset** can't recover a user's keys (the old password is unknown), so it
+> mints a fresh master key and drops that user's stored SSH keys — they re-add them. A user
+> changing **their own** password (with the old one) keeps their keys.
+
 ## Adding servers
 
 In the UI: **Add system** → pick Node / Docker / Kubernetes → copy the install snippet. The

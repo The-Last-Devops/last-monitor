@@ -21,11 +21,23 @@ pub async fn connect() -> Result<AppState> {
         .await
         .context("connecting to data DB")?;
 
+    let app_secrets = crate::exec_crypto::AppSecrets::from_env();
+    if app_secrets.enabled() {
+        tracing::info!("EXEC_APP_SECRET set — SSH key master keys are wrapped with the app secret");
+    } else {
+        tracing::warn!(
+            "EXEC_APP_SECRET is not set — users' SSH key master keys are protected by password \
+             ONLY. A DB leak + a guessed password would expose keys. Set EXEC_APP_SECRET in \
+             production (see README), then run `vantage-hub rotate-app-secret`."
+        );
+    }
+
     Ok(AppState {
         config,
         data,
         tunnels: crate::tunnel::TunnelRegistry::new(),
         exec_tickets: crate::console::ExecTickets::new(),
+        app_secrets: std::sync::Arc::new(app_secrets),
     })
 }
 

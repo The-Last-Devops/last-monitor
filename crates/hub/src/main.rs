@@ -20,6 +20,7 @@ mod db;
 mod exec_crypto;
 mod ingest;
 mod install;
+mod masterkey;
 mod mcp;
 mod net_guard;
 mod notify;
@@ -48,6 +49,9 @@ pub struct AppState {
     pub tunnels: tunnel::TunnelRegistry,
     /// Pending console step-up tickets (short-lived, single-use). See `console.rs`.
     pub exec_tickets: console::ExecTickets,
+    /// Application secret(s) wrapping the outer layer of every user's master key
+    /// (the "pepper"). Loaded from `EXEC_APP_SECRET`; see `exec_crypto.rs`.
+    pub app_secrets: std::sync::Arc<exec_crypto::AppSecrets>,
 }
 
 #[tokio::main]
@@ -58,6 +62,14 @@ async fn main() -> Result<()> {
                 .unwrap_or_else(|_| "info,sqlx=warn".into()),
         )
         .init();
+
+    // CLI subcommands (operational, one-shot — exit instead of serving).
+    if std::env::args().nth(1).as_deref() == Some("rotate-app-secret") {
+        let state = db::connect().await?;
+        let n = masterkey::rotate_app_secret(&state.config, &state.app_secrets).await?;
+        println!("re-wrapped {n} user master key(s) to the current EXEC_APP_SECRET");
+        return Ok(());
+    }
 
     let state = db::connect().await?;
     db::migrate(&state).await?;
@@ -90,6 +102,7 @@ async fn main() -> Result<()> {
         .route("/api/auth/login", post(auth::login))
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/me", get(auth::me))
+        .route("/api/me/password", post(api::change_my_password))
         // admin user provisioning + data management
         .route("/mcp", post(mcp::handle))
         .route("/api/pats", get(api::list_pats).post(api::create_pat))

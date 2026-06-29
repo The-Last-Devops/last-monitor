@@ -151,7 +151,64 @@ pub async fn patch_user(
             .execute(&state.config)
             .await
             .map_err(internal)?;
+        // Admin reset has no access to the OLD password, so the user's master key
+        // can't be re-wrapped — mint a fresh one under the new password and drop
+        // their now-unrecoverable SSH keys (they'll re-add them). This is by design.
+        let dropped = crate::masterkey::reset(&state.config, &state.app_secrets, id, &password)
+            .await
+            .map_err(internal)?;
+        if dropped > 0 {
+            tracing::warn!(
+                user = %id,
+                dropped,
+                "admin password reset dropped the user's SSH keys (sealed under the old, \
+                 unrecoverable master key) — the user must re-add them"
+            );
+        }
     }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize)]
+pub struct ChangePassword {
+    pub current_password: String,
+    pub new_password: String,
+}
+
+/// POST /api/me/password — the signed-in user changes their OWN password. Unlike the
+/// admin reset, this knows the old password, so the master key is re-wrapped and the
+/// user's SSH keys keep working.
+pub async fn change_my_password(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Json(req): Json<ChangePassword>,
+) -> Result<StatusCode, StatusCode> {
+    if !crate::auth::verify_user_password(&state.config, user.id, &req.current_password)
+        .await
+        .map_err(internal)?
+    {
+        return Err(StatusCode::UNAUTHORIZED); // wrong current password
+    }
+    if !valid_password(&req.new_password) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    // Re-wrap the master key old→new FIRST (so SSH keys survive), then swap the hash.
+    crate::masterkey::rewrap_password(
+        &state.config,
+        &state.app_secrets,
+        user.id,
+        &req.current_password,
+        &req.new_password,
+    )
+    .await
+    .map_err(internal)?;
+    let hash = crate::auth::hash_password(&req.new_password).map_err(internal)?;
+    sqlx::query("UPDATE users SET password_hash = $1 WHERE id = $2")
+        .bind(&hash)
+        .bind(user.id)
+        .execute(&state.config)
+        .await
+        .map_err(internal)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
