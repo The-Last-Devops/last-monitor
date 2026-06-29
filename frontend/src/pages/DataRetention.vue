@@ -45,7 +45,7 @@ async function save(tier) {
         <section class="space-y-3">
           <div class="flex items-baseline gap-2">
             <h2 class="text-sm font-semibold text-fg">Database</h2>
-            <span class="text-2xl font-semibold text-fg">{{ stats.db_size }}</span>
+            <span class="text-metric font-mono text-fg">{{ stats.db_size }}</span>
             <span class="text-xs text-muted">total on disk</span>
           </div>
           <div class="overflow-hidden rounded-xl border border-line bg-surface">
