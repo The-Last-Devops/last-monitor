@@ -69,10 +69,6 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
 
       <NamespacePicker />
 
-      <span class="hidden items-center gap-1.5 font-mono text-xs text-faint sm:inline-flex">
-        <span class="h-[7px] w-[7px] rounded-full bg-ok"></span><span class="hidden lg:inline">live</span>
-      </span>
-
       <span class="h-[22px] w-px bg-line2"></span>
 
       <RouterLink :to="{ name: 'events' }" v-tip="`Alerts`"

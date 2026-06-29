@@ -20,6 +20,7 @@ mod monitors;
 mod namespaces;
 mod pats;
 mod servers;
+mod twofa;
 mod users;
 
 pub use alerting::*;
@@ -30,6 +31,7 @@ pub use monitors::*;
 pub use namespaces::*;
 pub use pats::*;
 pub use servers::*;
+pub use twofa::*;
 pub use users::*;
 
 /// A user-facing display name (channel / monitor / system / status-page title…):

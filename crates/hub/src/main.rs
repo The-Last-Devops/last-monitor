@@ -104,6 +104,10 @@ async fn main() -> Result<()> {
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/me", get(auth::me))
         .route("/api/me/password", post(api::change_my_password))
+        .route("/api/me/2fa", get(api::twofa_status))
+        .route("/api/me/2fa/start", post(api::twofa_start))
+        .route("/api/me/2fa/enable", post(api::twofa_enable))
+        .route("/api/me/2fa/disable", post(api::twofa_disable))
         // admin user provisioning + data management
         .route("/mcp", post(mcp::handle))
         .route("/api/pats", get(api::list_pats).post(api::create_pat))

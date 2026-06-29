@@ -83,6 +83,13 @@ const shownHistory = computed(() =>
   ),
 )
 
+// paginate the (time-growing) history so it can't run off the page
+const HIST_PAGE = 30
+const histPage = ref(1)
+const histPages = computed(() => Math.max(1, Math.ceil(shownHistory.value.length / HIST_PAGE)))
+const pagedHistory = computed(() => shownHistory.value.slice((histPage.value - 1) * HIST_PAGE, histPage.value * HIST_PAGE))
+watch(shownHistory, () => { if (histPage.value > histPages.value) histPage.value = 1 })
+
 function ruleLink(id) { return { name: 'alerts', query: { ...nsQuery.value, rule: id } } }
 function dur(ms) {
   if (ms == null) return ''
@@ -165,8 +172,8 @@ onUnmounted(() => clearInterval(timer))
         <!-- earlier -->
         <section v-if="shownHistory.length" class="space-y-1">
           <div class="text-[11px] font-bold uppercase tracking-wider text-faint">Earlier</div>
-          <div class="overflow-hidden rounded-xl border border-line bg-surface">
-            <RouterLink v-for="(e, i) in shownHistory" :key="i" :to="ruleLink(e.alert_id)"
+          <div class="max-h-[70vh] overflow-y-auto rounded-xl border border-line bg-surface">
+            <RouterLink v-for="(e, i) in pagedHistory" :key="i" :to="ruleLink(e.alert_id)"
               class="flex items-start gap-3.5 border-b border-line/60 px-4 py-3 transition-colors last:border-0 hover:bg-surface2">
               <span class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg"
                 :class="e.firing ? 'bg-red-500/15 text-red-400' : 'bg-accent/15 text-accent'">
@@ -185,6 +192,13 @@ onUnmounted(() => clearInterval(timer))
               </div>
               <span class="shrink-0 pl-2 text-xs tabular-nums text-faint">{{ evTime(e.at) }}</span>
             </RouterLink>
+          </div>
+          <div v-if="histPages > 1" class="flex items-center justify-between px-1 pt-1 text-xs">
+            <button :disabled="histPage <= 1" @click="histPage--"
+              class="rounded-lg border border-line px-2.5 py-1 text-muted hover:border-accent/50 hover:text-fg disabled:opacity-40">Prev</button>
+            <span class="tabular-nums text-faint">Page {{ histPage }} / {{ histPages }} · {{ shownHistory.length }} events</span>
+            <button :disabled="histPage >= histPages" @click="histPage++"
+              class="rounded-lg border border-line px-2.5 py-1 text-muted hover:border-accent/50 hover:text-fg disabled:opacity-40">Next</button>
           </div>
         </section>
       </template>

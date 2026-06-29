@@ -194,13 +194,18 @@ pub async fn verify_user_password(
 pub struct LoginReq {
     pub email: String,
     pub password: String,
+    /// TOTP code (or a backup code), required only when the account has 2FA enabled.
+    #[serde(default)]
+    pub totp_code: Option<String>,
 }
 
+/// Login response: either `{ twofa_required: true }` (no session minted — the SPA must
+/// re-submit with a code) or the [`CurrentUser`] object on success.
 pub async fn login(
     State(state): State<AppState>,
     jar: CookieJar,
     Json(req): Json<LoginReq>,
-) -> Result<(CookieJar, Json<CurrentUser>), StatusCode> {
+) -> Result<(CookieJar, Json<serde_json::Value>), StatusCode> {
     let user: Option<(Uuid, String, String, bool, bool)> = sqlx::query_as(
         "SELECT id, email, password_hash, is_admin, read_all FROM users WHERE email = $1",
     )
@@ -214,6 +219,21 @@ pub async fn login(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
+    // Second factor (opt-in). If enabled, require a valid TOTP / backup code before a
+    // session is minted; signal the SPA to collect one when it's missing.
+    if crate::api::is_enabled(&state.config, id)
+        .await
+        .map_err(internal)?
+    {
+        let code = req.totp_code.as_deref().unwrap_or("").trim().to_string();
+        if code.is_empty() {
+            return Ok((jar, Json(serde_json::json!({ "twofa_required": true }))));
+        }
+        if !crate::api::verify_login(&state, id, &code).await? {
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+    }
+
     // Provision the user's SSH-key master key on first login post-upgrade (we have
     // the plaintext password here). Best-effort — never block login on it.
     if let Err(e) =
@@ -224,15 +244,13 @@ pub async fn login(
     }
 
     let jar = mint_session(&state, jar, id).await?;
-    Ok((
-        jar,
-        Json(CurrentUser {
-            id,
-            email,
-            is_admin,
-            read_all,
-        }),
-    ))
+    let me = CurrentUser {
+        id,
+        email,
+        is_admin,
+        read_all,
+    };
+    Ok((jar, Json(serde_json::to_value(me).map_err(internal)?)))
 }
 
 pub async fn logout(

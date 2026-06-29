@@ -23,9 +23,12 @@ export const useAuth = defineStore('auth', {
       } catch { this.user = null }
       this.ready = true
     },
-    async login(email, password) {
-      this.user = await api.post('/api/auth/login', { email, password })
+    async login(email, password, totpCode) {
+      const r = await api.post('/api/auth/login', { email, password, totp_code: totpCode })
+      if (r && r.twofa_required) return { twofaRequired: true } // need a 2FA code; no session yet
+      this.user = r
       this.needsSetup = false
+      return { twofaRequired: false }
     },
     async createAdmin(email, password) {
       this.user = await api.post('/api/setup', { email, password })
