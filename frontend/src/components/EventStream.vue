@@ -27,15 +27,15 @@ watch(() => props.events, () => { if (page.value > pages.value) page.value = 1 }
 </script>
 
 <template>
-  <div class="overflow-hidden rounded-xl border border-line bg-surface">
-    <div class="flex items-center gap-2 border-b border-line2 bg-head px-4 py-2.5">
+  <div class="flex max-h-[calc(100vh-15rem)] flex-col overflow-hidden rounded-xl border border-line bg-surface">
+    <div class="flex shrink-0 items-center gap-2 border-b border-line2 bg-head px-4 py-2.5">
       <VIcon name="pulse" :size="16" class="text-faint" />
       <h2 class="text-xs font-extrabold uppercase tracking-wide text-fg">Recent events</h2>
       <span class="rounded-pill bg-surface2 px-2 py-0.5 text-micro text-muted">{{ events.length }}</span>
     </div>
     <p v-if="!events.length" class="px-4 py-8 text-center text-sm text-muted">No status changes recorded recently.</p>
     <template v-else>
-      <ul class="max-h-[min(430px,calc(100vh-15rem))] divide-y divide-line overflow-y-auto">
+      <ul class="min-h-0 flex-1 divide-y divide-line overflow-y-auto">
         <li v-for="(e, i) in shown" :key="start + i" class="flex items-start gap-3 px-4 py-2.5 hover:bg-hover">
           <StatePill :tone="e.up ? 'ok' : 'down'" :label="e.up ? 'Up' : 'Down'" class="mt-0.5 shrink-0" />
           <div class="min-w-0 flex-1">
@@ -50,7 +50,7 @@ watch(() => props.events, () => { if (page.value > pages.value) page.value = 1 }
           </div>
         </li>
       </ul>
-      <div v-if="pages > 1" class="flex items-center justify-between border-t border-line px-4 py-2.5 text-xs">
+      <div v-if="pages > 1" class="flex shrink-0 items-center justify-between border-t border-line px-4 py-2.5 text-xs">
         <button :disabled="page <= 1" @click="page--"
           class="rounded-lg border border-line px-2.5 py-1 text-muted hover:border-accent/50 hover:text-fg disabled:opacity-40">Prev</button>
         <span class="font-mono tabular-nums text-faint">Page {{ page }} / {{ pages }}</span>

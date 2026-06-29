@@ -233,7 +233,7 @@ onUnmounted(() => clearInterval(timer))
         </DataTable>
 
         <!-- recent events side panel -->
-        <EventStream v-if="!downOnly" :events="shownEvents" :ev-time="evTime" :ev-message="evMessage" :state-dur="stateDur" :fmt-dur="fmtDur" class="h-fit" />
+        <EventStream v-if="!downOnly" :events="shownEvents" :ev-time="evTime" :ev-message="evMessage" :state-dur="stateDur" :fmt-dur="fmtDur" class="min-[1080px]:sticky min-[1080px]:top-6" />
       </div>
     </div>
   </AppShell>
