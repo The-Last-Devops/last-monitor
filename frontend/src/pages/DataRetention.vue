@@ -110,7 +110,7 @@ const TH = 'border-b border-line2 bg-head px-4 py-3 text-xs font-extrabold upper
             <div class="flex flex-wrap items-center justify-between gap-3">
               <label class="flex cursor-pointer items-center gap-3">
                 <input v-model="capEnabled" type="checkbox" class="peer sr-only" />
-                <span class="relative h-[22px] w-10 shrink-0 rounded-full bg-line transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-[18px] after:w-[18px] after:rounded-full after:bg-fg after:transition-transform peer-checked:bg-accent peer-checked:after:translate-x-[18px]"></span>
+                <span class="relative h-[22px] w-10 shrink-0 rounded-full bg-line transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-[18px] after:w-[18px] after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-accent peer-checked:after:translate-x-[18px]"></span>
                 <span class="text-sm text-fg">Auto-evict oldest data when over cap</span>
               </label>
               <div class="flex items-end gap-2">
