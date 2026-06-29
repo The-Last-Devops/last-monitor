@@ -89,7 +89,7 @@ const securedSub = computed(() => {
 })
 const backupTile = computed(() => {
   if (!backup.value) return { value: '—', sub: 'unknown', bad: false }
-  if (!backup.value.enabled) return { value: 'Off', sub: 'no schedule', bad: true, color: 'warn' }
+  if (!backup.value.enabled) return { value: 'Off', sub: 'no schedule', bad: true, color: 'down' }
   const last = backup.value.last_backup_at ? new Date(backup.value.last_backup_at) : null
   if (!last) return { value: 'Pending', sub: 'never run', bad: true, color: 'warn' }
   const days = (Date.now() - last.getTime()) / 86400000

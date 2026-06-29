@@ -112,7 +112,29 @@ Open **http://localhost:8080**. On first run you create the admin account (or se
 For **production** — Docker with published images, or **Kubernetes** via the Helm chart —
 see the [deploy guide](deploy/README.md).
 
-## SSH key encryption (`EXEC_APP_SECRET`)
+## Security
+
+Security is the top design constraint. What protects a Vantage deployment:
+
+- **Authentication** — opaque, revocable DB-backed **sessions** (httpOnly cookie; argon2id
+  passwords). Programmatic callers use **PATs** (`Authorization: Bearer <token>`); agents
+  authenticate per-request with a per-server `x-api-key`. **No open registration** — the first
+  admin is bootstrapped from `ADMIN_EMAIL`/`ADMIN_PASSWORD`, then admins provision users.
+- **Two-factor auth** (opt-in, per user — **Settings → Security**): an **authenticator app
+  (TOTP)** — scan a QR with Google Authenticator / 1Password / Authy — and/or **passkeys
+  (WebAuthn)** (Touch ID / Windows Hello / a security key). Sign-in then requires the second
+  factor; one-time backup codes are issued. See [docs/auth-2fa-passkey.md](docs/auth-2fa-passkey.md).
+- **Login throttle** — repeated failures lock the account for an escalating cooldown, so
+  passwords and 2FA codes can't be brute-forced online.
+- **Namespace-scoped RBAC** — `owner` / `editor` / `viewer` per namespace, plus a system
+  `admin`. Shell/exec into a host additionally requires the `can_exec` capability.
+- **Put the hub behind an auth gate.** Vantage authenticates every request, but you should
+  still front it with **nginx basic-auth**, **Cloudflare Zero Trust**, or a **VPN** so the
+  login page + `/api` aren't open to the internet — **allowing `/pub/*` through** for agents.
+  Set `PUBLIC_URL`, then **Settings → Security → Public exposure → Check now** verifies it.
+  See [docs/exposure.md](docs/exposure.md).
+
+### SSH key encryption (`EXEC_APP_SECRET`)
 
 Users' stored SSH private keys are protected with **envelope encryption**. Each user has
 one random **master key** that seals their keys; the master key is itself wrapped in two
@@ -169,6 +191,44 @@ docker run -d --restart=unless-stopped --pid=host \
 ```
 
 A **Helm chart** for the hub and a DaemonSet manifest for agents live in [deploy/](deploy/).
+
+## Environment variables
+
+### Hub (`vantage-hub`)
+
+| Variable | Required | Default | Meaning |
+|---|---|---|---|
+| `CONFIG_DATABASE_URL` | ✅ | — | Postgres URL for the **config** DB (users, namespaces, RBAC, server/monitor config, alert rules, status pages). |
+| `DATA_DATABASE_URL` | ✅ | — | Postgres **+ TimescaleDB** URL for the **data** DB (metrics & heartbeat hypertables). May point at the same instance early on. |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | — | — | Bootstrap the first admin on startup if that user doesn't exist. After first login, provision users in the UI. |
+| `EXEC_APP_SECRET` | — (prod: yes) | — | Application secret that wraps the **outer** layer of every user's SSH-key master key. **Set a high-entropy value in production** and back it up. Omitted → password-only protection + a startup warning. See [Security](#security). |
+| `EXEC_APP_SECRET_OLD` | — | — | The previous `EXEC_APP_SECRET`, set **only during a rotation** so old rows can be re-wrapped (`vantage-hub rotate-app-secret`). |
+| `PUBLIC_URL` | — | `WEBAUTHN_ORIGIN`'s first value | The hub's externally-reachable base URL (e.g. `https://vantage.example.com`). Used by the public-exposure self-check. |
+| `WEBAUTHN_RP_ID` | — | `localhost` | Passkey relying-party ID — the **registrable domain** (e.g. `vantage.example.com`). Must match the served domain or passkeys won't verify. |
+| `WEBAUTHN_ORIGIN` | — | `http://localhost:8080` | Passkey origin(s) — full scheme+host the SPA is served from. Comma-separate to allow several (e.g. dev `http://localhost:5173,http://localhost:8080`). |
+| `BIND_ADDR` | — | `0.0.0.0:8080` | Listen address. |
+| `INSECURE_COOKIES` | — | `0` | Set `1` to drop the `Secure` flag on the session cookie (local **http** dev only). |
+| `EGRESS_POLICY` | — | (allow private) | Set `strict` to also block private (RFC1918/ULA) outbound targets for probes / notify / backup (SSRF hardening). |
+| `LOCAL_API_KEY` | — | — | If set, auto-creates a `default` namespace + a `local` server enrolled with this key (lets the bundled compose agent report out of the box). |
+| `AUTO_UPDATE` | — | — | On the `:auto-update` channel under k8s, opt the hub into self-update. |
+| `RUST_LOG` | — | `info,sqlx=warn` | Log filter (`tracing` / `env_filter`). |
+
+> `GIT_SHA` / `VANTAGE_CHANNEL` are **build-time** args (set by CI, baked via `build.rs`) for the About page + auto-update channel — not runtime config.
+
+### Agent (`vantage-agent`)
+
+| Variable | Required | Default | Meaning |
+|---|---|---|---|
+| `HUB_URL` | ✅ | — | Base URL of the hub the agent pushes to (e.g. `https://vantage.example.com`). |
+| `API_KEY` | ✅ | — | The per-server enrollment key (sent as `x-api-key`). The hub maps it to a namespace; hosts auto-register. |
+| `INTERVAL` | — | hub-controlled | Optional push-cadence override (seconds). Normally the hub returns the next interval. |
+| `ALLOW_SHELL` | — | **on** | The reverse SSH tunnel for the browser console. Set `0`/`false`/`no`/`off` to disable shell access from this host. |
+| `HOSTNAME_OVERRIDE` | — | system hostname | The name this host reports as. |
+| `AGENT_KIND` | — | auto | Force the agent kind (`node` / `docker` / `kubernetes`) instead of auto-detecting. |
+| `CLUSTER` | — | — | Cluster label for grouping (Kubernetes). |
+| `DISK_PATH` | — | `/` | Filesystem path to report disk usage for (use `/host` when mounting the host root into a container). |
+| `NODE_NAME` | — | (k8s downward API) | The Kubernetes node name when running as a DaemonSet. |
+| `AUTO_UPDATE` | — | — | Opt the agent into self-update on the auto-update channel. |
 
 ## Development
 
