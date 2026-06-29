@@ -7,6 +7,11 @@ image:
 # Auto-update: when true, run the :auto-update image so each agent self-restarts to
 # follow the hub (k8s re-pulls). Overrides image.tag. Default false = manual updates.
 autoUpdate: false
+# Interactive shell/console: when true the agent opens a reverse tunnel so the hub can
+# SSH into this host (via the node's sshd on 127.0.0.1). Off by default — enabling it is
+# what makes the "Open console" button appear. The node must run sshd, and a user opens
+# the shell with their own SSH account + password/key. See docs/exec-design.md.
+allowShell: false
 pullPolicy: Always       # rolling tags are mutable → Always so a redeploy pulls the new build
 pullSecrets: []          # e.g. [ghcr] for private packages
 
