@@ -9,6 +9,42 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ## [Unreleased]
 
+## [2.3.10] — 2026-06-30
+
+### Added
+- **Data & retention now covers both databases** — the page shows the time-series
+  database (TimescaleDB) and the configuration database (PostgreSQL) side by side, each
+  with its size and per-table breakdown.
+- **Storage cap for the time-series database** — set a size ceiling and, optionally, let
+  the hub auto-evict the oldest data when usage goes over it (off by default; drops the
+  oldest time chunks first across every tier). Default ceiling 10 GB.
+
+### Changed
+- **Service Uptime and Trend now reflect the last 24 hours** — the Uptime column header
+  reads "Uptime 24h" and the trend sparkline shows one bar per hour over the past day.
+- **Zero-downtime auto-update** — when a new image is published the hub now triggers a
+  rolling redeploy of itself (new pod up and ready before the old one drains) instead of
+  exiting in place, which used to cause a brief 503 on every update.
+- **Status tiles filter by status** — clicking Down / Critical / Warning on the Overview
+  now opens the host list filtered to just that status; the page was renamed from
+  "Needs attention" to "Issues".
+- **New / Edit service form redesigned** — a single centred column grouped into Basics /
+  Schedule / HTTP options / Meta sections, with Name as the headline field.
+- **Tidier, calmer layouts** — page width is capped on very wide screens; the Services
+  summary is a slim figure strip; the recent-events panel fills the available height with
+  its own scroll and a pinned pager; dropdowns now show their full list instead of
+  clipping at ~7 rows; the Services and Infrastructure search boxes match and the Add
+  button sits beside them.
+- **Distinct sidebar icons** — every menu item now has its own meaningful icon.
+- Hand-built tables across Infrastructure, Backup, Audit, SSH keys, Data & retention and
+  API tokens now use the standard table-header style; machine identifiers are monospaced.
+- The SSH console terminal re-themes instantly when you toggle light/dark.
+
+### Fixed
+- **Passkeys work with no extra configuration** — the relying party is derived from the
+  page's own address, so passkeys register and sign in on whatever domain serves the hub
+  without setting `WEBAUTHN_RP_ID` / `WEBAUTHN_ORIGIN` (those remain optional overrides).
+
 ## [2.3.9] — 2026-06-29
 
 ### Changed
