@@ -1,6 +1,6 @@
 <script setup>
 // Interactive SSH console for a host. Flow:
-//   1. GET .../shell — gate on can_exec / shell_enabled / tunnel_online (no stored credential).
+//   1. GET .../shell — gate on can_exec / tunnel_online (no stored credential).
 //   2. Step-up: pick SSH user + auth method (host password, or a key from your library
 //      unsealed with your account password) → POST .../console/ticket → ticket.
 //   3. Open WS .../console?ticket=<id>, pipe xterm <-> binary stdout/stdin, JSON resize.
@@ -77,8 +77,9 @@ async function precheck() {
       try { const sys = await api.get('/api/systems'); resolvedName.value = sys.find((s) => s.id === id.value)?.name || '' } catch {}
     }
     const s = shell.value
+    // shell is always available now (the per-host enable/disable flag was removed);
+    // access is gated only by RBAC (can_exec) + a live agent tunnel.
     if (!s.can_exec) { phase.value = 'blocked'; blockedReason.value = "You don't have shell access on this host." }
-    else if (!s.shell_enabled) { phase.value = 'blocked'; blockedReason.value = 'Shell is disabled for this host.' }
     else if (!s.tunnel_online) { phase.value = 'blocked'; blockedReason.value = 'Agent offline — the host is not reachable right now.' }
     else { phase.value = 'auth'; loadKeys() }
   } catch (e) {

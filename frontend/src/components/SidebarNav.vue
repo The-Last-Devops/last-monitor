@@ -31,39 +31,40 @@ const groups = computed(() =>
       // so it stays highlighted + expanded when you're on them.
       owns: ['system'],
       children: [
-        { label: 'All', name: 'systems', owns: ['system'] },
-        { label: 'Needs attention', name: 'attention' },
+        { label: 'All', name: 'systems', icon: 'server', owns: ['system'] },
+        { label: 'Needs attention', name: 'attention', icon: 'alert-triangle' },
       ],
     },
     {
       key: 'services', label: 'Services', icon: 'service',
       owns: ['monitor', 'monitor-new', 'monitor-edit'],
       children: [
-        { label: 'All', name: 'monitors', owns: ['monitor', 'monitor-new', 'monitor-edit'] },
-        { label: 'Down', name: 'monitors', down: true },
+        { label: 'All', name: 'monitors', icon: 'service', owns: ['monitor', 'monitor-new', 'monitor-edit'] },
+        { label: 'Down', name: 'monitors', icon: 'wifi-off', down: true },
       ],
     },
     {
       key: 'alert', label: 'Alert', icon: 'alert-triangle',
       owns: ['alert-new', 'alert-edit', 'channel'],
       children: [
-        { label: 'Events', name: 'events' },
-        { label: 'Rules', name: 'alerts', owns: ['alert-new', 'alert-edit'] },
-        { label: 'Notify channel', name: 'notifications', owns: ['channel'] },
+        { label: 'Events', name: 'events', icon: 'logs' },
+        { label: 'Rules', name: 'alerts', icon: 'alert-triangle', owns: ['alert-new', 'alert-edit'] },
+        { label: 'Notify channel', name: 'notifications', icon: 'bell', owns: ['channel'] },
       ],
     },
     {
       key: 'settings', label: 'Settings', icon: 'settings',
       owns: ['namespace'],
       children: [
-        { label: 'Namespace', name: 'namespaces', owns: ['namespace'] },
-        { label: 'Members', name: 'members', admin: true },
-        { label: 'Audit', name: 'audit', admin: true },
-        { label: 'Data & retention', name: 'data', admin: true },
-        { label: 'Backup', name: 'backup', admin: true },
-        { label: 'API tokens', name: 'tokens' },
-        { label: 'SSH keys', name: 'ssh-keys' },
-        { label: 'About', name: 'about' },
+        { label: 'Namespace', name: 'namespaces', icon: 'globe', owns: ['namespace'] },
+        { label: 'Members', name: 'members', icon: 'user', admin: true },
+        { label: 'Audit', name: 'audit', icon: 'logs', admin: true },
+        { label: 'Data & retention', name: 'data', icon: 'disk', admin: true },
+        { label: 'Backup', name: 'backup', icon: 'refresh', admin: true },
+        { label: 'Security', name: 'security', icon: 'shield' },
+        { label: 'API tokens', name: 'tokens', icon: 'command' },
+        { label: 'SSH keys', name: 'ssh-keys', icon: 'ssh' },
+        { label: 'About', name: 'about', icon: 'pulse' },
       ],
     },
   ].map((g) => ({ ...g, children: g.children.filter((c) => !c.admin || isAdmin.value) })),
@@ -130,8 +131,10 @@ function openGroup(g) {
         </div>
         <div v-show="expanded(g)" class="mt-0.5 space-y-0.5">
           <RouterLink v-for="c in g.children" :key="c.label + (c.down ? '-down' : '')" :to="childTo(c)"
-            class="flex items-center rounded-lg py-1.5 pl-10 pr-3 text-sm transition hover:bg-surface2 hover:text-fg"
-            :class="childActive(c) ? '!bg-accent/10 font-semibold !text-accent' : 'font-medium text-muted'">{{ c.label }}</RouterLink>
+            class="flex items-center gap-2.5 rounded-lg py-1.5 pl-5 pr-3 text-sm transition hover:bg-surface2 hover:text-fg"
+            :class="childActive(c) ? '!bg-accent/10 font-semibold !text-accent' : 'font-medium text-muted'">
+            <VIcon v-if="c.icon" :name="c.icon" :size="16" class="shrink-0 opacity-80" /><span class="flex-1 truncate">{{ c.label }}</span>
+          </RouterLink>
         </div>
       </div>
     </nav>

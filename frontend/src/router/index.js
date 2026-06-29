@@ -13,6 +13,7 @@ import FleetMetrics from '../pages/FleetMetrics.vue'
 import Systems from '../pages/Systems.vue'
 import SystemDetail from '../pages/SystemDetail.vue'
 import Console from '../pages/Console.vue'
+import SecuritySettings from '../pages/SecuritySettings.vue'
 import Namespaces from '../pages/Namespaces.vue'
 import NamespaceDetail from '../pages/NamespaceDetail.vue'
 import Members from '../pages/Members.vue'
@@ -45,6 +46,7 @@ const routes = [
   { path: '/namespaces', name: 'namespaces', component: Namespaces, meta: { title: 'Namespaces' } },
   { path: '/namespace/:id', name: 'namespace', component: NamespaceDetail, meta: { title: 'Namespace' } },
   { path: '/members', name: 'members', component: Members, meta: { title: 'Members' } },
+  { path: '/settings/security', name: 'security', component: SecuritySettings, meta: { title: 'Security' } },
   { path: '/monitors', name: 'monitors', component: Monitors, meta: { title: 'Services' } },
   { path: '/monitor/new', name: 'monitor-new', component: MonitorEdit, meta: { title: 'New service' } },
   { path: '/monitor/:id/edit', name: 'monitor-edit', component: MonitorEdit, meta: { title: 'Edit service' } },
