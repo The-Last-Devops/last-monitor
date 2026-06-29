@@ -69,6 +69,15 @@ const tableRows = computed(() =>
     uptime: upPct(m),
   })),
 )
+// search box lives in the toolbar (like Infrastructure); filter rows client-side
+const q = ref('')
+const filteredRows = computed(() => {
+  const s = q.value.trim().toLowerCase()
+  if (!s) return tableRows.value
+  return tableRows.value.filter((r) =>
+    [r.name, r.namespace, r.target, r.typeLabel].some((v) => (v || '').toLowerCase().includes(s)),
+  )
+})
 const columns = [
   { key: 'name', label: 'Service', sortable: true, nowrap: false },
   { key: 'uptime', label: 'Uptime', sortable: true, width: '128px' },
@@ -140,8 +149,13 @@ onUnmounted(() => clearInterval(timer))
   <AppShell :title="downOnly ? 'Services — Down' : 'Services'">
     <template #title-after><span class="text-sm text-faint">{{ stats.total }} services<span v-if="stats.down" class="text-down"> · {{ stats.down }} down</span></span></template>
     <template #actions>
+      <div class="relative">
+        <VIcon name="search" :size="15" class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
+        <input v-model="q" type="search" placeholder="Search services…"
+          class="w-44 rounded-lg border border-line bg-surface2 py-1.5 pl-8 pr-3 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none sm:w-56" />
+      </div>
       <button @click="openCreate" class="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accentfg hover:opacity-90">
-        <VIcon name="plus" :size="16" /> New check
+        <VIcon name="plus" :size="16" /> Add service
       </button>
     </template>
     <PageLoader v-if="!loaded" />
@@ -171,9 +185,9 @@ onUnmounted(() => clearInterval(timer))
 
       <!-- table + events side panel -->
       <div class="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_340px]">
-        <DataTable v-model:selected="selectedIds" :columns="columns" :rows="tableRows" :row-key="(r) => r.id"
-          :row-tone="rowTone" selectable clickable @row-click="openDetail" :filter-keys="['name', 'namespace', 'typeLabel', 'target']"
-          filter-placeholder="Filter services…" :empty="downOnly ? 'Nothing down. 🎉' : 'No services yet.'">
+        <DataTable v-model:selected="selectedIds" :columns="columns" :rows="filteredRows" :row-key="(r) => r.id"
+          :row-tone="rowTone" selectable clickable @row-click="openDetail" :filterable="false"
+          :empty="downOnly ? 'Nothing down. 🎉' : 'No services yet.'">
           <template #bulk="{ selected, disabled }">
             <button :disabled="disabled" @click="bulkDelete(selected)" class="rounded-lg border border-down/35 px-2.5 py-1.5 text-xs font-medium text-down hover:bg-down/10 disabled:cursor-not-allowed disabled:opacity-40">Delete</button>
           </template>
