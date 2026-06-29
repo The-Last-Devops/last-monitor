@@ -9,6 +9,14 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ## [Unreleased]
 
+## [2.3.3] — 2026-06-29
+
+### Fixed
+- **Hosts no longer flap down→up.** The "down" threshold sat too close to the agent's
+  60s push interval (and 2.3.2 had dropped it to 15s, which marked healthy hosts offline
+  most of the time). It's now 120s — a full interval of headroom, so a host never grazes
+  the boundary just before its next push.
+
 ## [2.3.2] — 2026-06-29
 
 ### Fixed
