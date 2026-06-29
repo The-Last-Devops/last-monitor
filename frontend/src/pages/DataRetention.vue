@@ -101,24 +101,26 @@ const TH = 'border-b border-line2 bg-head px-4 py-3 text-xs font-extrabold upper
           <!-- cap card -->
           <div class="space-y-3 rounded-xl border border-line bg-surface p-4">
             <div class="flex items-center justify-between gap-3">
-              <div>
-                <div class="text-sm font-semibold text-fg">Storage cap</div>
-                <div class="text-xs text-faint">{{ fmtBytes(data.cap.used_bytes) }} of {{ fmtBytes(data.cap.limit_bytes) }} used ({{ Math.round(usedPct) }}%)</div>
-              </div>
-              <label class="flex items-center gap-2 text-sm text-fg">
-                <input v-model="capEnabled" type="checkbox" class="h-4 w-4" />Auto-evict
-              </label>
+              <div class="text-sm font-semibold text-fg">Storage cap</div>
+              <div class="font-mono text-xs text-faint">{{ fmtBytes(data.cap.used_bytes) }} of {{ fmtBytes(data.cap.limit_bytes) }} used · {{ usedPct.toFixed(1) }}%</div>
             </div>
             <div class="h-2 overflow-hidden rounded bg-line">
               <div class="h-full transition-all" :class="meterColor" :style="{ width: usedPct + '%' }"></div>
             </div>
-            <div class="flex flex-wrap items-end gap-3">
-              <label class="text-xs text-muted">Limit (GB)
-                <input v-model.number="capGb" type="number" min="0.25" max="1024" step="0.25" class="mt-1 block w-28 rounded-lg border border-line2 bg-surface2 px-3 py-2 font-mono text-sm text-fg focus:border-accent/55 focus:outline-none" />
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <label class="flex cursor-pointer items-center gap-3">
+                <input v-model="capEnabled" type="checkbox" class="peer sr-only" />
+                <span class="relative h-[22px] w-10 shrink-0 rounded-full bg-line transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-[18px] after:w-[18px] after:rounded-full after:bg-fg after:transition-transform peer-checked:bg-accent peer-checked:after:translate-x-[18px]"></span>
+                <span class="text-sm text-fg">Auto-evict oldest data when over cap</span>
               </label>
-              <button @click="saveCap" class="rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-accentfg hover:opacity-90">Save</button>
+              <div class="flex items-end gap-2">
+                <label class="text-xs text-muted">Limit (GB)
+                  <input v-model.number="capGb" type="number" min="0.25" max="1024" step="0.25" class="mt-1 block w-24 rounded-lg border border-line2 bg-surface2 px-3 py-2 font-mono text-sm text-fg focus:border-accent/55 focus:outline-none" />
+                </label>
+                <button @click="saveCap" class="rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-accentfg hover:opacity-90">Save</button>
+              </div>
             </div>
-            <p class="flex items-start gap-1.5 text-xs text-warn"><VIcon name="alert-triangle" :size="14" class="mt-0.5 shrink-0" />Eviction drops the oldest time chunks first (across every tier) when usage exceeds the limit — the farthest-back history is lost first. Disabled by default.</p>
+            <p class="flex items-start gap-1.5 text-xs text-warn"><VIcon name="alert-triangle" :size="14" class="mt-0.5 shrink-0" />Eviction drops the oldest time chunks first — shrinking how far back history reaches. Raw &amp; rollup tiers are evicted oldest-first regardless of their per-tier window above.</p>
           </div>
 
           <!-- tier table (grouped) -->
