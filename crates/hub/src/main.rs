@@ -108,6 +108,10 @@ async fn main() -> Result<()> {
         .route("/api/auth/login", post(auth::login))
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/me", get(auth::me))
+        // Unauthenticated marker for the public-exposure self-check (NOT under /pub, so a
+        // correctly configured gate blocks it from outside). See api/exposure.rs.
+        .route("/exposure-check", get(api::exposure_marker))
+        .route("/api/admin/exposure-check", post(api::exposure_check))
         .route("/api/me/password", post(api::change_my_password))
         .route("/api/me/2fa", get(api::twofa_status))
         .route("/api/me/2fa/start", post(api::twofa_start))

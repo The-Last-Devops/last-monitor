@@ -3,14 +3,28 @@
 // two-factor, SSH keys) is a collapsed row; clicking one expands it (and collapses
 // the others) so the user focuses on one task at a time. Themed dialogs only — no
 // native browser prompts.
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import AppShell from '../components/AppShell.vue'
 import { api } from '../lib/api'
+import { useAuth } from '../stores/auth'
 import { register as webauthnRegister, supported as webauthnSupported } from '../lib/webauthn'
+
+const isAdmin = computed(() => !!useAuth().user?.is_admin)
+const EXPOSURE_DOCS = 'https://github.com/The-Last-Devops/vantage/blob/main/docs/exposure.md'
 
 // which section is expanded ('' = all collapsed)
 const open = ref('')
 function toggle(key) { open.value = open.value === key ? '' : key }
+
+// ---- public exposure self-check (admin) ----
+const exposure = ref(null) // { configured, public_url, exposed, status, error }
+const exposureBusy = ref(false)
+async function runExposureCheck() {
+  exposureBusy.value = true
+  try { exposure.value = await api.post('/api/admin/exposure-check') }
+  catch (e) { exposure.value = { error: `Check failed (${e.status || 'error'})` } }
+  finally { exposureBusy.value = false }
+}
 
 // ---- change password ----
 const current = ref('')
@@ -275,6 +289,38 @@ async function deletePasskey(id) {
           </div>
           <button v-else @click="addingPk = true; pkErr = ''"
             class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90">Add passkey</button>
+        </div>
+      </section>
+
+      <!-- PUBLIC EXPOSURE (admin) -->
+      <section v-if="isAdmin" class="overflow-hidden rounded-xl border border-line bg-surface">
+        <button @click="toggle('exposure')" class="flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-surface2">
+          <VIcon name="globe" :size="18" class="shrink-0" :class="exposure && exposure.exposed ? 'text-rose-400' : exposure && exposure.exposed === false ? 'text-ok' : 'text-muted'" />
+          <div class="min-w-0 flex-1">
+            <div class="text-h2 font-semibold text-fg">Public exposure</div>
+            <div class="text-xs text-muted">Is the hub reachable on the internet without an auth gate in front?</div>
+          </div>
+          <VIcon name="chevron" :size="16" class="shrink-0 text-faint transition-transform" :class="open === 'exposure' ? 'rotate-90' : ''" />
+        </button>
+        <div v-show="open === 'exposure'" class="border-t border-line px-5 py-4">
+          <button :disabled="exposureBusy" @click="runExposureCheck"
+            class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90 disabled:opacity-50">{{ exposureBusy ? 'Checking…' : 'Check now' }}</button>
+
+          <div v-if="exposure" class="mt-3 max-w-prose text-sm">
+            <p v-if="exposure.configured === false" class="text-warn">
+              Set the <span class="font-mono text-cap">PUBLIC_URL</span> env to the hub's public address (e.g. <span class="font-mono text-cap">https://vantage.example.com</span>) to run this check.
+            </p>
+            <p v-else-if="exposure.error" class="text-muted">
+              Couldn't reach <span class="font-mono">{{ exposure.public_url }}</span> — {{ exposure.error }}. It may already be gated or not publicly routable.
+            </p>
+            <template v-else-if="exposure.exposed">
+              <p class="font-medium text-rose-400">⚠ Exposed — <span class="font-mono">{{ exposure.public_url }}</span> is reachable from the internet with no auth gate (HTTP {{ exposure.status }}).</p>
+              <p class="mt-1 text-muted">Put the hub behind <b class="text-fg">nginx basic-auth</b> or <b class="text-fg">Cloudflare Zero Trust</b> — and allow <span class="font-mono text-cap">/pub/*</span> through so agents keep working.</p>
+            </template>
+            <p v-else class="font-medium text-ok">✓ Protected — the gate-less request was blocked (HTTP {{ exposure.status }}).</p>
+            <a :href="EXPOSURE_DOCS" target="_blank" rel="noopener" class="mt-2 inline-block text-xs text-accent hover:underline">How to configure the gate (docs) →</a>
+          </div>
+          <p v-else class="mt-3 text-xs text-faint">Makes one outbound request to your <span class="font-mono text-cap">PUBLIC_URL</span> at a marker path outside <span class="font-mono text-cap">/pub</span>.</p>
         </div>
       </section>
 

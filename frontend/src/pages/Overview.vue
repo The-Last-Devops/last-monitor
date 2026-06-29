@@ -10,7 +10,7 @@ import PageLoader from '../components/PageLoader.vue'
 import { api } from '../lib/api'
 import { useCached } from '../lib/cache'
 import { useAuth } from '../stores/auth'
-import { online, hostState, pct, DEFAULT_THR } from '../lib/triage'
+import { online, hostState, DEFAULT_THR } from '../lib/triage'
 
 const route = useRoute()
 const auth = useAuth()
@@ -59,19 +59,6 @@ const svc = computed(() => {
 })
 const firing = computed(() => alerts.value.filter((a) => a.enabled && a.firing === true).length)
 const events24 = computed(() => events.value.length)
-
-// average host utilisation (online hosts only) — for the Capacity tiles
-function avg(arr, f) { const v = arr.map(f).filter((x) => x != null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null }
-const cap = computed(() => {
-  const on = hosts.value.filter(online)
-  return {
-    cpu: avg(on, (s) => s.cpu_percent),
-    mem: avg(on, (s) => pct(s.mem_used, s.mem_total)),
-    disk: avg(on, (s) => pct(s.disk_used, s.disk_total)),
-  }
-})
-// per-tile tone for a utilisation %: >90 critical, >=70 warning
-function capTone(v) { return v == null ? null : v > 90 ? 'down' : v >= 70 ? 'warn' : null }
 
 // average service uptime (SLA) over services that have recent checks
 const upPct = (m) => (m.recent && m.recent.length ? Math.round((m.recent.filter(Boolean).length / m.recent.length) * 100) : null)
@@ -132,14 +119,6 @@ const sections = computed(() => [
       { label: 'Services', value: svc.value.total, sub: `${svc.value.up} up`, icon: 'service', to: { name: 'monitors', query: nsq.value }, good: svc.value.total > 0 && svc.value.down === 0 },
       { label: 'Down', value: svc.value.down, icon: 'wifi-off', to: { name: 'monitors', query: { ...nsq.value, status: 'down' } }, bad: svc.value.down > 0, color: 'down' },
       { label: 'Avg uptime', value: svcUptime.value == null ? 'N/A' : `${svcUptime.value}%`, sub: 'recent checks', icon: 'uptime', to: { name: 'monitors', query: nsq.value }, bad: svcUptime.value != null && svcUptime.value < 99, color: svcUptime.value != null && svcUptime.value < 90 ? 'down' : 'warn', good: svcUptime.value != null && svcUptime.value >= 99.9 },
-    ],
-  },
-  {
-    title: 'Capacity',
-    items: [
-      { label: 'Avg CPU', value: cap.value.cpu == null ? '—' : `${cap.value.cpu}%`, icon: 'cpu', to: { name: 'systems', query: nsq.value }, bad: capTone(cap.value.cpu) != null, color: capTone(cap.value.cpu) || 'warn' },
-      { label: 'Avg memory', value: cap.value.mem == null ? '—' : `${cap.value.mem}%`, icon: 'memory', to: { name: 'systems', query: nsq.value }, bad: capTone(cap.value.mem) != null, color: capTone(cap.value.mem) || 'warn' },
-      { label: 'Avg disk', value: cap.value.disk == null ? '—' : `${cap.value.disk}%`, icon: 'disk', to: { name: 'systems', query: nsq.value }, bad: capTone(cap.value.disk) != null, color: capTone(cap.value.disk) || 'warn' },
     ],
   },
   {
