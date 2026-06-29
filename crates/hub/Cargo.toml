@@ -53,6 +53,8 @@ flate2 = "1"
 # avoids pulling a heavy S3 SDK dependency tree.
 hmac = "0.12"
 sha2 = "0.10"
+# HMAC-SHA1 for TOTP (RFC 6238) two-factor auth. Already in the tree via russh.
+sha1 = "0.10"
 hex = "0.4"
 # SMTP for the Email notification channel. rustls to match the rest of the stack
 # (no OpenSSL/system deps), async over tokio.

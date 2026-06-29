@@ -7,6 +7,7 @@ Index of the project's docs. Start here.
 | Doc | What it covers |
 |---|---|
 | [API.md](API.md) | HTTP API reference — authentication (PAT / session / agent token), endpoints, RBAC, and the embedded **MCP server** (`POST /mcp`). |
+| [auth-2fa-passkey.md](auth-2fa-passkey.md) | Design for TOTP two-factor auth (core landed) and passkeys/WebAuthn — incl. the passkey ↔ SSH-key-master-key conflict. |
 | [ROADMAP.md](ROADMAP.md) | Planned features not yet built. |
 | [SCHEMA_REVIEW.md](SCHEMA_REVIEW.md) | Database table/field naming conventions and the pre-release standardization pass. |
 

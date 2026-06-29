@@ -28,6 +28,7 @@ mod probe;
 mod rbac;
 mod selfupdate;
 mod spa;
+mod totp;
 mod tunnel;
 mod web;
 
