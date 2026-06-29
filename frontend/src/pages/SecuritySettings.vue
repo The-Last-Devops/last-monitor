@@ -92,7 +92,7 @@ async function disableTfa() {
 
 <template>
   <AppShell title="Security">
-    <div class="mx-auto max-w-3xl space-y-3">
+    <div class="space-y-3">
       <!-- PASSWORD -->
       <section class="overflow-hidden rounded-xl border border-line bg-surface">
         <button @click="toggle('password')" class="flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-surface2">
