@@ -9,6 +9,25 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ## [Unreleased]
 
+## [2.3.2] — 2026-06-29
+
+### Fixed
+- **Shell tunnel now works with an `http://` HUB_URL behind TLS.** The agent followed the
+  http→https redirect for metrics but not for the shell tunnel, which looped on
+  "301 Moved Permanently"; it now upgrades `ws→wss` on the redirect.
+- The host console header showed the host's UUID — it now shows the real name.
+- The SSH-user / key-name fields no longer get auto-filled with your account email.
+
+### Added / Changed
+- **Shell is enabled by default on the agent** (set `ALLOW_SHELL=0` to opt out), so an
+  upgraded agent opens the tunnel without a config change.
+- **SSH keys accept any standard format** (OpenSSH, PEM RSA, PKCS#8), encrypted or not —
+  with an optional key passphrase. Uploading a key file no longer displays its contents,
+  and add-key errors now say exactly what's wrong.
+- A host is marked **down only after 15s** of silence (brief blips no longer flip it).
+- Refined Overview (summary + capacity up top, paged events below), the unified header
+  (compact ⌘K, lighter borders), and detail-page breadcrumbs.
+
 ## [2.3.1] — 2026-06-29
 
 ### Fixed
