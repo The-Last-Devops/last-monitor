@@ -69,7 +69,7 @@ watch(shell, syncPort)
     </div>
 
     <p v-if="!loaded" class="text-xs text-faint">Loading…</p>
-    <p v-else-if="loadErr" class="text-xs text-rose-400">{{ loadErr }}</p>
+    <p v-else-if="loadErr" class="text-xs text-down">{{ loadErr }}</p>
 
     <!-- no exec permission -->
     <p v-else-if="!canExec" class="text-xs text-faint">You don't have shell access on this host.</p>
@@ -82,7 +82,7 @@ watch(shell, syncPort)
           <span :class="shell.tunnel_online ? 'text-fg' : 'text-faint'">{{ shell.tunnel_online ? 'Shell channel ready' : 'Shell channel offline' }}</span>
         </span>
         <span class="flex items-center gap-1.5">
-          <span class="text-faint">SSH port</span> <span class="text-fg tabular-nums">{{ shell.ssh_port }}</span>
+          <span class="text-faint">SSH port</span> <span class="text-fg font-mono tabular-nums">{{ shell.ssh_port }}</span>
           <button @click="toggleEdit" v-tip="'Edit SSH port'"
             class="rounded p-0.5 text-faint hover:bg-surface2 hover:text-fg"><VIcon name="settings" :size="13" /></button>
         </span>
@@ -107,7 +107,7 @@ watch(shell, syncPort)
           class="rounded-lg border border-line bg-bg px-3 py-2 text-sm text-fg hover:border-accent/50 disabled:opacity-50">{{ savingShell ? 'Saving…' : 'Save' }}</button>
         <button :disabled="savingShell" @click="editingPort = false"
           class="rounded-lg px-3 py-2 text-sm text-muted hover:text-fg disabled:opacity-50">Cancel</button>
-        <p v-if="shellMsg" class="w-full text-xs text-rose-400">{{ shellMsg }}</p>
+        <p v-if="shellMsg" class="w-full text-xs text-down">{{ shellMsg }}</p>
         <p class="w-full text-[11px] text-faint">Owner-only. The port the hub's SSH console connects to on this host.</p>
       </div>
 

@@ -194,7 +194,7 @@ onMounted(async () => {
       <DataTable v-else v-model:selected="selectedChannelIds" :columns="chanColumns" :rows="channelRows" :row-key="(r) => r.id"
         selectable clickable @row-click="openChannel" :filter-keys="['name', 'typeLabel', 'namespace']" filter-placeholder="Filter channels…">
         <template #bulk="{ selected, disabled }">
-          <button :disabled="disabled" @click="bulkDeleteChannels(selected)" class="rounded-lg border border-rose-500/35 px-2.5 py-1.5 text-xs font-medium text-rose-500 hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40">Delete</button>
+          <button :disabled="disabled" @click="bulkDeleteChannels(selected)" class="rounded-lg border border-down/35 px-2.5 py-1.5 text-xs font-medium text-down hover:bg-down/10 disabled:cursor-not-allowed disabled:opacity-40">Delete</button>
         </template>
         <template #cell-name="{ row }">
           <ChannelCard :name="row.name" :icon-html="iconSvg(byKind(row.kind)?.icon || 'chat', 16)"
@@ -207,10 +207,10 @@ onMounted(async () => {
         <template #cell-actions="{ row }">
           <div v-if="row.can_edit" class="flex items-center justify-end gap-1">
             <span v-if="testState[row.id] === 'ok'" class="text-xs text-accent">✓</span>
-            <span v-else-if="testState[row.id] === 'fail'" class="text-xs text-rose-500">✗</span>
+            <span v-else-if="testState[row.id] === 'fail'" class="text-xs text-down">✗</span>
             <button @click.stop="testChannel(row)" :disabled="testState[row.id] === 'testing'" class="rounded-lg border border-line bg-surface2 px-2 py-1 text-xs text-fg hover:border-accent/50 disabled:opacity-50" v-tip="`Send test`">Test</button>
             <button @click.stop="openChannel(row)" class="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-fg" v-tip="`Edit`"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg></button>
-            <button @click.stop="removeChannel(row)" class="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-rose-500" v-tip="`Delete`"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+            <button @click.stop="removeChannel(row)" class="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-down" v-tip="`Delete`"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
           </div>
         </template>
       </DataTable>
@@ -278,8 +278,8 @@ onMounted(async () => {
             </button>
             <span v-if="modalTest === 'run'" class="text-xs text-muted">Sending…</span>
             <span v-else-if="modalTest === 'ok'" class="text-xs text-accent">✓ Test sent</span>
-            <span v-else-if="modalTest === 'fail'" class="text-xs text-rose-400">✗ Failed to send</span>
-            <span v-if="err" class="text-xs text-rose-400">{{ err }}</span>
+            <span v-else-if="modalTest === 'fail'" class="text-xs text-down">✗ Failed to send</span>
+            <span v-if="err" class="text-xs text-down">{{ err }}</span>
             <span class="ml-auto"></span>
             <button @click="closeModal" class="rounded-lg px-3 py-2 text-sm text-muted hover:text-fg">{{ readOnly ? 'Close' : 'Cancel' }}</button>
             <button v-if="!readOnly" @click="save" class="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accentfg hover:opacity-90">Save channel</button>

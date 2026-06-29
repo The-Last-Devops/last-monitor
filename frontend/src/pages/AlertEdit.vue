@@ -181,7 +181,7 @@ onMounted(async () => {
           <div class="border-b border-line p-5">
             <div class="mb-2.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-faint"><span class="grid h-[18px] w-[18px] place-items-center rounded bg-surface2 text-accent">2</span>When it fires</div>
             <div v-if="isServiceLike" class="flex items-center gap-2 text-sm text-muted">
-              Fires when {{ ed.srcType === 'all_services' ? 'any service' : 'the service' }} is <span class="rounded-md border border-amber-400/40 bg-amber-400/10 px-2 py-1 font-semibold text-amber-400">DOWN</span>
+              Fires when {{ ed.srcType === 'all_services' ? 'any service' : 'the service' }} is <span class="rounded-md border border-warn/40 bg-warn/10 px-2 py-1 font-semibold text-warn">DOWN</span>
             </div>
             <div v-else class="flex flex-wrap items-center gap-2.5">
               <span class="text-sm text-muted">Fires when</span>
@@ -213,7 +213,7 @@ onMounted(async () => {
                   <span class="shrink-0 text-[11px] text-faint">{{ c.kind }} · {{ c.namespace }}</span>
                 </button>
                 <span v-if="testState[c.id] === 'ok'" class="text-xs text-accent">✓ sent</span>
-                <span v-else-if="testState[c.id] === 'fail'" class="text-xs text-rose-400">✗ failed</span>
+                <span v-else-if="testState[c.id] === 'fail'" class="text-xs text-down">✗ failed</span>
                 <button @click="testChan(c.id)" :disabled="testState[c.id] === 'run'" class="shrink-0 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs text-fg hover:border-accent/50 disabled:opacity-50">{{ testState[c.id] === 'run' ? 'Testing…' : 'Send test' }}</button>
               </div>
             </div>
@@ -228,7 +228,7 @@ onMounted(async () => {
           </div>
 
           <div class="flex items-center gap-2.5 border-t border-line bg-surface/60 px-5 py-3.5">
-            <span v-if="err" class="text-xs text-rose-400">{{ err }}</span>
+            <span v-if="err" class="text-xs text-down">{{ err }}</span>
             <span class="ml-auto"></span>
             <button @click="backToList" class="rounded-lg px-3 py-2 text-sm text-muted hover:text-fg">Cancel</button>
             <button @click="save" :disabled="saving" class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90 disabled:opacity-50">{{ saving ? 'Saving…' : 'Save rule' }}</button>
@@ -240,7 +240,7 @@ onMounted(async () => {
           <div class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-faint">Wiring</div>
           <p class="text-[13px] leading-relaxed text-muted">When <b class="text-fg">{{ targetName || '<source>' }}</b><template v-if="isScope && saveNs"> in <b class="text-fg">{{ saveNs.name }}</b></template> <b class="text-fg">{{ condText }}</b>, notify
             <template v-if="ed.channels.size"><b v-for="(id, i) in [...ed.channels]" :key="id" class="text-fg">{{ channels.find((c) => c.id === id)?.name }}{{ i < ed.channels.size - 1 ? ', ' : '' }}</b></template>
-            <b v-else class="text-rose-400">no channel yet</b>.
+            <b v-else class="text-down">no channel yet</b>.
           </p>
           <template v-if="isScope && !editId">
             <div class="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wide text-faint">Covers {{ candidates.length }} {{ ed.srcType === 'all_services' ? 'services' : 'hosts' }}</div>

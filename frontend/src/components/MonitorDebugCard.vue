@@ -23,7 +23,7 @@ defineProps({
       </div>
       <div>
         <div class="mb-1 flex items-center justify-between">
-          <span class="text-xs font-medium text-red-400">Last failure</span>
+          <span class="text-xs font-medium text-down">Last failure</span>
           <button v-if="debug.err" @click="copy(debug.err, $event)" class="rounded-md border border-line bg-surface2 px-2 py-0.5 text-xs text-muted hover:text-accent">Copy</button>
         </div>
         <pre v-if="debug.err" class="max-h-72 overflow-auto rounded-lg border border-line bg-bg p-3 text-xs leading-relaxed text-fg">{{ fmtDebug(debug.err) }}</pre>

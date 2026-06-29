@@ -76,7 +76,7 @@ const emit = defineEmits([
           </div>
         </div>
 
-        <p v-if="error" class="text-xs" :class="error.startsWith('✓') ? 'text-accent' : 'text-rose-400'">{{ error }}</p>
+        <p v-if="error" class="text-xs" :class="error.startsWith('✓') ? 'text-accent' : 'text-down'">{{ error }}</p>
       </div>
 
       <div class="border-t border-line px-5 py-3.5 text-center">

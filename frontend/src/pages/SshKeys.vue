@@ -113,9 +113,9 @@ onMounted(load)
                   <span class="inline-flex items-center gap-2 text-fg"><VIcon name="ssh" :size="16" class="text-faint" />{{ k.name }}</span>
                 </td>
                 <td class="px-4 py-3 font-mono text-xs text-muted">{{ k.key_fingerprint }}</td>
-                <td class="px-4 py-3 tabular-nums text-muted">{{ fmt(k.created_at) }}</td>
+                <td class="px-4 py-3 font-mono tabular-nums text-muted">{{ fmt(k.created_at) }}</td>
                 <td class="px-4 py-3 text-right">
-                  <button @click="remove(k)" class="rounded-lg p-1.5 text-muted hover:bg-surface2 hover:text-rose-400" v-tip="'Delete'">
+                  <button @click="remove(k)" class="rounded-lg p-1.5 text-muted hover:bg-surface2 hover:text-down" v-tip="'Delete'">
                     <VIcon name="trash" :size="16" />
                   </button>
                 </td>
@@ -177,7 +177,7 @@ onMounted(load)
               class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none" />
           </label>
           <p class="text-[11px] text-faint">Your key is encrypted with your account password — it can't be read without you.</p>
-          <p v-if="err" class="text-xs text-rose-400">{{ err }}</p>
+          <p v-if="err" class="text-xs text-down">{{ err }}</p>
           <div class="flex justify-end gap-2.5 pt-1">
             <button type="button" @click="modalOpen = false" class="rounded-lg px-3 py-2 text-sm text-muted hover:text-fg">Cancel</button>
             <button type="submit" :disabled="creating" class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90 disabled:opacity-50">{{ creating ? 'Adding…' : 'Add key' }}</button>

@@ -26,15 +26,15 @@ const canManage = computed(() => ns.value && (ns.value.role === 'owner' || isAdm
 const canEdit = computed(() => ns.value && (['owner', 'editor', 'admin'].includes(ns.value.role) || isAdmin.value))
 const isDefault = computed(() => ns.value?.name === 'default')
 
-const roleClass = (r) => ({ owner: 'text-accent', editor: 'text-amber-400', viewer: 'text-muted', admin: 'text-accent' }[r] || 'text-muted')
+const roleClass = (r) => ({ owner: 'text-accent', editor: 'text-warn', viewer: 'text-muted', admin: 'text-accent' }[r] || 'text-muted')
 const initials = (e) => (e || '?').slice(0, 2).toUpperCase()
 
 // ---- rule state (mirrors Alerts.vue) ----
 function ruleState(a) {
   if (!a.enabled) return { label: 'Disabled', cls: 'text-faint bg-surface2', dot: 'bg-faint' }
-  if (a.firing === true) return { label: 'Firing', cls: 'text-red-400 bg-red-500/12', dot: 'bg-red-500' }
+  if (a.firing === true) return { label: 'Firing', cls: 'text-down bg-down/12', dot: 'bg-down' }
   if (a.firing === false) return { label: 'OK', cls: 'text-accent bg-accent/12', dot: 'bg-accent' }
-  return { label: 'Pending', cls: 'text-amber-400 bg-amber-400/12', dot: 'bg-amber-400' }
+  return { label: 'Pending', cls: 'text-warn bg-warn/12', dot: 'bg-warn' }
 }
 const METRIC = { cpu_percent: 'CPU %', mem_percent: 'Memory %', load1: 'Load 1m' }
 function ruleCond(a) {
@@ -145,8 +145,8 @@ onMounted(async () => {
         <span class="h-3 w-3 rounded-full bg-accent"></span>
         <h1 class="text-xl font-bold text-fg">{{ ns.name }}</h1>
         <span v-if="isDefault" class="rounded bg-surface2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-faint">default</span>
-        <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize" :class="ns.role === 'owner' || ns.role === 'admin' ? 'bg-accent/12 text-accent' : ns.role === 'editor' ? 'bg-amber-400/12 text-amber-400' : 'bg-surface2 text-muted'">● {{ ns.role }}</span>
-        <button v-if="canManage && !isDefault" @click="removeNs" class="ml-auto rounded-lg border border-rose-500/35 px-3 py-1.5 text-xs font-medium text-rose-400 hover:bg-rose-500/10">Delete namespace</button>
+        <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize" :class="ns.role === 'owner' || ns.role === 'admin' ? 'bg-accent/12 text-accent' : ns.role === 'editor' ? 'bg-warn/12 text-warn' : 'bg-surface2 text-muted'">● {{ ns.role }}</span>
+        <button v-if="canManage && !isDefault" @click="removeNs" class="ml-auto rounded-lg border border-down/35 px-3 py-1.5 text-xs font-medium text-down hover:bg-down/10">Delete namespace</button>
       </div>
 
       <div class="grid items-start gap-4 lg:grid-cols-[1fr_320px]">
@@ -163,14 +163,14 @@ onMounted(async () => {
                 <UiSelect v-model="addRole" :options="NS_ROLES.map((r) => ({ value: r, label: r[0].toUpperCase() + r.slice(1) }))" />
                 <button @click="addMember" :disabled="!addEmail" class="rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-accentfg hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">Add</button>
               </div>
-              <p v-if="memErr" class="mb-2 text-xs" :class="memErr.startsWith('✓') ? 'text-accent' : 'text-rose-400'">{{ memErr }}</p>
+              <p v-if="memErr" class="mb-2 text-xs" :class="memErr.startsWith('✓') ? 'text-accent' : 'text-down'">{{ memErr }}</p>
               <div v-if="!members.length" class="text-xs text-faint">No members yet.</div>
               <div v-else class="divide-y divide-line/60">
                 <div v-for="m in members" :key="m.user_id" class="flex items-center gap-3 py-2.5">
                   <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg border text-[11px] font-semibold" :class="m.role === 'owner' ? 'border-accent/25 bg-accent/12 text-accent' : 'border-line bg-surface2 text-muted'">{{ initials(m.email) }}</span>
                   <span class="min-w-0 flex-1 truncate text-sm text-fg">{{ m.email }}<span v-if="m.user_id === auth.user?.id" class="ml-2 rounded border border-accent/40 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-accent">you</span></span>
                   <UiSelect :model-value="m.role" @update:model-value="(v) => setRole(m, v)" class="shrink-0" :options="NS_ROLES.map((r) => ({ value: r, label: r[0].toUpperCase() + r.slice(1) }))" />
-                  <button @click="removeMember(m)" class="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-rose-400" v-tip="`Remove`">
+                  <button @click="removeMember(m)" class="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-down" v-tip="`Remove`">
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
                   </button>
                 </div>
@@ -203,9 +203,9 @@ onMounted(async () => {
           <div class="rounded-2xl border border-line bg-surface p-4">
             <h2 class="mb-3 text-[11px] font-semibold uppercase tracking-wider text-faint">Contents</h2>
             <div class="flex flex-col gap-0.5 text-sm">
-              <RouterLink :to="{ name: 'systems', query: { ns: ns.name } }" class="flex items-center justify-between rounded-lg px-2.5 py-2 text-fg hover:bg-surface2"><span>Systems</span><b class="tabular-nums">{{ ns.system_count }}</b></RouterLink>
-              <RouterLink :to="{ name: 'monitors', query: { ns: ns.name } }" class="flex items-center justify-between rounded-lg px-2.5 py-2 text-fg hover:bg-surface2"><span>Services</span><b class="tabular-nums">{{ services.length }}</b></RouterLink>
-              <div class="flex items-center justify-between rounded-lg px-2.5 py-2 text-fg"><span>API keys</span><b class="tabular-nums">{{ keys.length }}</b></div>
+              <RouterLink :to="{ name: 'systems', query: { ns: ns.name } }" class="flex items-center justify-between rounded-lg px-2.5 py-2 text-fg hover:bg-surface2"><span>Systems</span><b class="font-mono tabular-nums">{{ ns.system_count }}</b></RouterLink>
+              <RouterLink :to="{ name: 'monitors', query: { ns: ns.name } }" class="flex items-center justify-between rounded-lg px-2.5 py-2 text-fg hover:bg-surface2"><span>Services</span><b class="font-mono tabular-nums">{{ services.length }}</b></RouterLink>
+              <div class="flex items-center justify-between rounded-lg px-2.5 py-2 text-fg"><span>API keys</span><b class="font-mono tabular-nums">{{ keys.length }}</b></div>
             </div>
           </div>
 
@@ -221,15 +221,15 @@ onMounted(async () => {
               <div class="space-y-0.5">
                 <div v-for="r in THR_ROWS" :key="r.key" class="flex items-center gap-2 border-t border-line/50 py-2 text-xs first:border-t-0">
                   <span class="flex-1 text-fg">{{ r.label }}</span>
-                  <input v-model.number="thrForm[r.key + '_warn']" :disabled="!canEdit" type="number" min="0" max="100" class="w-14 rounded-md border border-line bg-surface2 px-2 py-1 text-center text-amber-400 focus:border-accent/60 focus:outline-none disabled:opacity-60" />
-                  <input v-model.number="thrForm[r.key + '_crit']" :disabled="!canEdit" type="number" min="0" max="100" class="w-14 rounded-md border border-line bg-surface2 px-2 py-1 text-center text-red-400 focus:border-accent/60 focus:outline-none disabled:opacity-60" />
+                  <input v-model.number="thrForm[r.key + '_warn']" :disabled="!canEdit" type="number" min="0" max="100" class="w-14 rounded-md border border-line bg-surface2 px-2 py-1 text-center text-warn focus:border-accent/60 focus:outline-none disabled:opacity-60" />
+                  <input v-model.number="thrForm[r.key + '_crit']" :disabled="!canEdit" type="number" min="0" max="100" class="w-14 rounded-md border border-line bg-surface2 px-2 py-1 text-center text-down focus:border-accent/60 focus:outline-none disabled:opacity-60" />
                   <span class="text-faint">%</span>
                 </div>
               </div>
               <div v-if="canEdit" class="mt-3 flex items-center gap-2.5">
                 <button @click="saveThr" class="rounded-lg bg-accent px-3.5 py-1.5 text-sm font-semibold text-accentfg hover:opacity-90">Save</button>
                 <button @click="resetThrForm" class="text-xs text-muted hover:text-fg">Reset</button>
-                <span v-if="thrErr" class="text-xs" :class="thrErr.startsWith('✓') ? 'text-accent' : 'text-rose-400'">{{ thrErr }}</span>
+                <span v-if="thrErr" class="text-xs" :class="thrErr.startsWith('✓') ? 'text-accent' : 'text-down'">{{ thrErr }}</span>
               </div>
               <p v-else class="mt-2 text-xs text-faint">Editor access required to change these.</p>
             </div>

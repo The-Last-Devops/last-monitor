@@ -25,7 +25,7 @@ watch(() => confirmState.open, async (open) => {
       @click.self="settleConfirm(false)">
       <div class="w-full max-w-md overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_24px_60px_-16px_rgba(0,0,0,0.7)]" role="alertdialog" aria-modal="true">
         <div class="flex gap-4 px-6 pb-2 pt-6">
-          <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl" :class="confirmState.danger ? 'bg-rose-500/14 text-rose-400' : 'bg-accent/14 text-accent'">
+          <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl" :class="confirmState.danger ? 'bg-down/14 text-down' : 'bg-accent/14 text-accent'">
             <svg v-if="confirmState.danger" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m10.29 3.86-8.48 14.7A2 2 0 0 0 3.53 21h16.94a2 2 0 0 0 1.72-2.44L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
             <svg v-else class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
           </span>
@@ -38,7 +38,7 @@ watch(() => confirmState.open, async (open) => {
           <button @click="settleConfirm(false)" class="rounded-lg px-3 py-2 text-sm font-medium text-muted hover:text-fg">{{ confirmState.cancelText }}</button>
           <button ref="okBtn" @click="settleConfirm(true)"
             class="rounded-lg px-4 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-surface"
-            :class="confirmState.danger ? 'bg-rose-500 text-rose-950 hover:bg-rose-400 focus:ring-rose-500/50' : 'bg-accent text-accentfg hover:opacity-90 focus:ring-accent/50'">
+            :class="confirmState.danger ? 'bg-down text-rose-950 hover:bg-down focus:ring-down/50' : 'bg-accent text-accentfg hover:opacity-90 focus:ring-accent/50'">
             {{ confirmState.confirmText }}
           </button>
         </div>

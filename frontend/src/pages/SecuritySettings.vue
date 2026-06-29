@@ -171,7 +171,7 @@ async function deletePasskey(id) {
                 class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none" />
             </label>
             <p class="text-[11px] text-faint">At least 12 characters with upper, lower, and a digit. Your SSH keys keep working.</p>
-            <p v-if="err" class="text-xs text-rose-400">{{ err }}</p>
+            <p v-if="err" class="text-xs text-down">{{ err }}</p>
             <p v-if="ok" class="text-xs text-ok">Password changed.</p>
             <button type="submit" :disabled="saving"
               class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90 disabled:opacity-50">{{ saving ? 'Saving…' : 'Change password' }}</button>
@@ -193,7 +193,7 @@ async function deletePasskey(id) {
           <VIcon name="chevron" :size="16" class="shrink-0 text-faint transition-transform" :class="open === 'twofa' ? 'rotate-90' : ''" />
         </button>
         <div v-show="open === 'twofa'" class="border-t border-line px-5 py-4">
-          <p v-if="tfaErr" class="mb-3 text-xs text-rose-400">{{ tfaErr }}</p>
+          <p v-if="tfaErr" class="mb-3 text-xs text-down">{{ tfaErr }}</p>
 
           <div v-if="backupCodes" class="mb-3 rounded-lg border border-ok/40 bg-ok/10 p-3">
             <p class="mb-2 text-xs font-semibold text-ok">Save these backup codes — each works once if you lose your authenticator.</p>
@@ -212,11 +212,11 @@ async function deletePasskey(id) {
                   class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg focus:border-accent/60 focus:outline-none" />
               </label>
               <button :disabled="tfaBusy || !disablePw" @click="disableTfa"
-                class="rounded-lg border border-rose-400/50 px-3 py-2.5 text-sm text-rose-400 hover:bg-rose-400/10 disabled:opacity-50">Turn off</button>
+                class="rounded-lg border border-down/50 px-3 py-2.5 text-sm text-down hover:bg-down/10 disabled:opacity-50">Turn off</button>
               <button :disabled="tfaBusy" @click="disabling = false; disablePw = ''" class="rounded-lg px-3 py-2.5 text-sm text-muted hover:text-fg">Cancel</button>
             </div>
             <button v-else :disabled="tfaBusy" @click="disabling = true"
-              class="rounded-lg border border-line px-4 py-2 text-sm text-muted hover:border-rose-400/50 hover:text-rose-400 disabled:opacity-50">Turn off</button>
+              class="rounded-lg border border-line px-4 py-2 text-sm text-muted hover:border-down/50 hover:text-down disabled:opacity-50">Turn off</button>
           </template>
 
           <!-- enrolling -->
@@ -264,7 +264,7 @@ async function deletePasskey(id) {
           <VIcon name="chevron" :size="16" class="shrink-0 text-faint transition-transform" :class="open === 'passkeys' ? 'rotate-90' : ''" />
         </button>
         <div v-show="open === 'passkeys'" class="border-t border-line px-5 py-4">
-          <p v-if="pkErr" class="mb-3 text-xs text-rose-400">{{ pkErr }}</p>
+          <p v-if="pkErr" class="mb-3 text-xs text-down">{{ pkErr }}</p>
           <ul v-if="passkeys.length" class="mb-3 divide-y divide-line/60 overflow-hidden rounded-lg border border-line">
             <li v-for="p in passkeys" :key="p.id" class="flex items-center gap-3 px-3 py-2.5">
               <VIcon name="shield" :size="15" class="shrink-0 text-faint" />
@@ -273,7 +273,7 @@ async function deletePasskey(id) {
                 <div class="text-[11px] text-faint">Added {{ p.created_at?.slice(0, 10) }}</div>
               </div>
               <button @click="deletePasskey(p.id)" v-tip="'Remove passkey'"
-                class="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-rose-400"><VIcon name="trash" :size="15" /></button>
+                class="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-down"><VIcon name="trash" :size="15" /></button>
             </li>
           </ul>
           <p v-else class="mb-3 text-xs text-faint">No passkeys yet.</p>
@@ -296,7 +296,7 @@ async function deletePasskey(id) {
       <!-- PUBLIC EXPOSURE (admin) -->
       <section v-if="isAdmin" class="overflow-hidden rounded-xl border border-line bg-surface">
         <button @click="toggle('exposure')" class="flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-surface2">
-          <VIcon name="globe" :size="18" class="shrink-0" :class="exposure && exposure.exposed ? 'text-rose-400' : exposure && exposure.exposed === false ? 'text-ok' : 'text-muted'" />
+          <VIcon name="globe" :size="18" class="shrink-0" :class="exposure && exposure.exposed ? 'text-down' : exposure && exposure.exposed === false ? 'text-ok' : 'text-muted'" />
           <div class="min-w-0 flex-1">
             <div class="text-h2 font-semibold text-fg">Public exposure</div>
             <div class="text-xs text-muted">Is the hub reachable on the internet without an auth gate in front?</div>
@@ -315,7 +315,7 @@ async function deletePasskey(id) {
               Couldn't reach <span class="font-mono">{{ exposure.public_url }}</span> — {{ exposure.error }}. It may already be gated or not publicly routable.
             </p>
             <template v-else-if="exposure.exposed">
-              <p class="font-medium text-rose-400">⚠ Exposed — <span class="font-mono">{{ exposure.public_url }}</span> is reachable from the internet with no auth gate (HTTP {{ exposure.status }}).</p>
+              <p class="font-medium text-down">⚠ Exposed — <span class="font-mono">{{ exposure.public_url }}</span> is reachable from the internet with no auth gate (HTTP {{ exposure.status }}).</p>
               <p class="mt-1 text-muted">Put the hub behind <b class="text-fg">nginx basic-auth</b> or <b class="text-fg">Cloudflare Zero Trust</b> — and allow <span class="font-mono text-cap">/pub/*</span> through so agents keep working.</p>
             </template>
             <p v-else class="font-medium text-ok">✓ Protected — the gate-less request was blocked (HTTP {{ exposure.status }}).</p>

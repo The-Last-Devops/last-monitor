@@ -35,7 +35,7 @@ async function create() {
 }
 
 const open = (ns) => router.push({ name: 'namespace', params: { id: ns.id } })
-const rolePill = (r) => (r === 'owner' || r === 'admin' ? 'bg-accent/12 text-accent' : r === 'editor' ? 'bg-amber-400/12 text-amber-400' : 'bg-surface2 text-muted')
+const rolePill = (r) => (r === 'owner' || r === 'admin' ? 'bg-accent/12 text-accent' : r === 'editor' ? 'bg-warn/12 text-warn' : 'bg-surface2 text-muted')
 </script>
 
 <template>
@@ -46,7 +46,7 @@ const rolePill = (r) => (r === 'owner' || r === 'admin' ? 'bg-accent/12 text-acc
         <p class="mr-auto max-w-xl text-xs text-faint">Namespaces group systems &amp; services and scope who can see them. Click one to manage members, alert rules and thresholds.</p>
         <div>
           <input v-model="newName" placeholder="new-namespace" class="w-48 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none" />
-          <p v-if="err" class="mt-1 text-xs text-rose-400">{{ err }}</p>
+          <p v-if="err" class="mt-1 text-xs text-down">{{ err }}</p>
         </div>
         <button type="submit" :disabled="creating" class="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90 disabled:opacity-50">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>{{ creating ? 'Creating…' : 'Create' }}
@@ -66,8 +66,8 @@ const rolePill = (r) => (r === 'owner' || r === 'admin' ? 'bg-accent/12 text-acc
               <span class="ml-auto shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize" :class="rolePill(ns.role)">● {{ ns.role }}</span>
             </div>
             <div class="flex gap-8">
-              <div><div class="text-xl font-bold tabular-nums text-fg">{{ ns.system_count }}</div><div class="text-[10px] uppercase tracking-wide text-faint">Systems</div></div>
-              <div><div class="text-xl font-bold tabular-nums text-fg">{{ ns.member_count }}</div><div class="text-[10px] uppercase tracking-wide text-faint">Members</div></div>
+              <div><div class="text-xl font-bold font-mono tabular-nums text-fg">{{ ns.system_count }}</div><div class="text-[10px] uppercase tracking-wide text-faint">Systems</div></div>
+              <div><div class="text-xl font-bold font-mono tabular-nums text-fg">{{ ns.member_count }}</div><div class="text-[10px] uppercase tracking-wide text-faint">Members</div></div>
             </div>
           </button>
         </div>

@@ -159,7 +159,7 @@ onUnmounted(() => clearInterval(timer))
 
 <template>
   <AppShell title="Alert rules">
-    <template #title-after><span class="text-sm text-faint">{{ alerts.length }} rules<span v-if="firingCount" class="text-rose-500"> · {{ firingCount }} firing</span></span></template>
+    <template #title-after><span class="text-sm text-faint">{{ alerts.length }} rules<span v-if="firingCount" class="text-down"> · {{ firingCount }} firing</span></span></template>
     <template #actions>
       <button @click="openNew" class="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accentfg hover:opacity-90">
         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> New rule
@@ -174,7 +174,7 @@ onUnmounted(() => clearInterval(timer))
         <template #bulk="{ selected, disabled }">
           <button :disabled="disabled" @click="bulkEnable(selected, true)" class="rounded-lg border border-line bg-surface2 px-2.5 py-1.5 text-xs font-medium text-fg hover:border-accent/50 disabled:cursor-not-allowed disabled:opacity-40">Enable</button>
           <button :disabled="disabled" @click="bulkEnable(selected, false)" class="rounded-lg border border-line bg-surface2 px-2.5 py-1.5 text-xs font-medium text-fg hover:border-accent/50 disabled:cursor-not-allowed disabled:opacity-40">Disable</button>
-          <button :disabled="disabled" @click="bulkDelete(selected)" class="rounded-lg border border-rose-500/35 px-2.5 py-1.5 text-xs font-medium text-rose-500 hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40">Delete</button>
+          <button :disabled="disabled" @click="bulkDelete(selected)" class="rounded-lg border border-down/35 px-2.5 py-1.5 text-xs font-medium text-down hover:bg-down/10 disabled:cursor-not-allowed disabled:opacity-40">Delete</button>
         </template>
 
         <template #cell-state="{ row }">
@@ -184,7 +184,7 @@ onUnmounted(() => clearInterval(timer))
         <template #cell-target_name="{ row }">
           <div class="flex items-center gap-2">
             <svg v-if="isSvc(row)" class="h-[15px] w-[15px] shrink-0 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-            <svg v-else class="h-[15px] w-[15px] shrink-0 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <svg v-else class="h-[15px] w-[15px] shrink-0 text-pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
             <span class="font-medium text-fg">{{ row.target_name || '—' }}</span>
             <span class="text-xs text-faint">{{ isSvc(row) ? 'Service' : 'Host' }}</span>
           </div>
@@ -197,7 +197,7 @@ onUnmounted(() => clearInterval(timer))
         <template #cell-channels="{ row }">
           <span class="flex flex-wrap items-center gap-1">
             <span v-for="ch in row.channels" :key="ch.id" v-tip="ch.name" class="grid h-[22px] w-[22px] place-items-center rounded-md" :style="{ background: chanColor(ch.kind), color: chanFg(ch.kind) }" v-html="iconSvg(chanIcon(ch.kind), 13)"></span>
-            <span v-if="!row.channels.length" class="text-xs text-rose-500">none</span>
+            <span v-if="!row.channels.length" class="text-xs text-down">none</span>
           </span>
         </template>
 
@@ -218,10 +218,10 @@ onUnmounted(() => clearInterval(timer))
         <template #cell-actions="{ row }">
           <div class="flex items-center justify-end gap-1">
             <span v-if="testState[row.id] === 'ok'" class="text-xs text-accent">✓</span>
-            <span v-else-if="testState[row.id] === 'fail'" class="text-xs text-rose-500">✗</span>
+            <span v-else-if="testState[row.id] === 'fail'" class="text-xs text-down">✗</span>
             <button @click.stop="testAlert(row)" :disabled="testState[row.id] === 'testing'" class="rounded-lg border border-line bg-surface2 px-2 py-1 text-xs text-fg hover:border-accent/50 disabled:opacity-50" v-tip="`Send test`">Test</button>
             <button @click.stop="openEdit(row)" class="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-fg" v-tip="`Edit`"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg></button>
-            <button @click.stop="removeAlert(row)" class="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-rose-500" v-tip="`Delete`"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+            <button @click.stop="removeAlert(row)" class="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-down" v-tip="`Delete`"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
           </div>
         </template>
       </DataTable>

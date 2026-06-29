@@ -226,7 +226,7 @@ watch([range, selectedNs], reload)
             <div v-for="p in panels" :key="p.key" class="rounded-[11px] border border-line bg-surface p-3">
               <div class="mb-2 flex items-baseline justify-between gap-2">
                 <div class="text-sm font-medium text-fg">{{ p.title }} <span class="text-xs text-faint">{{ p.unit }}</span></div>
-                <div class="text-sm tabular-nums text-fg">
+                <div class="text-sm font-mono tabular-nums text-fg">
                   {{ fmt(p.unit, p.value) }}
                   <span class="ml-1 text-[10px] uppercase tracking-wide text-faint">{{ selected ? 'host' : 'avg' }}</span>
                 </div>
@@ -256,7 +256,7 @@ watch([range, selectedNs], reload)
                   ]">
                   <span class="h-2.5 w-2.5 shrink-0 rounded-full" :style="{ background: h.color }"></span>
                   <span class="flex-1 truncate font-mono text-fg" v-tip="h.name">{{ h.name }}</span>
-                  <span class="tabular-nums text-muted">{{ h.cpu == null ? '—' : Math.round(h.cpu) + '%' }}</span>
+                  <span class="font-mono tabular-nums text-muted">{{ h.cpu == null ? '—' : Math.round(h.cpu) + '%' }}</span>
                 </button>
               </li>
             </ul>

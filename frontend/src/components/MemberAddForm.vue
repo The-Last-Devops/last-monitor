@@ -71,7 +71,7 @@ function copyCreds(ev) {
           <span v-if="pwHint" class="mt-1.5 block text-xs text-warn">{{ pwHint }}</span>
           <span v-else class="mt-1.5 block text-xs text-faint">The new member signs in with this; they can change it later. Set the role after creating.</span>
         </label>
-        <p v-if="error" class="text-xs text-rose-400">{{ error }}</p>
+        <p v-if="error" class="text-xs text-down">{{ error }}</p>
         <div class="flex justify-end gap-2.5 pt-1">
           <button type="button" @click="emit('close')" class="rounded-lg px-3 py-2 text-sm text-muted hover:text-fg">Cancel</button>
           <button type="submit" :disabled="adding || !passwordOk(nu.password)" class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90 disabled:opacity-50">{{ adding ? 'Adding…' : 'Add member' }}</button>

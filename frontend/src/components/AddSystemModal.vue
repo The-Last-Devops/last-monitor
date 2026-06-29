@@ -132,7 +132,7 @@ function copy(ev) {
           <!-- create / install -->
           <div v-if="!state.key">
             <button @click="createKey" :disabled="state.busy" class="w-full rounded-lg bg-accent px-4 py-2.5 font-semibold text-accentfg hover:opacity-90 disabled:opacity-50">{{ state.busy ? 'Creating…' : 'Create & show install command' }}</button>
-            <p v-if="state.error" class="mt-2 text-sm text-red-500">{{ state.error }}</p>
+            <p v-if="state.error" class="mt-2 text-sm text-down">{{ state.error }}</p>
           </div>
           <div v-else>
             <div class="mb-2 flex items-center justify-between">
@@ -143,7 +143,7 @@ function copy(ev) {
             </div>
             <pre class="overflow-x-auto rounded-lg border border-line bg-bg p-3 text-xs leading-relaxed text-fg">{{ snippet }}</pre>
             <div v-if="!state.connected.length" class="mt-3 flex items-center gap-2 rounded-lg border border-line bg-surface2 px-3 py-2.5 text-xs text-muted">
-              <span class="h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-500"></span>
+              <span class="h-2 w-2 shrink-0 animate-pulse rounded-full bg-warn"></span>
               Waiting for first check-in… it will appear in the list automatically.
             </div>
             <div v-else class="mt-3 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2.5 text-xs text-accent">

@@ -16,7 +16,7 @@
   --fg: 226 232 240;     /* #E2E8F0 primary text */
   --muted: 169 182 200;  /* #A9B6C8 secondary */
   --faint: 124 138 156;  /* #7C8A9C tertiary */
-  --cap: 93 107 125;     /* #5D6B7D faintest labels */
+  --cap: 107 120 138;    /* #6B788A faintest labels */
   --accent: 52 225 196;  /* #34E1C4 teal */
   --accentfg: 6 35 31;   /* #06231F text on accent */
   --ok: 52 211 153; --warn: 251 191 36; --crit: 251 146 60; --down: 248 113 113; --pending: 96 165 250; /* state */
@@ -33,8 +33,8 @@
   --line2: 209 214 221;  /* #D1D6DD */
   --fg: 14 23 38;        /* #0E1726 */
   --muted: 70 86 107;    /* #46566B */
-  --faint: 100 115 134;  /* #647386 */
-  --cap: 138 151 166;    /* #8A97A6 */
+  --faint: 88 102 118;   /* #586676 — darker for contrast */
+  --cap: 107 120 136;    /* #6B7888 — darker for contrast */
   --accent: 13 148 136;  /* teal-600 */
   --accentfg: 255 255 255;
   --ok: 21 163 74; --warn: 194 137 11; --crit: 234 88 12; --down: 220 38 38; --pending: 37 99 235;

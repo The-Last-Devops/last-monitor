@@ -58,8 +58,8 @@ async function save(tier) {
               <tbody>
                 <tr v-for="t in stats.tables" :key="t.name" class="border-b border-line/60 last:border-0">
                   <td class="px-4 py-2.5 font-mono text-fg">{{ t.name }}</td>
-                  <td class="px-4 py-2.5 text-right tabular-nums text-muted">{{ t.rows.toLocaleString() }}</td>
-                  <td class="px-4 py-2.5 text-right tabular-nums text-fg">{{ t.size }}</td>
+                  <td class="px-4 py-2.5 text-right font-mono tabular-nums text-muted">{{ t.rows.toLocaleString() }}</td>
+                  <td class="px-4 py-2.5 text-right font-mono tabular-nums text-fg">{{ t.size }}</td>
                 </tr>
               </tbody>
             </table>
@@ -93,10 +93,10 @@ async function save(tier) {
               </tbody>
             </table>
           </div>
-          <p v-if="msg" class="text-xs" :class="msg.startsWith('✓') ? 'text-accent' : 'text-rose-400'">{{ msg }}</p>
+          <p v-if="msg" class="text-xs" :class="msg.startsWith('✓') ? 'text-accent' : 'text-down'">{{ msg }}</p>
         </section>
       </template>
-      <p v-else class="text-sm text-rose-400">Couldn't load data stats.</p>
+      <p v-else class="text-sm text-down">Couldn't load data stats.</p>
     </div>
   </AppShell>
 </template>

@@ -195,8 +195,8 @@ const statusUp = computed(() => {
   return Date.now() / 1000 - t[t.length - 1] < 90
 })
 const statusLabel = computed(() => (statusUp.value === null ? 'Checking…' : statusUp.value ? 'Up' : 'Down'))
-const statusText = computed(() => (statusUp.value === null ? 'text-muted' : statusUp.value ? 'text-accent' : 'text-red-500'))
-const statusDot = computed(() => (statusUp.value === null ? 'bg-faint animate-pulse' : statusUp.value ? 'bg-accent' : 'bg-red-500'))
+const statusText = computed(() => (statusUp.value === null ? 'text-muted' : statusUp.value ? 'text-accent' : 'text-down'))
+const statusDot = computed(() => (statusUp.value === null ? 'bg-faint animate-pulse' : statusUp.value ? 'bg-accent' : 'bg-down'))
 
 async function reload() {
   error.value = ''
@@ -258,7 +258,7 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
     <!-- range (charts views) -->
     <SystemRangePicker v-if="['node','host','container','docker','containers'].includes(type)" :ranges="RANGES" :range="range" :res-of="resOf" :live="live" @set-range="setRange" />
 
-    <p v-if="error" class="text-sm text-red-500">{{ error }}</p>
+    <p v-if="error" class="text-sm text-down">{{ error }}</p>
 
     <!-- node / docker / k8s-node: the host's own charts -->
     <div v-if="['node','host','docker'].includes(type)" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -276,8 +276,8 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
           <tr v-for="c in containersList" :key="c.name" class="vantage-row border-b border-line last:border-0">
             <td class="px-4 py-3"><RouterLink :to="`/system/${id}?type=container&name=${encodeURIComponent(c.name)}&parent=${encodeURIComponent(name)}&ptype=docker`" class="text-fg hover:text-accent">{{ c.name }}</RouterLink></td>
             <td class="px-4 py-3"><Gauge :v="c.cpu" /></td>
-            <td class="px-4 py-3 tabular-nums text-muted">{{ c.mem != null ? (c.mem/1048576).toFixed(0)+' MB' : '—' }}</td>
-            <td class="px-4 py-3 tabular-nums text-muted">{{ fmtBps(c.net) }}</td>
+            <td class="px-4 py-3 font-mono tabular-nums text-muted">{{ c.mem != null ? (c.mem/1048576).toFixed(0)+' MB' : '—' }}</td>
+            <td class="px-4 py-3 font-mono tabular-nums text-muted">{{ fmtBps(c.net) }}</td>
           </tr>
           <tr v-if="!containersList.length"><td colspan="4" class="px-4 py-6 text-center text-muted">No container data</td></tr>
         </tbody>
@@ -298,8 +298,8 @@ watch(() => [route.params.id, type.value, range.value, name.value, parent.value]
             <tr v-for="(c, i) in containersList" :key="c.name" class="vantage-row border-b border-line last:border-0" :class="selectedMetrics.includes(c.name) ? 'sel' : ''" @mouseenter="hoverMetric = c.name" @mouseleave="hoverMetric = null">
               <td class="px-4 py-3"><div class="flex items-center gap-2"><button @click="toggleMetric(c.name)" v-tip="selectedMetrics.includes(c.name) ? 'Unpin' : 'Pin on charts'" class="h-2.5 w-2.5 shrink-0 rounded-full" :class="selectedMetrics.includes(c.name) ? 'ring-2 ring-offset-1 ring-offset-surface' : ''" :style="{ background: seriesColor(i), '--tw-ring-color': seriesColor(i) }"></button><span class="text-fg">{{ c.name }}</span></div></td>
               <td class="px-4 py-3"><Gauge :v="c.cpu" /></td>
-              <td class="px-4 py-3 tabular-nums text-muted">{{ c.mem != null ? (c.mem/1048576).toFixed(0)+' MB' : '—' }}</td>
-              <td class="px-4 py-3 tabular-nums text-muted">{{ fmtBps(c.net) }}</td>
+              <td class="px-4 py-3 font-mono tabular-nums text-muted">{{ c.mem != null ? (c.mem/1048576).toFixed(0)+' MB' : '—' }}</td>
+              <td class="px-4 py-3 font-mono tabular-nums text-muted">{{ fmtBps(c.net) }}</td>
             </tr>
           </tbody>
         </table>

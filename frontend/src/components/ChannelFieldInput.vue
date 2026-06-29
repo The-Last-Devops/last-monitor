@@ -26,7 +26,7 @@ const revealed = ref(false)
   </label>
   <!-- everything else -->
   <label v-else class="block">
-    <span class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-faint">{{ field.label }}<span v-if="field.required" class="ml-0.5 text-rose-400">*</span></span>
+    <span class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-faint">{{ field.label }}<span v-if="field.required" class="ml-0.5 text-down">*</span></span>
     <UiSelect v-if="field.type === 'select'" v-model="model" block :options="field.options" />
     <textarea v-else-if="field.type === 'textarea'" v-model="model" :placeholder="field.placeholder" rows="3" class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none"></textarea>
     <span v-else-if="field.type === 'secret'" class="relative block">

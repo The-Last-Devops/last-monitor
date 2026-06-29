@@ -234,7 +234,7 @@ watch([hoverIdx, cursorTime], () => emit('cursor-time', hoverIdx.value != null ?
       <!-- floating cursor tooltip (overlay charts): nearest host + value at time -->
       <div v-if="tooltip && tip.show" class="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-[calc(100%+10px)] whitespace-nowrap rounded-md border border-line bg-surface2 px-2 py-1 text-xs shadow-xl" :style="{ left: tip.x + 'px', top: tip.y + 'px' }">
         <div class="text-faint">{{ tip.time }}</div>
-        <div class="mt-0.5 flex items-center gap-1.5"><span class="h-2 w-2 rounded-full" :style="{ background: tip.color }"></span><span class="text-fg">{{ tip.name }}</span><span class="tabular-nums font-medium text-fg">{{ tip.val }}</span></div>
+        <div class="mt-0.5 flex items-center gap-1.5"><span class="h-2 w-2 rounded-full" :style="{ background: tip.color }"></span><span class="text-fg">{{ tip.name }}</span><span class="font-mono tabular-nums font-medium text-fg">{{ tip.val }}</span></div>
       </div>
     </div>
     <!-- fixed-column grid so values appearing on hover never change the row
@@ -249,7 +249,7 @@ watch([hoverIdx, cursorTime], () => emit('cursor-time', hoverIdx.value != null ?
         :class="isDim(s.name) ? 'opacity-35' : ''">
         <span class="h-2 w-2 shrink-0 rounded-full" :class="isSel(s.name) ? 'ring-2 ring-offset-1 ring-offset-surface' : ''" :style="{ background: s.color, '--tw-ring-color': s.color }"></span>
         <span :class="isSel(s.name) || isHi(s.name) ? 'text-fg' : 'text-muted'">{{ short(s.name) }}</span>
-        <span class="min-w-[2.5em] text-right tabular-nums text-fg">{{ s.value }}</span>
+        <span class="min-w-[2.5em] text-right font-mono tabular-nums text-fg">{{ s.value }}</span>
       </button>
     </div>
   </div>

@@ -51,7 +51,7 @@ let timer = null
 const r = (x) => Math.round(x || 0)
 const LATEST = computed(() => servers.value.map((s) => s.agent_version).filter(Boolean).sort(cmpVer).pop())
 function cmpVer(a, b) { const p = (x) => x.split('.').map(Number); const A = p(a), B = p(b); for (let i = 0; i < 3; i++) if ((A[i]||0)!==(B[i]||0)) return (A[i]||0)-(B[i]||0); return 0 }
-function agentCls(v) { if (!v) return 'bg-surface2 text-faint'; if (v === LATEST.value) return 'bg-accent/10 text-accent'; return cmpVer(v, '0.7.0') >= 0 ? 'bg-amber-500/10 text-amber-500' : 'bg-red-500/10 text-red-500' }
+function agentCls(v) { if (!v) return 'bg-surface2 text-faint'; if (v === LATEST.value) return 'bg-accent/10 text-accent'; return cmpVer(v, '0.7.0') >= 0 ? 'bg-warn/10 text-warn' : 'bg-down/10 text-down' }
 
 // Host search mini-language (parseQuery/matchPred) + pct/online → ../lib/hostFilter.
 // committed filters shown as chips (each token in q); search box appends via @add
@@ -249,12 +249,12 @@ const detailLink = (s) => {
       <section class="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div class="rounded-xl border border-line bg-surface p-4">
           <div class="text-xs uppercase tracking-wider text-muted">Systems online</div>
-          <div class="mt-1.5 text-2xl font-semibold text-fg">{{ hero.online }}<span class="text-sm text-faint"> / {{ hero.total }}</span></div>
+          <div class="mt-1.5 font-mono text-metric text-fg">{{ hero.online }}<span class="text-sm text-faint"> / {{ hero.total }}</span></div>
           <div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.total ? (hero.online / hero.total) * 100 : 0) + '%' }"></div></div>
         </div>
-        <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs uppercase tracking-wider text-muted">Avg disk</div><div class="mt-1.5 text-2xl font-semibold text-fg">{{ hero.disk ?? '—' }}%</div><div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.disk || 0) + '%' }"></div></div></div>
-        <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs uppercase tracking-wider text-muted">Avg CPU</div><div class="mt-1.5 text-2xl font-semibold text-fg">{{ hero.cpu ?? '—' }}%</div><div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.cpu || 0) + '%' }"></div></div></div>
-        <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs uppercase tracking-wider text-muted">Avg memory</div><div class="mt-1.5 text-2xl font-semibold text-fg">{{ hero.mem ?? '—' }}%</div><div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.mem || 0) + '%' }"></div></div></div>
+        <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs uppercase tracking-wider text-muted">Avg disk</div><div class="mt-1.5 font-mono text-metric text-fg">{{ hero.disk ?? '—' }}%</div><div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.disk || 0) + '%' }"></div></div></div>
+        <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs uppercase tracking-wider text-muted">Avg CPU</div><div class="mt-1.5 font-mono text-metric text-fg">{{ hero.cpu ?? '—' }}%</div><div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.cpu || 0) + '%' }"></div></div></div>
+        <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs uppercase tracking-wider text-muted">Avg memory</div><div class="mt-1.5 font-mono text-metric text-fg">{{ hero.mem ?? '—' }}%</div><div class="mt-2 h-1 overflow-hidden rounded bg-line"><div class="h-full bg-accent" :style="{ width: (hero.mem || 0) + '%' }"></div></div></div>
       </section>
 
       <!-- needs attention: a single compact list, icons show what's wrong -->
@@ -265,9 +265,9 @@ const detailLink = (s) => {
         </div>
         <p class="mt-1 text-xs text-muted">No host is down or over its thresholds.</p>
       </section>
-      <section v-if="attnMode && attnHosts.length" class="overflow-hidden rounded-xl border border-amber-500/30 bg-amber-500/5">
+      <section v-if="attnMode && attnHosts.length" class="overflow-hidden rounded-xl border border-warn/30 bg-warn/5">
         <div class="flex items-center gap-2 px-4 py-3">
-          <svg class="h-4 w-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+          <svg class="h-4 w-4 text-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
           <h2 class="text-sm font-semibold text-fg">Needs attention</h2>
           <span class="rounded-full bg-surface2 px-2 py-0.5 text-xs text-muted">{{ attnHosts.length }} hosts</span>
         </div>
@@ -276,7 +276,7 @@ const detailLink = (s) => {
             v-tip="chipTitle(h)" class="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs hover:border-accent/50">
             <span class="text-fg">{{ h.s.name }}</span>
             <span v-for="i in h.issues" :key="i.key" v-tip="issueText(i)"
-              class="inline-flex items-center gap-0.5 tabular-nums" :class="i.crit ? 'text-red-400' : 'text-amber-400'">
+              class="inline-flex items-center gap-0.5 font-mono tabular-nums" :class="i.crit ? 'text-down' : 'text-warn'">
               <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path :d="ISSUE[i.key].icon"/></svg>
               <span v-if="i.val != null">{{ i.val }}%</span>
             </span>
@@ -291,7 +291,7 @@ const detailLink = (s) => {
       </div>
 
       <PageLoader v-if="!loaded && !error" />
-      <p v-if="error" class="text-sm text-red-500">{{ error }}</p>
+      <p v-if="error" class="text-sm text-down">{{ error }}</p>
 
       <!-- Fleet overlay: every visible host on one chart per metric (filter applies) -->
       <section v-if="servers.length">
@@ -300,13 +300,13 @@ const detailLink = (s) => {
           <span class="rounded-full bg-surface2 px-2 py-0.5 text-xs text-muted">{{ visible.length }} hosts</span>
           <!-- active filter chips (each token in the query) + reset -->
           <span v-for="(c, i) in chips" :key="c + i" class="flex items-center gap-1 rounded-full border border-line bg-surface2 py-0.5 pl-2 pr-1 text-xs text-fg">
-            <span class="tabular-nums">{{ c }}</span>
-            <button @click="removeChip(i)" v-tip="`Remove filter`" class="grid h-4 w-4 place-items-center rounded-full text-faint hover:bg-red-500/15 hover:text-red-500"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            <span class="font-mono tabular-nums">{{ c }}</span>
+            <button @click="removeChip(i)" v-tip="`Remove filter`" class="grid h-4 w-4 place-items-center rounded-full text-faint hover:bg-down/15 hover:text-down"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </span>
           <!-- selected nodes (row checkbox) — shown on charts, listed as chips -->
           <span v-for="s in pinnedSystems" :key="'pin-' + s.id" v-tip="s.name" class="flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 py-0.5 pl-2 pr-1 text-xs text-accent">
             <span class="h-2 w-2 rounded-full" :style="{ background: colorOf[s.name] }"></span>
-            <span class="tabular-nums">{{ shortName(s.name) }}</span>
+            <span class="font-mono tabular-nums">{{ shortName(s.name) }}</span>
             <button @click="toggleRow(s.id)" v-tip="`Deselect`" class="grid h-4 w-4 place-items-center rounded-full hover:bg-accent/25"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </span>
           <button v-if="chips.length || pinnedSystems.length || fviewRange" @click="resetFilters" class="text-xs text-muted hover:text-accent">Reset</button>
@@ -314,7 +314,7 @@ const detailLink = (s) => {
           <div class="ml-auto flex items-center gap-2">
             <span v-if="fviewRange" class="flex items-center gap-1 rounded-lg border border-accent/40 bg-accent/10 py-1 pl-2 pr-1 text-xs text-accent">
               <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-              <span class="tabular-nums">{{ fmtTs(fviewRange[0]) }} – {{ fmtTs(fviewRange[1]) }}</span>
+              <span class="font-mono tabular-nums">{{ fmtTs(fviewRange[0]) }} – {{ fmtTs(fviewRange[1]) }}</span>
               <button @click="setFzoom(null)" v-tip="`Clear zoom`" class="grid h-4 w-4 place-items-center rounded-full hover:bg-accent/25"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
             </span>
             <div v-else class="flex rounded-lg border border-line bg-surface2 p-0.5 text-xs">
@@ -347,7 +347,7 @@ const detailLink = (s) => {
             </tr></thead>
             <tbody>
               <template v-for="s in rows" :key="s.id">
-                <tr class="vantage-row border-b border-line border-l-2" :class="[selected.has(s.id) ? 'sel' : '', sevOf(s) === 3 || sevOf(s) === 2 ? 'border-l-red-500' : sevOf(s) === 1 ? 'border-l-amber-500' : 'border-l-transparent']" @mouseenter="onLegendHover(s.name)" @mouseleave="onLegendHover(null)">
+                <tr class="vantage-row border-b border-line border-l-2" :class="[selected.has(s.id) ? 'sel' : '', sevOf(s) === 3 || sevOf(s) === 2 ? 'border-l-down' : sevOf(s) === 1 ? 'border-l-warn' : 'border-l-transparent']" @mouseenter="onLegendHover(s.name)" @mouseleave="onLegendHover(null)">
                   <td class="px-3 py-3"><input type="checkbox" :checked="selected.has(s.id)" @change="toggleRow(s.id)" class="h-4 w-4 accent-accent" /></td>
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-1.5">
@@ -360,7 +360,7 @@ const detailLink = (s) => {
                   <td class="px-4 py-3"><button @click="setFilter('ns', s.namespace)" v-tip="`Filter ns:${s.namespace}`" class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted hover:text-accent">{{ s.namespace || '—' }}</button></td>
                   <td class="px-4 py-3"><button @click="setFilter('kind', s.kind)" v-tip="`Filter kind:${s.kind}`" class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted hover:text-accent">{{ KIND_LABEL[s.kind] || s.kind }}</button></td>
                   <td class="px-4 py-3"><button v-if="s.cluster" @click="setFilter('cluster', s.cluster)" v-tip="`Filter cluster:${s.cluster}`" class="rounded bg-surface2 px-1.5 py-0.5 text-xs text-muted hover:text-accent">{{ s.cluster }}</button><span v-else class="text-faint">—</span></td>
-                  <td class="px-4 py-3"><button @click="setFilter('status', online(s)?'online':'offline')" v-tip="`Filter status:${online(s)?'online':'offline'}`" class="text-sm hover:underline" :class="online(s)?'text-accent':'text-red-500'">{{ online(s)?'online':'offline' }}</button></td>
+                  <td class="px-4 py-3"><button @click="setFilter('status', online(s)?'online':'offline')" v-tip="`Filter status:${online(s)?'online':'offline'}`" class="text-sm hover:underline" :class="online(s)?'text-accent':'text-down'">{{ online(s)?'online':'offline' }}</button></td>
                   <td class="px-4 py-3"><Gauge :v="online(s)?r(s.cpu_percent):null" /></td>
                   <td class="px-4 py-3"><Gauge :v="online(s)?pct(s.mem_used,s.mem_total):null" /></td>
                   <td class="px-4 py-3"><Gauge :v="online(s)?pct(s.disk_used,s.disk_total):null" /></td>
@@ -374,7 +374,7 @@ const detailLink = (s) => {
                   <td class="px-4 py-2 text-faint">—</td>
                   <td class="px-4 py-2 text-sm text-accent">running</td>
                   <td class="px-4 py-2"><Gauge :v="c.cpu" /></td>
-                  <td class="px-4 py-2 tabular-nums text-muted">{{ c.mem != null ? (c.mem / 1048576).toFixed(0) + ' MB' : '—' }}</td>
+                  <td class="px-4 py-2 font-mono tabular-nums text-muted">{{ c.mem != null ? (c.mem / 1048576).toFixed(0) + ' MB' : '—' }}</td>
                   <td class="px-4 py-2 text-faint">—</td>
                   <td class="px-4 py-2 text-faint">—</td>
                 </tr>
@@ -391,7 +391,7 @@ const detailLink = (s) => {
       <div class="flex items-center gap-4 rounded-xl border border-line bg-surface2 px-4 py-2.5 shadow-2xl">
         <span class="text-sm text-fg"><span class="font-semibold text-accent">{{ selected.size }}</span> selected</span>
         <div class="h-4 w-px bg-line"></div>
-        <button @click="bulkDelete" class="flex items-center gap-1.5 rounded-lg bg-red-500/15 px-3 py-1.5 text-sm font-medium text-red-500 hover:bg-red-500/25"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Delete</button>
+        <button @click="bulkDelete" class="flex items-center gap-1.5 rounded-lg bg-down/15 px-3 py-1.5 text-sm font-medium text-down hover:bg-down/25"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Delete</button>
         <button @click="selected.clear()" class="text-sm text-muted hover:text-fg">Cancel</button>
       </div>
     </div>

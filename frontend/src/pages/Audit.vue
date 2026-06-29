@@ -56,8 +56,8 @@ async function setRetention(v) {
 
 // ---- presentation ----
 const fmt = (s) => { const d = new Date(s); return isNaN(d) ? s : d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) }
-const methodColor = (m) => ({ POST: 'text-accent', PATCH: 'text-amber-400', PUT: 'text-amber-400', DELETE: 'text-red-400' }[m] || 'text-muted')
-const statusColor = (s) => (s < 300 ? 'text-accent' : s < 400 ? 'text-amber-400' : 'text-red-400')
+const methodColor = (m) => ({ POST: 'text-accent', PATCH: 'text-warn', PUT: 'text-warn', DELETE: 'text-down' }[m] || 'text-muted')
+const statusColor = (s) => (s < 300 ? 'text-accent' : s < 400 ? 'text-warn' : 'text-down')
 
 const VERB = { POST: 'Create', PATCH: 'Update', PUT: 'Update', DELETE: 'Delete' }
 const ACTION = { test: 'Test', upload: 'Upload', restore: 'Restore', run: 'Run', revoke: 'Revoke' }
@@ -120,12 +120,12 @@ const filtered = computed(() => !!(q.value.trim() || method.value || status.valu
               <tbody>
                 <tr v-if="!rows.length"><td colspan="6" class="px-3 py-10 text-center text-muted">{{ filtered ? 'No actions match these filters.' : 'No actions logged yet.' }}</td></tr>
                 <tr v-for="(r, i) in decorated" :key="i" class="border-b border-line/60 last:border-0 hover:bg-surface2/50">
-                  <td class="whitespace-nowrap px-3 py-1.5 tabular-nums text-muted">{{ fmt(r.at) }}</td>
+                  <td class="whitespace-nowrap px-3 py-1.5 font-mono tabular-nums text-muted">{{ fmt(r.at) }}</td>
                   <td class="truncate px-3 py-1.5 text-fg" v-tip="r.user_email || ''">{{ r.user_email || '—' }}</td>
                   <td class="whitespace-nowrap px-3 py-1.5 font-medium" :class="methodColor(r.method)">{{ r.label }}</td>
                   <td class="truncate px-3 py-1.5 text-fg" v-tip="r.object_name || ''">{{ r.object_name || '—' }}</td>
                   <td class="truncate px-3 py-1.5 font-mono text-[11px] text-faint" v-tip="r.path">{{ r.path }}</td>
-                  <td class="px-3 py-1.5 text-right tabular-nums" :class="statusColor(r.status)">{{ r.status }}</td>
+                  <td class="px-3 py-1.5 text-right font-mono tabular-nums" :class="statusColor(r.status)">{{ r.status }}</td>
                 </tr>
               </tbody>
             </table>
@@ -137,7 +137,7 @@ const filtered = computed(() => !!(q.value.trim() || method.value || status.valu
           <span v-if="total">Showing {{ showingFrom }}–{{ showingTo }} of {{ total }}</span>
           <div class="ml-auto flex items-center gap-2">
             <button @click="prev" :disabled="offset === 0" class="rounded-lg border border-line bg-surface2 px-3 py-1.5 text-fg hover:border-accent/50 disabled:opacity-40">‹ Prev</button>
-            <span class="tabular-nums text-muted">Page {{ page }} / {{ pages }}</span>
+            <span class="font-mono tabular-nums text-muted">Page {{ page }} / {{ pages }}</span>
             <button @click="next" :disabled="offset + PAGE >= total" class="rounded-lg border border-line bg-surface2 px-3 py-1.5 text-fg hover:border-accent/50 disabled:opacity-40">Next ›</button>
           </div>
         </div>

@@ -109,7 +109,7 @@ onMounted(async () => {
         </div>
         <div class="ml-auto flex items-center gap-2">
           <span v-if="testState === 'ok'" class="text-xs text-accent">✓ Test sent</span>
-          <span v-else-if="testState === 'fail'" class="text-xs text-rose-400">✗ Test failed</span>
+          <span v-else-if="testState === 'fail'" class="text-xs text-down">✗ Test failed</span>
           <button @click="sendTest" :disabled="testState === 'run'" class="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface2 px-3 py-2 text-sm font-medium text-fg hover:border-accent/50 disabled:opacity-50">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>{{ testState === 'run' ? 'Sending…' : 'Send test' }}
           </button>
@@ -134,7 +134,7 @@ onMounted(async () => {
                 <span><span class="block text-sm text-fg">{{ f.label }}</span><span v-if="f.hint" class="block text-xs text-faint">{{ f.hint }}</span></span>
               </label>
               <label v-else class="block">
-                <span class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-faint">{{ f.label }}<span v-if="f.required" class="ml-0.5 text-rose-400">*</span></span>
+                <span class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-faint">{{ f.label }}<span v-if="f.required" class="ml-0.5 text-down">*</span></span>
                 <UiSelect v-if="f.type === 'select'" v-model="form.config[f.key]" block :options="f.options" />
                 <textarea v-else-if="f.type === 'textarea'" v-model="form.config[f.key]" :placeholder="f.placeholder" rows="3" class="w-full rounded-lg border border-line bg-surface2 px-3 py-2.5 text-sm text-fg placeholder:text-faint focus:border-accent/60 focus:outline-none"></textarea>
                 <span v-else-if="f.type === 'secret'" class="relative block">
@@ -147,8 +147,8 @@ onMounted(async () => {
             </div>
           </fieldset>
           <div v-if="canEdit" class="mt-5 flex items-center gap-2.5 border-t border-line pt-4">
-            <button @click="remove" class="rounded-lg border border-rose-500/35 px-3 py-2 text-xs font-medium text-rose-400 hover:bg-rose-500/10">Delete</button>
-            <span v-if="err" class="text-xs" :class="err.startsWith('✓') ? 'text-accent' : 'text-rose-400'">{{ err }}</span>
+            <button @click="remove" class="rounded-lg border border-down/35 px-3 py-2 text-xs font-medium text-down hover:bg-down/10">Delete</button>
+            <span v-if="err" class="text-xs" :class="err.startsWith('✓') ? 'text-accent' : 'text-down'">{{ err }}</span>
             <span class="ml-auto"></span>
             <button @click="save" :disabled="saving" class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90 disabled:opacity-50">{{ saving ? 'Saving…' : 'Save changes' }}</button>
           </div>
@@ -162,7 +162,7 @@ onMounted(async () => {
             <p v-if="!rules.length" class="text-xs text-faint">No alert rules notify through this channel yet.</p>
             <div v-else class="space-y-1.5">
               <RouterLink v-for="r in rules" :key="r.id" :to="{ name: 'alerts', query: { ns: r.namespace, rule: r.id } }" class="flex items-center gap-2 rounded-lg border border-line bg-surface2 px-2.5 py-2 text-xs hover:border-accent/50">
-                <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="!r.enabled ? 'bg-faint' : r.firing === true ? 'bg-red-500' : r.firing === false ? 'bg-accent' : 'bg-amber-400'"></span>
+                <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="!r.enabled ? 'bg-faint' : r.firing === true ? 'bg-down' : r.firing === false ? 'bg-accent' : 'bg-warn'"></span>
                 <span class="truncate text-fg">{{ r.target }}</span>
                 <span class="shrink-0 text-faint">· {{ r.namespace }}</span>
                 <span v-if="!r.enabled" class="ml-auto shrink-0 text-faint">disabled</span>

@@ -86,7 +86,7 @@ function onKey(e) {
     <div v-if="open && suggestions.length" class="absolute left-0 right-0 z-30 mt-1 max-h-72 overflow-auto rounded-lg border border-line bg-surface2 py-1 shadow-xl">
       <button v-for="(s, i) in suggestions" :key="s.label" @mousedown.prevent="pick(s)"
         class="flex w-full items-center justify-between gap-4 px-3 py-1.5 text-left text-sm" :class="i === hi ? 'bg-accent/15 text-accent' : 'text-fg hover:bg-surface'">
-        <span class="tabular-nums">{{ s.label }}</span>
+        <span class="font-mono tabular-nums">{{ s.label }}</span>
         <span v-if="s.desc" class="text-xs text-faint">{{ s.desc }}</span>
       </button>
     </div>

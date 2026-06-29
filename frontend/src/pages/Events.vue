@@ -152,14 +152,14 @@ onUnmounted(() => clearInterval(timer))
         <!-- active now -->
         <section v-if="active.length" class="space-y-2.5">
           <div class="flex items-center gap-2.5 text-[11px] font-bold uppercase tracking-wider text-faint">
-            <span class="relative h-2.5 w-2.5 rounded-full bg-red-500"><span class="absolute inset-0 animate-ping rounded-full bg-red-500/60"></span></span>
+            <span class="relative h-2.5 w-2.5 rounded-full bg-down"><span class="absolute inset-0 animate-ping rounded-full bg-down/60"></span></span>
             Active now <span class="rounded-full bg-surface2 px-2 py-0.5 text-[10px]">{{ active.length }}</span>
           </div>
           <RouterLink v-for="a in active" :key="a.id" :to="ruleLink(a.id)"
-            class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-red-500/40 bg-red-500/5 px-4 py-2.5 transition-colors hover:border-red-500/70">
-            <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500"></span>
+            class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-down/40 bg-down/5 px-4 py-2.5 transition-colors hover:border-down/70">
+            <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-down"></span>
             <span class="text-sm font-semibold text-fg">{{ a.target_name || '—' }} is DOWN</span>
-            <span class="rounded-md bg-red-500/15 px-1.5 py-0.5 font-mono text-[11px] font-bold text-red-400">{{ since(a.since) }}</span>
+            <span class="rounded-md bg-down/15 px-1.5 py-0.5 font-mono text-[11px] font-bold text-down">{{ since(a.since) }}</span>
             <span class="text-[11px] uppercase text-faint">{{ a.target_kind }}</span>
             <span class="inline-flex items-center gap-1 text-xs text-faint"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/></svg>{{ a.namespace }}</span>
             <span v-if="a.since" class="text-xs text-faint">since {{ evTime(a.since) }}</span>
@@ -176,7 +176,7 @@ onUnmounted(() => clearInterval(timer))
             <RouterLink v-for="(e, i) in pagedHistory" :key="i" :to="ruleLink(e.alert_id)"
               class="flex items-start gap-3.5 border-b border-line/60 px-4 py-3 transition-colors last:border-0 hover:bg-surface2">
               <span class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg"
-                :class="e.firing ? 'bg-red-500/15 text-red-400' : 'bg-accent/15 text-accent'">
+                :class="e.firing ? 'bg-down/15 text-down' : 'bg-accent/15 text-accent'">
                 <svg v-if="e.firing" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m10.29 3.86-8.48 14.7A2 2 0 0 0 3.53 21h16.94a2 2 0 0 0 1.72-2.44L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
                 <svg v-else class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
               </span>
@@ -190,13 +190,13 @@ onUnmounted(() => clearInterval(timer))
                   <span class="truncate">{{ e.message || (e.target_kind === 'monitor' ? 'Service check' : 'Host condition') }}</span>
                 </div>
               </div>
-              <span class="shrink-0 pl-2 text-xs tabular-nums text-faint">{{ evTime(e.at) }}</span>
+              <span class="shrink-0 pl-2 text-xs font-mono tabular-nums text-faint">{{ evTime(e.at) }}</span>
             </RouterLink>
           </div>
           <div v-if="histPages > 1" class="flex items-center justify-between px-1 pt-1 text-xs">
             <button :disabled="histPage <= 1" @click="histPage--"
               class="rounded-lg border border-line px-2.5 py-1 text-muted hover:border-accent/50 hover:text-fg disabled:opacity-40">Prev</button>
-            <span class="tabular-nums text-faint">Page {{ histPage }} / {{ histPages }} · {{ shownHistory.length }} events</span>
+            <span class="font-mono tabular-nums text-faint">Page {{ histPage }} / {{ histPages }} · {{ shownHistory.length }} events</span>
             <button :disabled="histPage >= histPages" @click="histPage++"
               class="rounded-lg border border-line px-2.5 py-1 text-muted hover:border-accent/50 hover:text-fg disabled:opacity-40">Next</button>
           </div>

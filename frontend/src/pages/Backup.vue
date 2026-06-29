@@ -115,7 +115,7 @@ onMounted(() => { if (isAdmin.value) { loadS3(); listS3(); loadSchedule() } })
           <input type="file" accept=".gz,.json,application/gzip,application/json" @change="restoreFile = $event.target.files[0]" class="text-sm text-muted file:mr-3 file:rounded-lg file:border file:border-line file:bg-surface2 file:px-3 file:py-1.5 file:text-sm file:text-fg" />
           <button :disabled="busy" @click="uploadRestore" class="rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg hover:border-accent/50 disabled:opacity-50">Restore from file</button>
         </div>
-        <p v-if="msg" class="text-xs" :class="msg.startsWith('✓') ? 'text-accent' : 'text-rose-400'">{{ msg }}</p>
+        <p v-if="msg" class="text-xs" :class="msg.startsWith('✓') ? 'text-accent' : 'text-down'">{{ msg }}</p>
       </section>
 
       <!-- S3 -->
@@ -136,7 +136,7 @@ onMounted(() => { if (isAdmin.value) { loadS3(); listS3(); loadSchedule() } })
           <button @click="saveS3" class="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accentfg hover:opacity-90">Save</button>
           <button @click="testS3" class="rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg hover:border-accent/50">Test connection</button>
           <button :disabled="busy" @click="uploadS3" class="rounded-lg border border-line bg-surface2 px-3 py-2 text-sm text-fg hover:border-accent/50 disabled:opacity-50">Back up to S3 now</button>
-          <span v-if="s3msg" class="text-xs" :class="s3msg.startsWith('✓') ? 'text-accent' : 'text-rose-400'">{{ s3msg }}</span>
+          <span v-if="s3msg" class="text-xs" :class="s3msg.startsWith('✓') ? 'text-accent' : 'text-down'">{{ s3msg }}</span>
         </div>
 
         <div v-if="s3keys.length" class="mt-2 overflow-hidden rounded-lg border border-line">
@@ -171,7 +171,7 @@ onMounted(() => { if (isAdmin.value) { loadS3(); listS3(); loadSchedule() } })
         </div>
         <div class="flex items-center gap-3">
           <button @click="saveSchedule" class="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accentfg hover:opacity-90">Save schedule</button>
-          <span v-if="schedMsg" class="text-xs" :class="schedMsg.startsWith('✓') ? 'text-accent' : 'text-rose-400'">{{ schedMsg }}</span>
+          <span v-if="schedMsg" class="text-xs" :class="schedMsg.startsWith('✓') ? 'text-accent' : 'text-down'">{{ schedMsg }}</span>
         </div>
       </section>
     </div>

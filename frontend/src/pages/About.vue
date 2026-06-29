@@ -65,12 +65,12 @@ onMounted(async () => {
       </div>
 
       <!-- update check -->
-      <div class="rounded-xl border p-4" :class="isNewer ? 'border-amber-500/40 bg-amber-500/5' : 'border-line bg-surface'">
+      <div class="rounded-xl border p-4" :class="isNewer ? 'border-warn/40 bg-warn/5' : 'border-line bg-surface'">
         <div class="flex items-center justify-between gap-3">
           <div>
             <div v-if="checking" class="text-sm text-muted">Checking for updates…</div>
             <div v-else-if="checkErr" class="text-sm text-muted">{{ checkErr }}</div>
-            <div v-else-if="isNewer" class="text-sm font-medium text-amber-400">Update available: {{ latest.tag }} (you have v{{ about?.version }})</div>
+            <div v-else-if="isNewer" class="text-sm font-medium text-warn">Update available: {{ latest.tag }} (you have v{{ about?.version }})</div>
             <div v-else-if="isAhead" class="text-sm font-medium text-accent">Running a pre-release (v{{ about?.version }}) — ahead of the latest release {{ latest.tag }}</div>
             <div v-else-if="latest" class="text-sm font-medium text-accent">You're on the latest version (v{{ about?.version }})</div>
           </div>

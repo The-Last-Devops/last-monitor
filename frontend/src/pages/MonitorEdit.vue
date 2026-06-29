@@ -178,7 +178,7 @@ onMounted(async () => {
         <div class="flex items-center gap-3 border-t border-line pt-4">
           <button type="submit" :disabled="saving" class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90 disabled:opacity-50">{{ saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create service' }}</button>
           <button type="button" @click="back" class="text-sm text-muted hover:text-fg">Cancel</button>
-          <span v-if="formErr" class="text-xs text-rose-500">{{ formErr }}</span>
+          <span v-if="formErr" class="text-xs text-down">{{ formErr }}</span>
         </div>
       </form>
     </template>

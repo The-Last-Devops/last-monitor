@@ -44,7 +44,7 @@ watch(() => props.events, () => { if (page.value > pages.value) page.value = 1 }
                 class="truncate font-mono text-sm text-fg hover:text-accent" @click.stop>{{ e.name }}</RouterLink>
               <span class="truncate text-sm text-muted">{{ evMessage(e) }}</span>
             </div>
-            <div class="mt-0.5 flex items-center gap-1.5 text-micro tabular-nums text-faint">
+            <div class="mt-0.5 flex items-center gap-1.5 text-micro font-mono tabular-nums text-faint">
               <span>{{ evTime(e.at) }}</span>
               <span>·</span>
               <span>{{ fmtDur(stateDur(start + i).secs) }}<span v-if="stateDur(start + i).ongoing"> · ongoing</span></span>
@@ -55,7 +55,7 @@ watch(() => props.events, () => { if (page.value > pages.value) page.value = 1 }
       <div v-if="pages > 1" class="flex items-center justify-between border-t border-line px-4 py-2.5 text-xs">
         <button :disabled="page <= 1" @click="page--"
           class="rounded-lg border border-line px-2.5 py-1 text-muted hover:border-accent/50 hover:text-fg disabled:opacity-40">Prev</button>
-        <span class="tabular-nums text-faint">Page {{ page }} / {{ pages }}</span>
+        <span class="font-mono tabular-nums text-faint">Page {{ page }} / {{ pages }}</span>
         <button :disabled="page >= pages" @click="page++"
           class="rounded-lg border border-line px-2.5 py-1 text-muted hover:border-accent/50 hover:text-fg disabled:opacity-40">Next</button>
       </div>

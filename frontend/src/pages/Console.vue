@@ -265,7 +265,7 @@ function back() { router.push(`/system/${id.value}`) }
     </template>
     <template #actions>
       <button v-if="phase === 'live'" @click="disconnect"
-        class="rounded-lg border border-line bg-surface2 px-3 py-1.5 text-xs text-muted hover:border-rose-400/50 hover:text-rose-400">Disconnect</button>
+        class="rounded-lg border border-line bg-surface2 px-3 py-1.5 text-xs text-muted hover:border-down/50 hover:text-down">Disconnect</button>
       <button v-else-if="phase === 'ended'" @click="reconnect"
         class="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accentfg hover:opacity-90">Reconnect</button>
     </template>
@@ -333,7 +333,7 @@ function back() { router.push(`/system/${id.value}`) }
             </template>
           </template>
 
-          <p v-if="authErr" class="mt-2 text-xs text-rose-400">{{ authErr }}</p>
+          <p v-if="authErr" class="mt-2 text-xs text-down">{{ authErr }}</p>
           <div class="mt-4 flex justify-end gap-2.5">
             <button type="button" @click="back" class="rounded-lg px-3 py-2 text-sm text-muted hover:text-fg">Cancel</button>
             <button type="submit" :disabled="submitting" class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accentfg hover:opacity-90 disabled:opacity-50">{{ submitting ? 'Connecting…' : 'Connect' }}</button>

@@ -149,7 +149,7 @@ async function usePasskey() {
           </label>
         </template>
 
-        <p v-if="error" class="text-sm text-red-500">{{ error }}</p>
+        <p v-if="error" class="text-sm text-down">{{ error }}</p>
 
         <button v-if="!twofa || hasTotp" type="submit" :disabled="busy"
           class="w-full rounded-lg bg-accent px-4 py-2.5 font-semibold text-accentfg transition hover:opacity-90 disabled:opacity-50">

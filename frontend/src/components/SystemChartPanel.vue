@@ -21,8 +21,8 @@ defineEmits(['legend-hover', 'legend-toggle', 'cursor-time', 'zoom'])
 
 <template>
   <div class="rounded-xl border border-line bg-surface p-4">
-    <div v-if="inlineSub" class="mb-2 flex items-start justify-between"><div class="text-sm font-medium text-fg">{{ chart.title }} <span class="text-xs text-faint">{{ chart.sub }}</span></div><span class="tabular-nums text-xs text-faint">{{ headerTime }}</span></div>
-    <div v-else class="mb-2 flex items-start justify-between"><div><div class="text-sm font-medium text-fg">{{ chart.title }}</div><div class="text-xs text-faint">{{ chart.sub }}</div></div><span class="tabular-nums text-xs text-faint">{{ headerTime }}</span></div>
+    <div v-if="inlineSub" class="mb-2 flex items-start justify-between"><div class="text-sm font-medium text-fg">{{ chart.title }} <span class="text-xs text-faint">{{ chart.sub }}</span></div><span class="font-mono tabular-nums text-xs text-faint">{{ headerTime }}</span></div>
+    <div v-else class="mb-2 flex items-start justify-between"><div><div class="text-sm font-medium text-fg">{{ chart.title }}</div><div class="text-xs text-faint">{{ chart.sub }}</div></div><span class="font-mono tabular-nums text-xs text-faint">{{ headerTime }}</span></div>
     <UplotChart :time="time" :series="chart.series" :unit="chart.unit" :span-seconds="spanSeconds" :area="chart.area !== false" :sync-key="syncKey"
       :focus-names="focusNames" :selected-names="selectedNames" :view-range="viewRange"
       @legend-hover="$emit('legend-hover', $event)" @legend-toggle="$emit('legend-toggle', $event)" @cursor-time="$emit('cursor-time', $event)" @zoom="$emit('zoom', $event)" />
