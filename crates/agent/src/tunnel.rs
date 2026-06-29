@@ -43,37 +43,64 @@ pub fn enabled() -> bool {
     )
 }
 
+/// Outcome of a single connection attempt — `Redirect` means the hub answered the WS
+/// upgrade with a 3xx (almost always http→https), so the caller should switch to wss.
+enum ServeErr {
+    Redirect,
+    Other(String),
+}
+
 /// Maintain the reverse tunnel forever, reconnecting with backoff. Spawn as a task.
 pub async fn run(hub_url: String, api_key: String, hostname: String) {
-    let scheme = if hub_url.starts_with("https://") {
-        "wss"
-    } else {
-        "ws"
-    };
     let base = hub_url
         .trim_start_matches("https://")
-        .trim_start_matches("http://");
-    let url = format!(
-        "{scheme}://{base}/pub/tunnel?hostname={}",
-        urlencode(&hostname)
-    );
+        .trim_start_matches("http://")
+        .to_string();
+    // Start from the URL's scheme, but a plaintext ws:// to a TLS hub gets a 301 — flip
+    // to wss on the first redirect (mirrors how the metrics push self-heals http→https).
+    let mut secure = hub_url.starts_with("https://");
 
     let mut backoff = Duration::from_secs(2);
     loop {
+        let scheme = if secure { "wss" } else { "ws" };
+        let url = format!(
+            "{scheme}://{base}/pub/tunnel?hostname={}",
+            urlencode(&hostname)
+        );
         match serve_once(&url, &api_key).await {
             Ok(()) => backoff = Duration::from_secs(2), // clean close — reconnect promptly
-            Err(e) => tracing::warn!(error = %e, "shell tunnel disconnected; retrying"),
+            Err(ServeErr::Redirect) if !secure => {
+                tracing::warn!("shell tunnel: hub redirected http→https — switching to wss");
+                secure = true;
+                continue; // retry immediately on the upgraded scheme
+            }
+            Err(ServeErr::Redirect) => {
+                tracing::warn!("shell tunnel: unexpected redirect; retrying")
+            }
+            Err(ServeErr::Other(e)) => {
+                tracing::warn!(error = %e, "shell tunnel disconnected; retrying")
+            }
         }
         tokio::time::sleep(backoff).await;
         backoff = (backoff * 2).min(Duration::from_secs(60));
     }
 }
 
-async fn serve_once(url: &str, api_key: &str) -> anyhow::Result<()> {
-    let mut req = url.into_client_request()?;
-    req.headers_mut()
-        .insert(shared::API_KEY_HEADER, HeaderValue::from_str(api_key)?);
-    let (ws, _resp) = tokio_tungstenite::connect_async(req).await?;
+async fn serve_once(url: &str, api_key: &str) -> Result<(), ServeErr> {
+    let mut req = url
+        .into_client_request()
+        .map_err(|e| ServeErr::Other(e.to_string()))?;
+    let val = HeaderValue::from_str(api_key).map_err(|e| ServeErr::Other(e.to_string()))?;
+    req.headers_mut().insert(shared::API_KEY_HEADER, val);
+    let (ws, _resp) = match tokio_tungstenite::connect_async(req).await {
+        Ok(ok) => ok,
+        Err(tokio_tungstenite::tungstenite::Error::Http(resp))
+            if resp.status().is_redirection() =>
+        {
+            return Err(ServeErr::Redirect)
+        }
+        Err(e) => return Err(ServeErr::Other(e.to_string())),
+    };
     tracing::info!("shell tunnel connected");
     let (mut ws_w, mut ws_r) = ws.split();
 
