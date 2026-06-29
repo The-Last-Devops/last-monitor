@@ -106,7 +106,7 @@ const backupTile = computed(() => {
   const last = backup.value.last_backup_at ? new Date(backup.value.last_backup_at) : null
   if (!last) return { value: 'Pending', sub: 'never run', bad: true, color: 'warn' }
   const days = (Date.now() - last.getTime()) / 86400000
-  return { value: 'On', sub: `last ${fmtAgo(last)}`, bad: days > 2, color: 'warn' }
+  return { value: 'On', sub: `last ${fmtAgo(last)}`, bad: days > 2, color: 'warn', good: days <= 2 }
 })
 function fmtAgo(d) {
   const s = Math.max(0, (Date.now() - d.getTime()) / 1000)
@@ -120,7 +120,7 @@ const sections = computed(() => [
   {
     title: 'Hosts',
     items: [
-      { label: 'Hosts', value: host.value.total, sub: `${host.value.up} up`, icon: 'server', to: { name: 'systems', query: nsq.value } },
+      { label: 'Hosts', value: host.value.total, sub: `${host.value.up} up`, icon: 'server', to: { name: 'systems', query: nsq.value }, good: host.value.total > 0 && host.value.down === 0 && host.value.crit === 0 && host.value.warn === 0 },
       { label: 'Down', value: host.value.down, icon: 'wifi-off', to: { name: 'attention', query: nsq.value }, bad: host.value.down > 0, color: 'down' },
       { label: 'Critical', value: host.value.crit, icon: 'alert-triangle', to: { name: 'attention', query: nsq.value }, bad: host.value.crit > 0, color: 'crit' },
       { label: 'Warning', value: host.value.warn, icon: 'alert-triangle', to: { name: 'attention', query: nsq.value }, bad: host.value.warn > 0, color: 'warn' },
@@ -129,9 +129,9 @@ const sections = computed(() => [
   {
     title: 'Services',
     items: [
-      { label: 'Services', value: svc.value.total, sub: `${svc.value.up} up`, icon: 'service', to: { name: 'monitors', query: nsq.value } },
+      { label: 'Services', value: svc.value.total, sub: `${svc.value.up} up`, icon: 'service', to: { name: 'monitors', query: nsq.value }, good: svc.value.total > 0 && svc.value.down === 0 },
       { label: 'Down', value: svc.value.down, icon: 'wifi-off', to: { name: 'monitors', query: { ...nsq.value, status: 'down' } }, bad: svc.value.down > 0, color: 'down' },
-      { label: 'Avg uptime', value: svcUptime.value == null ? 'N/A' : `${svcUptime.value}%`, sub: 'recent checks', icon: 'uptime', to: { name: 'monitors', query: nsq.value }, bad: svcUptime.value != null && svcUptime.value < 99, color: svcUptime.value != null && svcUptime.value < 90 ? 'down' : 'warn' },
+      { label: 'Avg uptime', value: svcUptime.value == null ? 'N/A' : `${svcUptime.value}%`, sub: 'recent checks', icon: 'uptime', to: { name: 'monitors', query: nsq.value }, bad: svcUptime.value != null && svcUptime.value < 99, color: svcUptime.value != null && svcUptime.value < 90 ? 'down' : 'warn', good: svcUptime.value != null && svcUptime.value >= 99.9 },
     ],
   },
   {
@@ -149,14 +149,14 @@ const sections = computed(() => [
       { label: 'Events · 24h', value: events24.value, icon: 'pulse', to: { name: 'events', query: nsq.value } },
       { label: 'Agent updates', value: agentOutdated.value, icon: 'deploy', to: { name: 'systems', query: nsq.value }, bad: agentOutdated.value > 0, color: 'warn' },
       ...(isAdmin.value
-        ? [{ label: 'Backup', value: backupTile.value.value, sub: backupTile.value.sub, icon: 'refresh', to: { name: 'backup' }, bad: backupTile.value.bad, color: backupTile.value.color }]
+        ? [{ label: 'Backup', value: backupTile.value.value, sub: backupTile.value.sub, icon: 'refresh', to: { name: 'backup' }, bad: backupTile.value.bad, color: backupTile.value.color, good: backupTile.value.good }]
         : []),
     ],
   },
   {
     title: 'Security',
     items: [
-      { label: 'Two-factor', value: secured.value ? 'On' : 'Off', sub: securedSub.value, icon: 'shield', to: { name: 'security' }, bad: !secured.value, color: 'warn' },
+      { label: 'Two-factor', value: secured.value ? 'On' : 'Off', sub: securedSub.value, icon: 'shield', to: { name: 'security' }, bad: !secured.value, color: 'warn', good: secured.value },
     ],
   },
   ...(isAdmin.value
@@ -219,11 +219,11 @@ onUnmounted(() => clearInterval(timer))
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           <RouterLink v-for="t in sec.items" :key="t.label" :to="t.to"
             class="flex min-h-[104px] flex-col rounded-xl border p-4 transition hover:border-accent/60"
-            :class="t.bad ? BAD_BORDER[t.color] : 'border-line bg-surface'">
+            :class="t.bad ? BAD_BORDER[t.color] : t.good ? 'border-ok/40 bg-ok/10' : 'border-line bg-surface'">
             <div class="flex items-center gap-1.5 text-micro uppercase tracking-wider text-faint">
               <VIcon :name="t.icon" :size="13" class="shrink-0" />{{ t.label }}
             </div>
-            <div class="mt-auto font-mono text-metric font-extrabold tabular-nums" :class="t.bad ? BAD_TEXT[t.color] : 'text-fg'">{{ t.value }}</div>
+            <div class="mt-auto font-mono text-metric font-extrabold tabular-nums" :class="t.bad ? BAD_TEXT[t.color] : t.good ? 'text-ok' : 'text-fg'">{{ t.value }}</div>
             <div v-if="t.sub" class="mt-0.5 text-xs text-faint">{{ t.sub }}</div>
           </RouterLink>
         </div>
