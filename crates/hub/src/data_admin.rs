@@ -307,9 +307,10 @@ async fn db_size_bytes(pool: &PgPool) -> i64 {
         .unwrap_or(0)
 }
 
-/// Per-table stats for a plain relational DB (the config DB). Row counts are the
-/// planner's `reltuples` estimate (clamped — it's -1 before the first ANALYZE),
-/// which is plenty for a stats page and avoids a full count() per table.
+/// Per-table stats for a plain relational DB (the config DB). The config DB is small,
+/// so we run an exact `COUNT(*)` per table — the planner's `reltuples` estimate reads 0
+/// for any table not yet ANALYZEd (e.g. users/namespaces with low write volume), which
+/// looks like the table is empty when it isn't.
 pub async fn config_stats(config: &PgPool) -> DbStats {
     let db_size = sqlx::query_as::<_, (String,)>(
         "SELECT pg_size_pretty(pg_database_size(current_database()))",
@@ -318,9 +319,9 @@ pub async fn config_stats(config: &PgPool) -> DbStats {
     .await
     .map(|(s,)| s)
     .unwrap_or_else(|_| "—".into());
-    let rows: Vec<(String, String, i64)> = sqlx::query_as(
-        "SELECT c.relname, pg_size_pretty(pg_total_relation_size(c.oid)) AS size, \
-                GREATEST(c.reltuples, 0)::bigint AS rows \
+    // Table name + exact on-disk size from the catalog, biggest first.
+    let metas: Vec<(String, String)> = sqlx::query_as(
+        "SELECT c.relname, pg_size_pretty(pg_total_relation_size(c.oid)) \
          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace \
          WHERE n.nspname = 'public' AND c.relkind = 'r' \
          ORDER BY pg_total_relation_size(c.oid) DESC",
@@ -328,14 +329,19 @@ pub async fn config_stats(config: &PgPool) -> DbStats {
     .fetch_all(config)
     .await
     .unwrap_or_default();
-    let tables = rows
-        .into_iter()
-        .map(|(name, size, r)| TableStat {
-            name,
-            size,
-            rows: r.max(0),
-        })
-        .collect();
+    let mut tables = Vec::with_capacity(metas.len());
+    for (name, size) in metas {
+        // Names come from pg_catalog (our own schema); double-quote defensively.
+        let rows = sqlx::query_as::<_, (i64,)>(&format!(
+            "SELECT count(*) FROM \"{}\"",
+            name.replace('"', "\"\"")
+        ))
+        .fetch_one(config)
+        .await
+        .map(|(n,)| n)
+        .unwrap_or(0);
+        tables.push(TableStat { name, size, rows });
+    }
     DbStats { db_size, tables }
 }
 
