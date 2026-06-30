@@ -15,7 +15,8 @@ const page = ref(null) // { data, config }
 const data = computed(() => page.value?.data || null)
 const config = computed(() => page.value?.config || null)
 
-const draft = ref({}) // table -> retention value being edited (in the tier's unit)
+const draft = ref({}) // data-tier table -> retention value being edited (in the tier's unit)
+const cfgDraft = ref({}) // config log table -> retention days being edited
 const capGb = ref(10) // cap limit shown/edited in GB
 const capEnabled = ref(false)
 const msg = ref('')
@@ -26,12 +27,25 @@ const { loaded, reload: load } = useCached({
   apply: (d) => {
     page.value = d
     draft.value = Object.fromEntries(d.data.retention.map((t) => [t.table, t.value ?? '']))
+    cfgDraft.value = Object.fromEntries(
+      d.config.tables.filter((t) => t.retention_days != null).map((t) => [t.name, t.retention_days]),
+    )
     capGb.value = +(d.data.cap.limit_bytes / GIB).toFixed(2)
     capEnabled.value = d.data.cap.enabled
   },
   onError: () => { page.value = null },
 })
 onMounted(() => { if (isAdmin.value) load() })
+
+// Config-DB log tables that have an auto-cleanup window (editable).
+const configLogTables = computed(() => (config.value?.tables || []).filter((t) => t.retention_days != null))
+async function saveCfg(t) {
+  msg.value = ''
+  const days = Number(cfgDraft.value[t.name])
+  if (!Number.isFinite(days) || days < 1) { msg.value = `${t.name}: enter a positive number of days.`; return }
+  try { await api.post('/api/admin/config-retention', { table: t.name, days }); msg.value = `✓ ${t.name} kept ${days} days.`; await load() }
+  catch (e) { msg.value = `Failed (${e.status}).` }
+}
 
 // ---- cap meter ----
 const usedPct = computed(() => {
@@ -179,6 +193,34 @@ const TH = 'border-b border-line2 bg-head px-4 py-3 text-xs font-extrabold upper
             <span class="rounded-pill bg-surface2 px-2 py-0.5 text-micro uppercase tracking-wide text-muted">PostgreSQL · relational</span>
             <span class="ml-auto font-mono text-metric text-fg">{{ config.db_size }}</span>
           </div>
+
+          <!-- log cleanup: editable retention for the time-growing log tables -->
+          <div v-if="configLogTables.length" class="overflow-hidden rounded-xl border border-line bg-surface">
+            <div class="flex items-center gap-2 border-b border-line2 bg-head px-4 py-2.5">
+              <VIcon name="clock" :size="14" class="text-faint" />
+              <span class="text-xs font-extrabold uppercase tracking-wide text-fg">Log cleanup</span>
+            </div>
+            <table class="w-full text-sm">
+              <tbody>
+                <tr v-for="t in configLogTables" :key="t.name" class="border-b border-line/60 last:border-0 align-top">
+                  <td class="px-4 py-2.5">
+                    <div class="font-mono text-fg">{{ t.name }}</div>
+                    <div v-if="t.note" class="mt-0.5 text-xs text-faint">{{ t.note }}</div>
+                  </td>
+                  <td class="px-4 py-2.5 text-right">
+                    <div class="inline-flex items-center gap-1.5">
+                      <span class="text-xs text-muted">Keep</span>
+                      <input v-model.number="cfgDraft[t.name]" type="number" min="1" class="w-20 rounded-md border border-line2 bg-surface2 px-2 py-1 font-mono text-sm text-fg focus:border-accent/55 focus:outline-none" />
+                      <span class="text-xs text-muted">days</span>
+                      <button @click="saveCfg(t)" class="ml-1 rounded-lg border border-line bg-surface2 px-3 py-1.5 text-sm text-fg hover:border-accent/50">Save</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-if="msg" class="text-xs" :class="msg.startsWith('✓') ? 'text-accent' : 'text-down'">{{ msg }}</p>
+
           <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div v-for="(half, i) in configHalves" :key="i" class="overflow-hidden rounded-xl border border-line bg-surface">
               <table class="w-full text-sm">
@@ -188,8 +230,11 @@ const TH = 'border-b border-line2 bg-head px-4 py-3 text-xs font-extrabold upper
                   <th :class="TH" class="text-right">Size</th>
                 </tr></thead>
                 <tbody>
-                  <tr v-for="t in half" :key="t.name" class="border-b border-line/60 last:border-0">
-                    <td class="px-4 py-2.5 font-mono text-fg">{{ t.name }}</td>
+                  <tr v-for="t in half" :key="t.name" class="border-b border-line/60 last:border-0 align-top">
+                    <td class="px-4 py-2.5">
+                      <div class="font-mono text-fg">{{ t.name }}</div>
+                      <div v-if="t.note" class="mt-0.5 text-xs text-faint">{{ t.note }}</div>
+                    </td>
                     <td class="px-4 py-2.5 text-right font-mono tabular-nums text-muted">{{ t.rows.toLocaleString() }}</td>
                     <td class="px-4 py-2.5 text-right font-mono tabular-nums text-fg">{{ t.size }}</td>
                   </tr>

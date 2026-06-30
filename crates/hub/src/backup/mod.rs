@@ -48,7 +48,7 @@ pub(crate) const CONFIG_TABLES: &[&str] = &[
     "alerts",
     "alert_state",
     "status_pages",
-    "app_settings",
+    "settings",
 ];
 /// Append-only metrics hypertables (rollups are continuous aggregates — they
 /// rematerialize from these, so they're not dumped).

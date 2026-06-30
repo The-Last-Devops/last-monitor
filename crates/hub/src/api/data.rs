@@ -27,6 +27,27 @@ pub struct SetCap {
     pub enabled: bool,
 }
 
+#[derive(Deserialize)]
+pub struct SetConfigRetention {
+    pub table: String,
+    pub days: i64,
+}
+
+/// POST /api/admin/config-retention — set a config-DB log table's cleanup window.
+pub async fn set_config_retention(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Json(req): Json<SetConfigRetention>,
+) -> Result<StatusCode, StatusCode> {
+    if !user.is_admin {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    crate::data_admin::set_config_retention(&state.config, &req.table, req.days)
+        .await
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// POST /api/admin/data-cap — set the Data DB size cap + auto-evict toggle.
 pub async fn set_data_cap(
     State(state): State<AppState>,

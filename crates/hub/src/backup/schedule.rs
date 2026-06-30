@@ -39,15 +39,9 @@ pub struct BackupSchedule {
 async fn load_schedule(
     state: &AppState,
 ) -> Result<(Option<BackupSchedule>, Option<chrono::DateTime<Utc>>), String> {
-    let row: Option<(Option<Value>, Option<chrono::DateTime<Utc>>)> =
-        sqlx::query_as("SELECT backup, last_backup_at FROM app_settings WHERE id = 1")
-            .fetch_optional(&state.config)
-            .await
-            .map_err(|e| e.to_string())?;
-    let (sched, last) = row.unwrap_or((None, None));
-    let sched = sched
-        .filter(|v| !v.is_null())
-        .and_then(|v| serde_json::from_value(v).ok());
+    let sched = crate::settings::get_opt::<BackupSchedule>(&state.config, "backup").await;
+    let last =
+        crate::settings::get_opt::<chrono::DateTime<Utc>>(&state.config, "last_backup_at").await;
     Ok((sched, last))
 }
 
@@ -73,15 +67,9 @@ pub async fn schedule_put(
     Json(sched): Json<BackupSchedule>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     admin(&user).map_err(|s| (s, "admin only".into()))?;
-    let v = serde_json::to_value(&sched).unwrap();
-    sqlx::query(
-        "INSERT INTO app_settings (id, backup) VALUES (1, $1) \
-         ON CONFLICT (id) DO UPDATE SET backup = $1",
-    )
-    .bind(v)
-    .execute(&state.config)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    crate::settings::set(&state.config, "backup", &sched)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -128,8 +116,7 @@ async fn tick_schedule(state: &AppState) -> Result<(), String> {
     let name = format!("vantage-backup-{}.json.gz", now.format("%Y%m%d-%H%M%S"));
     let key = s3_key(&cfg, &name);
     s3_request(&cfg, "PUT", &key, "", body).await?;
-    sqlx::query("UPDATE app_settings SET last_backup_at = now() WHERE id = 1")
-        .execute(&state.config)
+    crate::settings::set(&state.config, "last_backup_at", &Utc::now())
         .await
         .map_err(|e| e.to_string())?;
     tracing::info!(key = %key, "scheduled backup uploaded");

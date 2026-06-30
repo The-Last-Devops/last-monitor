@@ -169,6 +169,13 @@ pub struct TableStat {
     pub name: String,
     pub size: String,
     pub rows: i64,
+    /// What the table is for (config DB only; None for the data-DB tiers).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    /// Configured cleanup window in days for the time-growing log tables; None when
+    /// the table isn't auto-pruned. Editable via POST /api/admin/config-retention.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retention_days: Option<i32>,
 }
 
 #[derive(Serialize)]
@@ -229,6 +236,8 @@ async fn hypertable_stat(data: &PgPool, name: &str, label: &str) -> TableStat {
         name: label.to_string(),
         size: size.map(|(s,)| s).unwrap_or_else(|| "—".into()),
         rows: rows.map(|(r,)| r).unwrap_or(0),
+        note: None,
+        retention_days: None,
     }
 }
 
@@ -329,6 +338,13 @@ pub async fn config_stats(config: &PgPool) -> DbStats {
     .fetch_all(config)
     .await
     .unwrap_or_default();
+    // Configured retention (days) for the auto-pruned log tables, by table name.
+    let mut retention: std::collections::HashMap<&str, i32> = std::collections::HashMap::new();
+    for (table, _, key) in CONFIG_LOGS {
+        if let Some(d) = crate::settings::get_opt::<i32>(config, key).await {
+            retention.insert(table, d);
+        }
+    }
     let mut tables = Vec::with_capacity(metas.len());
     for (name, size) in metas {
         // Names come from pg_catalog (our own schema); double-quote defensively.
@@ -340,21 +356,111 @@ pub async fn config_stats(config: &PgPool) -> DbStats {
         .await
         .map(|(n,)| n)
         .unwrap_or(0);
-        tables.push(TableStat { name, size, rows });
+        let retention_days = retention.get(name.as_str()).copied();
+        let note = config_table_note(&name).map(String::from);
+        tables.push(TableStat {
+            name,
+            size,
+            rows,
+            note,
+            retention_days,
+        });
     }
     DbStats { db_size, tables }
 }
 
+/// One-line purpose for each known config-DB table (shown in the admin UI).
+fn config_table_note(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "exec_transcript" => "Recorded terminal output of each SSH/console session (audit trail)",
+        "exec_sessions" => "One row per shell/console session — who, which host, when",
+        "alert_events" => "History of alert state changes (fired / resolved)",
+        "audit_log" => "Log of mutating user actions — who did what",
+        "sessions" => "Active browser login sessions (httpOnly cookie tokens)",
+        "monitor_debug" => "Latest probe debug detail per monitor (overwritten, not history)",
+        "alert_state" => "Current firing state per alert rule",
+        "systems" => "Monitored hosts/servers and their agent + shell config",
+        "monitors" => "Service checks (HTTP, TCP, ping, DNS, …)",
+        "namespaces" => "Tenancy boundaries that RBAC is scoped to",
+        "users" => "User accounts (argon2 password hashes, admin flag)",
+        "memberships" => "User × namespace role (owner/editor/viewer, can_exec)",
+        "channels" => "Notification channels (Slack, webhook, email, …)",
+        "alerts" => "Alert rules — conditions and what they notify",
+        "alert_channels" => "Which channels each alert rule notifies",
+        "status_pages" => "Public status-page definitions",
+        "ssh_keys" => "User SSH keys for host consoles (encrypted at rest)",
+        "webauthn_credentials" => "Registered passkeys (WebAuthn credentials)",
+        "api_keys" => "Agent enrollment tokens (one per server)",
+        "api_pats" => "Personal access tokens for the API / MCP (Bearer auth)",
+        "settings" => "Hub-wide settings (key→value: backup, retention, cap, S3)",
+        "_sqlx_migrations" => "Applied database-migration history",
+        _ => return None,
+    })
+}
+
+/// (table, time column, setting key) for the time-growing config-DB logs that the
+/// background job prunes. Table/column names are a fixed allowlist — safe to inline.
+const CONFIG_LOGS: &[(&str, &str, &str)] = &[
+    ("exec_transcript", "at", "exec_transcript_retention_days"),
+    ("alert_events", "at", "alert_events_retention_days"),
+    (
+        "exec_sessions",
+        "started_at",
+        "exec_sessions_retention_days",
+    ),
+    ("sessions", "created_at", "sessions_retention_days"),
+];
+
+/// Update one config-log table's retention window (days, 1..=3650).
+pub async fn set_config_retention(config: &PgPool, table: &str, days: i64) -> Result<(), String> {
+    let Some((_, _, col)) = CONFIG_LOGS.iter().find(|(t, _, _)| *t == table) else {
+        return Err("invalid table".into());
+    };
+    if !(1..=3650).contains(&days) {
+        return Err("value out of range".into());
+    }
+    crate::settings::set(config, col, &(days as i32))
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Spawn the config-DB log pruner: deletes rows older than each table's configured
+/// retention window, hourly. Best-effort; errors are logged and ignored.
+pub fn spawn_config_prune(config: PgPool) {
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(3600));
+        loop {
+            tick.tick().await;
+            prune_config_logs(&config).await;
+        }
+    });
+}
+
+/// One prune pass over the config-DB log tables.
+pub async fn prune_config_logs(config: &PgPool) {
+    for (table, tcol, key) in CONFIG_LOGS {
+        let days = crate::settings::get_opt::<i32>(config, key).await;
+        if let Some(d) = days {
+            if d > 0 {
+                if let Err(e) = sqlx::query(&format!(
+                    "DELETE FROM {table} WHERE {tcol} < now() - interval '{d} days'"
+                ))
+                .execute(config)
+                .await
+                {
+                    tracing::debug!(error = %e, %table, "config-log prune (ignored)");
+                }
+            }
+        }
+    }
+}
+
 /// Current cap config (from the config DB) + live Data-DB usage.
 pub async fn cap_status(config: &PgPool, data: &PgPool) -> CapStatus {
-    let (limit_bytes, enabled) = sqlx::query_as::<_, (i64, bool)>(
-        "SELECT data_cap_limit_bytes, data_cap_enabled FROM app_settings WHERE id = 1",
-    )
-    .fetch_optional(config)
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or((10_737_418_240, false));
+    let limit_bytes =
+        crate::settings::get(config, "data_cap_limit_bytes", 10_737_418_240_i64).await;
+    let enabled = crate::settings::get(config, "data_cap_enabled", false).await;
     CapStatus {
         limit_bytes,
         used_bytes: db_size_bytes(data).await,
@@ -371,14 +477,12 @@ pub async fn set_data_cap(config: &PgPool, limit_bytes: i64, enabled: bool) -> R
     if !(CAP_MIN..=CAP_MAX).contains(&limit_bytes) {
         return Err("limit out of range".into());
     }
-    sqlx::query(
-        "UPDATE app_settings SET data_cap_limit_bytes = $1, data_cap_enabled = $2 WHERE id = 1",
-    )
-    .bind(limit_bytes)
-    .bind(enabled)
-    .execute(config)
-    .await
-    .map_err(|e| e.to_string())?;
+    crate::settings::set(config, "data_cap_limit_bytes", &limit_bytes)
+        .await
+        .map_err(|e| e.to_string())?;
+    crate::settings::set(config, "data_cap_enabled", &enabled)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -411,15 +515,8 @@ pub fn spawn_enforce(config: PgPool, data: PgPool) {
 /// freed, or a safety floor (~50 drops) is hit. Never touches the config DB; only ever
 /// calls `drop_chunks` on the Data DB's hypertables. No-op when disabled.
 pub async fn enforce_cap(config: &PgPool, data: &PgPool) {
-    let Some((limit, enabled)) = sqlx::query_as::<_, (i64, bool)>(
-        "SELECT data_cap_limit_bytes, data_cap_enabled FROM app_settings WHERE id = 1",
-    )
-    .fetch_optional(config)
-    .await
-    .ok()
-    .flatten() else {
-        return;
-    };
+    let limit = crate::settings::get(config, "data_cap_limit_bytes", 10_737_418_240_i64).await;
+    let enabled = crate::settings::get(config, "data_cap_enabled", false).await;
     if !enabled {
         return;
     }

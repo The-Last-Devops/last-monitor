@@ -30,11 +30,9 @@ pub struct S3Config {
 }
 
 pub(super) async fn load_s3(state: &AppState) -> Result<S3Config, String> {
-    let row: Option<(Value,)> = sqlx::query_as("SELECT s3 FROM app_settings WHERE id = 1")
-        .fetch_optional(&state.config)
+    let v = crate::settings::get_opt::<Value>(&state.config, "s3")
         .await
-        .map_err(|e| e.to_string())?;
-    let v = row.map(|(v,)| v).unwrap_or(Value::Null);
+        .unwrap_or(Value::Null);
     if v.is_null() {
         return Err("S3 is not configured".into());
     }
@@ -191,15 +189,9 @@ pub async fn s3_put(
             cfg.secret_key = existing.secret_key;
         }
     }
-    let v = serde_json::to_value(&cfg).unwrap();
-    sqlx::query(
-        "INSERT INTO app_settings (id, s3) VALUES (1, $1) \
-         ON CONFLICT (id) DO UPDATE SET s3 = $1",
-    )
-    .bind(v)
-    .execute(&state.config)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    crate::settings::set(&state.config, "s3", &cfg)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::NO_CONTENT)
 }
 

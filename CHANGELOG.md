@@ -9,6 +9,16 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ## [Unreleased]
 
+### Added
+- **Configurable cleanup for the config database's log tables** — Data & retention now
+  lets admins set how long the growing log tables are kept (defaults: SSH session
+  transcripts 30 days, alert events 365, shell sessions 365, login sessions 14); a
+  background job prunes older rows. Each config table also shows what it's for.
+
+### Changed
+- Hub-wide settings moved from one-column-per-setting to a key→value `settings` table, so
+  adding a setting no longer needs a schema migration (existing settings migrated in place).
+
 ## [2.3.10] — 2026-06-30
 
 ### Added

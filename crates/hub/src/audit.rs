@@ -152,13 +152,7 @@ pub struct AuditPage {
 /// Delete audit rows older than the configured retention window. No-op when
 /// retention is unset (keep forever). Best-effort; errors are swallowed.
 pub async fn prune(state: &AppState) {
-    let days: Option<(Option<i32>,)> =
-        sqlx::query_as("SELECT audit_retention_days FROM app_settings WHERE id = 1")
-            .fetch_optional(&state.config)
-            .await
-            .ok()
-            .flatten();
-    if let Some((Some(d),)) = days {
+    if let Some(d) = crate::settings::get_opt::<i32>(&state.config, "audit_retention_days").await {
         if d > 0 {
             let _ = sqlx::query(&format!(
                 "DELETE FROM audit_log WHERE at < now() - interval '{d} days'"
@@ -226,12 +220,8 @@ pub async fn list(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    let retention_days: Option<(Option<i32>,)> =
-        sqlx::query_as("SELECT audit_retention_days FROM app_settings WHERE id = 1")
-            .fetch_optional(&state.config)
-            .await
-            .ok()
-            .flatten();
+    let retention_days =
+        crate::settings::get_opt::<i32>(&state.config, "audit_retention_days").await;
 
     Ok(Json(AuditPage {
         rows: rows
@@ -248,7 +238,7 @@ pub async fn list(
             )
             .collect(),
         total,
-        retention_days: retention_days.and_then(|(d,)| d),
+        retention_days,
     }))
 }
 
@@ -267,10 +257,8 @@ pub async fn set_retention(
     if !user.is_admin {
         return Err(StatusCode::FORBIDDEN);
     }
-    let days = req.days.filter(|d| *d > 0); // 0/negative → keep forever (NULL)
-    sqlx::query("UPDATE app_settings SET audit_retention_days = $1 WHERE id = 1")
-        .bind(days)
-        .execute(&state.config)
+    let days = req.days.filter(|d| *d > 0); // 0/negative → keep forever (null)
+    crate::settings::set(&state.config, "audit_retention_days", &days)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "audit retention");
