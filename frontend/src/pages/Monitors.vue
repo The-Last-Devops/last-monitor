@@ -100,7 +100,7 @@ const { loaded, reload: load } = useCached({
     let error = ''
     try { mons = await api.get('/api/monitors'); error = '' }
     catch { if (!monitors.value.length) error = 'Failed to load monitors'; mons = monitors.value }
-    try { evs = await api.get('/api/events?range=7d') } catch { evs = [] }
+    try { evs = await api.get('/api/events?range=30d') } catch { evs = [] }
     return { monitors: mons, events: evs, err: error }
   },
   apply: (d) => { monitors.value = d.monitors; events.value = d.events; err.value = d.err },
@@ -141,6 +141,67 @@ const stateDur = (i) => {
   }
   return { secs: (Date.now() - start) / 1000, ongoing: true }
 }
+
+// ---- Down view (downOnly=true): who's down now + resolved incidents (30d) ----
+const fmtAgo = (s) => (s == null ? '—' : fmtDur(s) + ' ago')
+const agoSecs = (iso) => (Date.now() - new Date(iso).getTime()) / 1000
+const WINDOW_30D = 30 * 86400
+
+const monById = computed(() => Object.fromEntries(monitors.value.map((m) => [m.id, m])))
+const downNow = computed(() => nsMonitors.value.filter((m) => m.enabled && m.up === false))
+
+// Pair status transitions (newest-first) into resolved incidents; leftover unresolved
+// downs are the ongoing outages (their start time is used as "down since").
+const incident30 = computed(() => {
+  const pendingUp = {} // monitor_id -> recovery timestamp (ms) awaiting its down
+  const history = []
+  const downSince = {} // monitor_id -> ISO start of the ongoing outage
+  for (const e of shownEvents.value) {
+    const mid = e.monitor_id
+    const t = new Date(e.at).getTime()
+    if (e.up) {
+      pendingUp[mid] = t
+    } else if (pendingUp[mid] != null) {
+      const m = monById.value[mid] || {}
+      history.push({
+        id: `${mid}-${e.at}`, monitor_id: mid, name: e.name, kind: m.kind, namespace: m.namespace,
+        started_at: e.at, duration_s: Math.max(0, (pendingUp[mid] - t) / 1000), cause: e.message || 'Down', resolved: true,
+      })
+      delete pendingUp[mid]
+    } else if (downSince[mid] == null) {
+      downSince[mid] = e.at
+    }
+  }
+  return { history, downSince }
+})
+const history = computed(() => incident30.value.history)
+const downSince = (mid) => incident30.value.downSince[mid]
+
+const matchQ = (r, ...fields) => {
+  const s = q.value.trim().toLowerCase()
+  return !s || fields.some((v) => (v || '').toLowerCase().includes(s))
+}
+const downNowFiltered = computed(() => downNow.value.filter((m) => matchQ(m, m.name, m.namespace, m.target, m.message)))
+const historyFiltered = computed(() => history.value.filter((h) => matchQ(h, h.name, h.namespace, h.cause)))
+
+const stats30 = computed(() => {
+  const h = history.value
+  const totalDur = h.reduce((a, i) => a + i.duration_s, 0)
+  const now = Date.now()
+  const ongoing = downNow.value.reduce((a, m) => a + (downSince(m.id) ? agoSecs(downSince(m.id)) : 0), 0)
+  const uptime_pct = Math.max(0, Math.min(100, (1 - (totalDur + ongoing) / WINDOW_30D) * 100))
+  const mttr_s = h.length ? totalDur / h.length : null
+  let streak_s = null
+  if (downNow.value.length) streak_s = 0
+  else {
+    const lastResolved = h.reduce((mx, i) => Math.max(mx, new Date(i.started_at).getTime() + i.duration_s * 1000), 0)
+    streak_s = lastResolved ? (now - lastResolved) / 1000 : null
+  }
+  return { uptime_pct, incidents: h.length, mttr_s, streak_s }
+})
+
+// Standard table header (matches DataTable.vue).
+const TH = 'border-b border-line2 bg-head px-4 py-3 text-xs font-extrabold uppercase tracking-wide text-fg'
 
 onMounted(async () => { await load(); timer = setInterval(load, 10000) })
 onUnmounted(() => clearInterval(timer))
@@ -185,8 +246,8 @@ onUnmounted(() => clearInterval(timer))
         </button>
       </div>
 
-      <!-- table + events: stacked by default, side rail only when wide enough -->
-      <div class="grid grid-cols-1 gap-5 min-[1080px]:grid-cols-[1fr_330px]">
+      <!-- normal Services view: table + recent-events rail (stacked; rail when wide) -->
+      <div v-if="!downOnly" class="grid grid-cols-1 gap-5 min-[1080px]:grid-cols-[1fr_330px]">
         <DataTable v-model:selected="selectedIds" :columns="columns" :rows="filteredRows" :row-key="(r) => r.id"
           :row-tone="rowTone" selectable clickable @row-click="openDetail" :filterable="false"
           :empty="downOnly ? 'Nothing down. 🎉' : 'No services yet.'">
@@ -233,8 +294,94 @@ onUnmounted(() => clearInterval(timer))
         </DataTable>
 
         <!-- recent events side panel -->
-        <EventStream v-if="!downOnly" :events="shownEvents" :ev-time="evTime" :ev-message="evMessage" :state-dur="stateDur" :fmt-dur="fmtDur" class="min-[1080px]:sticky min-[1080px]:top-6" />
+        <EventStream :events="shownEvents" :ev-time="evTime" :ev-message="evMessage" :state-dur="stateDur" :fmt-dur="fmtDur" class="min-[1080px]:sticky min-[1080px]:top-6" />
       </div>
+
+      <!-- Down view: all-clear banner + stats, or a "Down now" table; plus recent downtime -->
+      <template v-else>
+        <!-- ALL CLEAR -->
+        <template v-if="!downNow.length">
+          <section class="rounded-xl border border-ok/30 bg-gradient-to-br from-ok/10 to-transparent p-5">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+              <div class="flex items-center gap-4">
+                <span class="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-ok/15 text-ok"><VIcon name="check-circle" :size="26" /></span>
+                <div>
+                  <div class="text-h2 font-semibold text-fg">All services are up</div>
+                  <div class="mt-0.5 text-sm text-muted">{{ stats.total }} / {{ stats.total }} responding · 0 down · 0 degraded</div>
+                </div>
+              </div>
+              <div v-if="stats30.streak_s != null" class="text-right text-sm text-muted">Last incident<div class="font-mono text-fg">{{ fmtAgo(stats30.streak_s) }}</div></div>
+            </div>
+          </section>
+          <div class="grid grid-cols-2 overflow-hidden rounded-xl border border-line bg-surface sm:grid-cols-4 sm:divide-x sm:divide-line">
+            <div class="px-4 py-2.5"><div class="text-micro uppercase tracking-wider text-faint">Uptime 30d</div><div class="mt-0.5 font-mono text-h1 text-ok">{{ stats30.uptime_pct.toFixed(2) }}%</div></div>
+            <div class="px-4 py-2.5"><div class="text-micro uppercase tracking-wider text-faint">Incidents 30d</div><div class="mt-0.5 font-mono text-h1" :class="stats30.incidents ? 'text-fg' : 'text-cap'">{{ stats30.incidents }}</div></div>
+            <div class="px-4 py-2.5"><div class="text-micro uppercase tracking-wider text-faint">MTTR 30d</div><div class="mt-0.5 font-mono text-h1" :class="stats30.mttr_s == null ? 'text-cap' : 'text-fg'">{{ stats30.mttr_s == null ? '—' : fmtDur(stats30.mttr_s) }}</div></div>
+            <div class="px-4 py-2.5"><div class="text-micro uppercase tracking-wider text-faint">Current streak</div><div class="mt-0.5 font-mono text-h1 text-fg">{{ stats30.streak_s == null ? '—' : fmtDur(stats30.streak_s) }}</div></div>
+          </div>
+        </template>
+
+        <!-- DOWN NOW -->
+        <section v-else class="space-y-3">
+          <div class="flex items-center gap-2">
+            <VIcon name="wifi-off" :size="18" class="text-down" />
+            <h2 class="text-h2 font-semibold text-fg">Down now</h2>
+            <span class="rounded-pill bg-down/15 px-2 py-0.5 text-micro font-semibold text-down">{{ downNowFiltered.length }}</span>
+          </div>
+          <div class="overflow-hidden rounded-xl border border-line bg-surface">
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead><tr class="text-left"><th :class="TH">Service</th><th :class="TH">Down since</th><th :class="TH" class="text-right">Uptime 24h</th><th :class="TH">Cause</th><th :class="TH"></th></tr></thead>
+                <tbody>
+                  <tr v-for="m in downNowFiltered" :key="m.id" @click="openDetail(m)" class="cursor-pointer border-b border-l-2 border-line/60 border-l-down bg-down/5 last:border-b-0 hover:bg-down/10">
+                    <td class="px-4 py-2.5">
+                      <div class="flex items-center gap-3">
+                        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-surface2 text-down"><VIcon :name="kindIcon(m.kind)" :size="18" /></span>
+                        <div class="min-w-0">
+                          <div class="flex items-center gap-2"><StatePill tone="down" label="Down" /><span class="truncate font-mono text-sm text-fg">{{ m.name }}</span></div>
+                          <div class="mt-0.5 truncate text-micro text-faint">{{ m.namespace }} · {{ KINDS[m.kind] || m.kind }}<span v-if="m.target"> · {{ m.target }}</span></div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="px-4 py-2.5 font-mono tabular-nums text-down">{{ downSince(m.id) ? fmtDur(agoSecs(downSince(m.id))) : '—' }}</td>
+                    <td class="px-4 py-2.5 text-right font-mono tabular-nums text-down">{{ upPct(m) == null ? 'N/A' : upPct(m) + '%' }}</td>
+                    <td class="px-4 py-2.5 text-muted">{{ m.message || '—' }}</td>
+                    <td class="px-4 py-2.5 text-right">
+                      <button @click.stop="openEdit(m)" class="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-fg" v-tip="'Edit'"><VIcon name="settings" :size="16" /></button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- RECENT DOWNTIME (always, when there's history) -->
+        <section v-if="historyFiltered.length" class="space-y-3">
+          <div class="flex items-center gap-2">
+            <VIcon name="logs" :size="18" class="text-faint" />
+            <h2 class="text-h2 font-semibold text-fg">Recent downtime</h2>
+            <span class="rounded-pill bg-surface2 px-2 py-0.5 text-micro text-muted">{{ historyFiltered.length }}</span>
+            <span class="text-xs text-faint">last 30 days</span>
+          </div>
+          <div class="overflow-hidden rounded-xl border border-line bg-surface">
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead><tr class="text-left"><th :class="TH">Service</th><th :class="TH">Started</th><th :class="TH" class="text-right">Duration</th><th :class="TH">Cause</th><th :class="TH" class="text-right">Status</th></tr></thead>
+                <tbody>
+                  <tr v-for="h in historyFiltered" :key="h.id" class="border-b border-line/60 last:border-b-0">
+                    <td class="px-4 py-2.5"><div class="font-mono text-fg">{{ h.name }}</div><div class="mt-0.5 text-micro text-faint">{{ h.namespace }} · {{ KINDS[h.kind] || h.kind }}</div></td>
+                    <td class="px-4 py-2.5 font-mono tabular-nums text-muted">{{ evTime(h.started_at) }}</td>
+                    <td class="px-4 py-2.5 text-right font-mono tabular-nums text-fg">{{ fmtDur(h.duration_s) }}</td>
+                    <td class="px-4 py-2.5 text-muted">{{ h.cause }}</td>
+                    <td class="px-4 py-2.5 text-right"><StatePill tone="ok" label="Resolved" /></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </template>
     </div>
   </AppShell>
 </template>
