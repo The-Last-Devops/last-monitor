@@ -61,6 +61,9 @@ services:
     # Needed for ICMP "ping" monitors (raw sockets).
     cap_add:
       - NET_RAW
+    # Let the optional watchtower auto-updater manage this container (see below).
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
     depends_on:
       db:
         condition: service_healthy
@@ -71,6 +74,8 @@ services:
       context: .
       dockerfile: deploy/Dockerfile.agent
     restart: unless-stopped
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
     # Host PID namespace -> host CPU/memory are reported (not the container's).
     pid: host
     environment:
@@ -86,6 +91,24 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       - hub
+
+  # Optional auto-update. OFF by default — start it with `--profile autoupdate`:
+  #   docker compose --profile autoupdate up -d
+  # It watches the registry and recreates the labelled containers (hub, agent) when
+  # their image tag gets a new digest, then cleans up the old image.
+  # IMPORTANT: it updates PULLED images. For real auto-update, switch hub & agent from
+  # `build:` to the published image + always-pull, e.g.:
+  #     image: ghcr.io/the-last-devops/vantage-hub:latest   # (agent: vantage-agent)
+  #     pull_policy: always
+  # Single-host compose recreates in place → a few seconds of downtime (unlike k8s,
+  # which surges a new pod first). Interval defaults to 5 min (WATCHTOWER_INTERVAL secs).
+  watchtower:
+    image: containrrr/watchtower
+    profiles: ["autoupdate"]
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval ${WATCHTOWER_INTERVAL:-300} --cleanup --label-enable
 
 volumes:
   db_data:

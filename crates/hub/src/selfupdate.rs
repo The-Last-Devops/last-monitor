@@ -58,17 +58,34 @@ pub fn spawn() {
             tick.tick().await;
             if let Some(cur) = fetch_digest(&client).await {
                 if cur != baseline {
-                    tracing::warn!(%baseline, %cur, "newer :auto-update image — rolling the Deployment");
-                    if trigger_rollout(&cur).await.is_some() {
-                        // k8s will surge a new pod, then SIGTERM us. Stop polling and keep
-                        // serving until terminated so the rollout is zero-downtime.
-                        break;
+                    if rollout_possible() {
+                        tracing::warn!(%baseline, %cur, "newer :auto-update image — rolling the Deployment");
+                        if trigger_rollout(&cur).await.is_some() {
+                            // k8s will surge a new pod, then SIGTERM us. Stop polling and keep
+                            // serving until terminated so the rollout is zero-downtime.
+                            break;
+                        }
+                        // Configured for rollout but the patch failed (transient API error) —
+                        // retry on the next tick rather than restarting in place.
+                    } else {
+                        // No rollout RBAC (raw manifest without HUB_DEPLOYMENT_NAME + the
+                        // ServiceAccount). Fall back to the simple in-place restart so
+                        // auto-update still works — k8s re-pulls on the pod restart. Brief
+                        // downtime at single replica; add the RBAC for zero-downtime.
+                        tracing::warn!(%baseline, %cur, "newer :auto-update image — no rollout RBAC; exiting for an in-place restart");
+                        std::process::exit(0);
                     }
-                    // transient API error — retry on the next tick.
                 }
             }
         }
     });
+}
+
+/// Whether we're wired to trigger a rolling redeploy: the Deployment name is known and
+/// the in-cluster ServiceAccount token is mounted. When false we fall back to exit(0).
+fn rollout_possible() -> bool {
+    std::env::var("HUB_DEPLOYMENT_NAME").is_ok_and(|v| !v.trim().is_empty())
+        && std::path::Path::new(&format!("{SA_DIR}/token")).exists()
 }
 
 /// Patch this hub's own Deployment pod-template with the new digest, which makes k8s

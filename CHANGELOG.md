@@ -10,6 +10,8 @@ Each released version's section is used verbatim as the GitHub Release notes
 ## [Unreleased]
 
 ### Added
+- **Docker Compose auto-update (opt-in)** — a Watchtower service (behind the `autoupdate`
+  profile) that recreates the hub/agent containers when their image tag updates.
 - **Memory breakdown + Swap charts on the host page** — the agent now reports the Linux
   `free`-style memory split (available / buffers / cached / free) from `/proc/meminfo`, and
   the node detail view adds a "Memory breakdown" chart and a "Swap" chart (shown when the
@@ -17,6 +19,9 @@ Each released version's section is used verbatim as the GitHub Release notes
 
 ### Fixed
 - About page no longer scrolls a short changelog inside a tiny box (cap raised to 70vh).
+- Auto-update degrades gracefully on raw k8s manifests: when the pod lacks the rollout
+  RBAC (`HUB_DEPLOYMENT_NAME` + ServiceAccount), it falls back to an in-place restart
+  instead of silently not updating.
 
 ## [2.3.11] — 2026-06-30
 
